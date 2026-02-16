@@ -1,4 +1,5 @@
 import { TanStackDevtools } from "@tanstack/react-devtools";
+import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
 import type { QueryClient } from "@tanstack/react-query";
 import { ReactQueryDevtoolsPanel } from "@tanstack/react-query-devtools";
 import {
@@ -27,7 +28,7 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
                 content: "width=device-width, initial-scale=1",
             },
             {
-                title: "TanStack Start Starter",
+                title: "StockShpere",
             },
         ],
         links: [
@@ -66,6 +67,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                         {
                             name: "Tanstack Query",
                             render: <ReactQueryDevtoolsPanel />,
+                        },
+                        {
+                            name: "React Query",
+                            render: <FormDevtoolsPanel />,
                         },
                     ]}
                 />
