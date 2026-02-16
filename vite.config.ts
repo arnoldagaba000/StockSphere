@@ -8,22 +8,26 @@ import { defineConfig } from "vite";
 import viteTsConfigPaths from "vite-tsconfig-paths";
 
 const config = defineConfig({
-  resolve: {
-    alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+    resolve: {
+        alias: {
+            "@": fileURLToPath(new URL("./src", import.meta.url)),
+        },
     },
-  },
-  plugins: [
-    devtools(),
-    // nitro({ rollupConfig: { external: [/^@sentry\//] } }),
-    // this is the plugin that enables path aliases
-    viteTsConfigPaths({
-      projects: ["./tsconfig.json"],
-    }),
-    tailwindcss(),
-    tanstackStart(),
-    viteReact(),
-  ],
+    plugins: [
+        devtools(),
+        // nitro({ rollupConfig: { external: [/^@sentry\//] } }),
+        // this is the plugin that enables path aliases
+        viteTsConfigPaths({
+            projects: ["./tsconfig.json"],
+        }),
+        tailwindcss(),
+        tanstackStart(),
+        viteReact({
+            babel: {
+                plugins: ["babel-plugin-react-compiler"],
+            },
+        }),
+    ],
 });
 
 export default config;
