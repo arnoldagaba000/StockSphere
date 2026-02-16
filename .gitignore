@@ -14,4 +14,4 @@ __unconfig*
 todos.json
 
 /src/generated/prisma
-docker-compose.yaml
+docker-compose.yml
