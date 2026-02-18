@@ -4,14 +4,26 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { auth } from "./lib/auth";
 
 const globalAuthMiddleware = createMiddleware({ type: "request" }).server(
-    async ({ next }) => {
+    async ({ next, request }) => {
+        const url = new URL(request.url);
+        const pathname = url.pathname;
+
+        // Exclude auth pages and auth API
+        if (
+            pathname.startsWith("/login") ||
+            pathname.startsWith("/register") ||
+            pathname.startsWith("/api/auth")
+        ) {
+            return next();
+        }
+
         const headers = getRequestHeaders();
 
         const session = await auth.api.getSession({ headers });
         if (!session?.user) {
             throw redirect({
                 to: "/login",
-                search: { redirect: location.pathname + location.search },
+                search: { redirectTo: url.pathname + url.search },
             });
         }
 
