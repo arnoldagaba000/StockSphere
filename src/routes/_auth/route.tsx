@@ -1,7 +1,21 @@
-import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    Link,
+    Outlet,
+    redirect,
+} from "@tanstack/react-router";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import { GalleryVerticalEndIcon } from "lucide-react";
+import { auth } from "@/lib/auth";
 
 export const Route = createFileRoute("/_auth")({
+    beforeLoad: async () => {
+        const headers = getRequestHeaders();
+        const session = await auth.api.getSession({ headers });
+        if (session?.user) {
+            throw redirect({ to: "/" });
+        }
+    },
     component: AuthLayout,
 });
 
