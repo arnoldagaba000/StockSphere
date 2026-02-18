@@ -24,7 +24,11 @@ export const auth = betterAuth({
             clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
         },
     },
-    plugins: [haveIBeenPwned(), lastLoginMethod(), tanstackStartCookies()],
+    plugins: [
+        haveIBeenPwned(),
+        lastLoginMethod(),
+        tanstackStartCookies(),
+    ],
 });
 
 export type User = typeof auth.$Infer.Session.user;
