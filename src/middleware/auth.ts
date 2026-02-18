@@ -5,16 +5,17 @@ import { auth } from "@/lib/auth";
 
 export const authMiddleware = createMiddleware().server(
     async ({ next, request }) => {
+        const url = new URL(request.url);
         const headers = getRequestHeaders();
 
         const session = await auth.api.getSession({ headers });
         if (!session?.user) {
             throw redirect({
                 to: "/login",
-                search: { redirect: location.pathname + location.search },
+                search: { redirectTo: url.pathname + url.search },
             });
         }
 
-        return await next({ context: { session} });
+        return await next({ context: { session } });
     }
 );
