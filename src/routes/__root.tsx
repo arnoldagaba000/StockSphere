@@ -69,7 +69,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                             render: <ReactQueryDevtoolsPanel />,
                         },
                         {
-                            name: "React Query",
+                            name: "Tanstack Form",
                             render: <FormDevtoolsPanel />,
                         },
                     ]}
