@@ -39,7 +39,10 @@ const RegisterForm = () => {
                     },
                     {
                         onSuccess: (ctx) => {
-                            toast.success(`Welcome, ${ctx.data.user.name}`);
+                            const displayName =
+                                ctx.data.user?.name ??
+                                ctx.data.user?.email;
+                            toast.success(`Welcome, ${displayName}`);
                             navigate({ to: "/", replace: true });
                         },
                         onError: (ctx) => {
@@ -62,7 +65,9 @@ const RegisterForm = () => {
             callbackURL: `${window.location.origin}`,
             fetchOptions: {
                 onSuccess: (ctx) => {
-                    toast.success(`Welcome, ${ctx.data.user.name}`);
+                    const displayName =
+                        ctx.data.user?.name ?? ctx.data.user?.email;
+                    toast.success(`Welcome, ${displayName}`);
                 },
                 onError: ({ error }) => {
                     toast.error(error.message);

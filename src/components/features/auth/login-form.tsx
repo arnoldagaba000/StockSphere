@@ -1,5 +1,5 @@
 import { revalidateLogic, useForm } from "@tanstack/react-form";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useTransition } from "react";
 import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import GoogleLogo from "./google-logo";
 
 const LoginForm = () => {
     const navigate = useNavigate();
+    const search = useSearch({ from: "/_auth/login" });
     const [isPending, startTransition] = useTransition();
 
     const form = useForm({
@@ -37,10 +38,13 @@ const LoginForm = () => {
                     { ...value },
                     {
                         onSuccess: (ctx) => {
-                            navigate({ to: "/", replace: true });
-                            toast.success(
-                                `Welcome back, ${ctx.data.user.name}`
-                            );
+                            const displayName =
+                                ctx.data.user?.name ?? ctx.data.user?.email;
+                            navigate({
+                                to: search.redirectTo ?? "/",
+                                replace: true,
+                            });
+                            toast.success(`Welcome back, ${displayName}`);
                         },
                         onError: (ctx) => {
                             toast.error(ctx.error.message);
@@ -62,7 +66,9 @@ const LoginForm = () => {
             callbackURL: `${window.location.origin}`,
             fetchOptions: {
                 onSuccess: (ctx) => {
-                    toast.success(`Welcome, ${ctx.data.user.name}`);
+                    const displayName =
+                        ctx.data.user?.name ?? ctx.data.user?.email;
+                    toast.success(`Welcome, ${displayName}`);
                 },
                 onError: ({ error }) => {
                     toast.error(error.message);
@@ -87,7 +93,7 @@ const LoginForm = () => {
                     onSubmit={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        form.handleSubmit;
+                        form.handleSubmit();
                     }}
                 >
                     <FieldGroup>
