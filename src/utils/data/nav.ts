@@ -2,8 +2,11 @@ import {
     Boxes,
     FolderTree,
     LayoutDashboard,
+    MapPinned,
+    PackageSearch,
     Settings,
     UserCircle2,
+    Warehouse,
 } from "lucide-react";
 import type { NavMainProps } from "@/components/layout/sidebar/nav-main";
 
@@ -59,6 +62,24 @@ export const getNavData = (
             title: "Categories",
             to: "/categories",
             icon: FolderTree,
+            activeOptions: { exact: false },
+        },
+        {
+            title: "Warehouses",
+            to: "/warehouses",
+            icon: Warehouse,
+            activeOptions: { exact: false },
+        },
+        {
+            title: "Locations",
+            to: "/locations",
+            icon: MapPinned,
+            activeOptions: { exact: false },
+        },
+        {
+            title: "Stock",
+            to: "/stock",
+            icon: PackageSearch,
             activeOptions: { exact: false },
         },
         {

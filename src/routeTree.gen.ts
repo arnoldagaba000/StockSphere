@@ -12,7 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as DashboardRouteRouteImport } from './routes/_dashboard/route'
 import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
+import { Route as DashboardWarehousesRouteImport } from './routes/_dashboard/warehouses'
+import { Route as DashboardStockRouteImport } from './routes/_dashboard/stock'
 import { Route as DashboardProfileRouteImport } from './routes/_dashboard/profile'
+import { Route as DashboardLocationsRouteImport } from './routes/_dashboard/locations'
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
 import { Route as AuthRegisterRouteImport } from './routes/_auth/register'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
@@ -45,9 +48,24 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardWarehousesRoute = DashboardWarehousesRouteImport.update({
+  id: '/warehouses',
+  path: '/warehouses',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardStockRoute = DashboardStockRouteImport.update({
+  id: '/stock',
+  path: '/stock',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardProfileRoute = DashboardProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardLocationsRoute = DashboardLocationsRouteImport.update({
+  id: '/locations',
+  path: '/locations',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
@@ -157,7 +175,10 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
+  '/stock': typeof DashboardStockRoute
+  '/warehouses': typeof DashboardWarehousesRoute
   '/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
   '/categories/new': typeof DashboardCategoriesNewRoute
   '/products/$productId': typeof DashboardProductsProductIdRoute
@@ -176,7 +197,10 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
+  '/stock': typeof DashboardStockRoute
+  '/warehouses': typeof DashboardWarehousesRoute
   '/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
   '/categories/new': typeof DashboardCategoriesNewRoute
   '/products/$productId': typeof DashboardProductsProductIdRoute
@@ -200,7 +224,10 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
+  '/_dashboard/locations': typeof DashboardLocationsRoute
   '/_dashboard/profile': typeof DashboardProfileRoute
+  '/_dashboard/stock': typeof DashboardStockRoute
+  '/_dashboard/warehouses': typeof DashboardWarehousesRoute
   '/_dashboard/': typeof DashboardIndexRoute
   '/_dashboard/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
   '/_dashboard/categories/new': typeof DashboardCategoriesNewRoute
@@ -225,7 +252,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/locations'
     | '/profile'
+    | '/stock'
+    | '/warehouses'
     | '/categories/$categoryId'
     | '/categories/new'
     | '/products/$productId'
@@ -244,7 +274,10 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/locations'
     | '/profile'
+    | '/stock'
+    | '/warehouses'
     | '/categories/$categoryId'
     | '/categories/new'
     | '/products/$productId'
@@ -267,7 +300,10 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/register'
     | '/_auth/reset-password'
+    | '/_dashboard/locations'
     | '/_dashboard/profile'
+    | '/_dashboard/stock'
+    | '/_dashboard/warehouses'
     | '/_dashboard/'
     | '/_dashboard/categories/$categoryId'
     | '/_dashboard/categories/new'
@@ -311,11 +347,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardIndexRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/_dashboard/warehouses': {
+      id: '/_dashboard/warehouses'
+      path: '/warehouses'
+      fullPath: '/warehouses'
+      preLoaderRoute: typeof DashboardWarehousesRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/_dashboard/stock': {
+      id: '/_dashboard/stock'
+      path: '/stock'
+      fullPath: '/stock'
+      preLoaderRoute: typeof DashboardStockRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/_dashboard/profile': {
       id: '/_dashboard/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof DashboardProfileRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/_dashboard/locations': {
+      id: '/_dashboard/locations'
+      path: '/locations'
+      fullPath: '/locations'
+      preLoaderRoute: typeof DashboardLocationsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/_auth/reset-password': {
@@ -525,7 +582,10 @@ interface DashboardRouteRouteChildren {
   DashboardCategoriesRouteRoute: typeof DashboardCategoriesRouteRouteWithChildren
   DashboardProductsRouteRoute: typeof DashboardProductsRouteRouteWithChildren
   DashboardSettingsRouteRoute: typeof DashboardSettingsRouteRouteWithChildren
+  DashboardLocationsRoute: typeof DashboardLocationsRoute
   DashboardProfileRoute: typeof DashboardProfileRoute
+  DashboardStockRoute: typeof DashboardStockRoute
+  DashboardWarehousesRoute: typeof DashboardWarehousesRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
@@ -533,7 +593,10 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardCategoriesRouteRoute: DashboardCategoriesRouteRouteWithChildren,
   DashboardProductsRouteRoute: DashboardProductsRouteRouteWithChildren,
   DashboardSettingsRouteRoute: DashboardSettingsRouteRouteWithChildren,
+  DashboardLocationsRoute: DashboardLocationsRoute,
   DashboardProfileRoute: DashboardProfileRoute,
+  DashboardStockRoute: DashboardStockRoute,
+  DashboardWarehousesRoute: DashboardWarehousesRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }
 
