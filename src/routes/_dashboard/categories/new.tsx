@@ -24,7 +24,7 @@ function NewCategoryPage() {
             <CardContent>
                 <CategoryForm
                     categories={categories}
-                    initialValues={{
+                    defaultValues={{
                         description: "",
                         name: "",
                         parentId: "",
@@ -36,14 +36,14 @@ function NewCategoryPage() {
                             await createCategory({ data });
                             toast.success("Category created.");
                             await navigate({ to: "/categories" });
+                            setIsSubmitting(false);
                         } catch (error) {
+                            setIsSubmitting(false);
                             const message =
                                 error instanceof Error
                                     ? error.message
                                     : "Failed to create category.";
                             toast.error(message);
-                        } finally {
-                            setIsSubmitting(false);
                         }
                     }}
                     submitLabel="Create Category"

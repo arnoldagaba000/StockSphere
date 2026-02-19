@@ -244,14 +244,14 @@ function SalesOrdersPage() {
             if (detail.status === "DRAFT") {
                 setDraftFromDetail(detail);
             }
+            setIsLoadingDetail(false);
         } catch (error) {
+            setIsLoadingDetail(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to load sales order detail."
             );
-        } finally {
-            setIsLoadingDetail(false);
         }
     };
 
@@ -262,14 +262,14 @@ function SalesOrdersPage() {
                 buildSalesOrdersQuery(listFilters, page)
             );
             setSalesOrdersResponse(response);
+            setIsLoadingOrders(false);
         } catch (error) {
+            setIsLoadingOrders(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to load sales orders."
             );
-        } finally {
-            setIsLoadingOrders(false);
         }
     };
 
@@ -335,6 +335,10 @@ function SalesOrdersPage() {
             toast.error("Add at least one valid order line.");
             return;
         }
+        const requiredDateValue = requiredDate ? new Date(requiredDate) : null;
+        const shippingAddressValue = shippingAddress.trim() || null;
+        const shippingCostValue = Number(shippingCost) || 0;
+        const taxAmountValue = Number(taxAmount) || 0;
 
         try {
             setIsCreating(true);
@@ -350,23 +354,23 @@ function SalesOrdersPage() {
                         unitPrice: item.unitPrice,
                     })),
                     notes: null,
-                    requiredDate: requiredDate ? new Date(requiredDate) : null,
-                    shippingAddress: shippingAddress.trim() || null,
-                    shippingCost: Number(shippingCost) || 0,
-                    taxAmount: Number(taxAmount) || 0,
+                    requiredDate: requiredDateValue,
+                    shippingAddress: shippingAddressValue,
+                    shippingCost: shippingCostValue,
+                    taxAmount: taxAmountValue,
                 },
             });
             toast.success("Sales order created.");
             resetCreateForm();
             await refresh();
+            setIsCreating(false);
         } catch (error) {
+            setIsCreating(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to create sales order."
             );
-        } finally {
-            setIsCreating(false);
         }
     };
 
@@ -376,14 +380,14 @@ function SalesOrdersPage() {
             await confirmSalesOrder({ data: { salesOrderId: orderId } });
             toast.success("Sales order confirmed.");
             await refresh();
+            setIsActionBusyId(null);
         } catch (error) {
+            setIsActionBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to confirm sales order."
             );
-        } finally {
-            setIsActionBusyId(null);
         }
     };
 
@@ -404,14 +408,14 @@ function SalesOrdersPage() {
             toast.success("Sales order cancelled.");
             setCancelReason("");
             await refresh();
+            setIsActionBusyId(null);
         } catch (error) {
+            setIsActionBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to cancel sales order."
             );
-        } finally {
-            setIsActionBusyId(null);
         }
     };
 
@@ -425,14 +429,14 @@ function SalesOrdersPage() {
                 setSelectedOrderDetail(null);
             }
             await refresh();
+            setIsActionBusyId(null);
         } catch (error) {
+            setIsActionBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to delete draft sales order."
             );
-        } finally {
-            setIsActionBusyId(null);
         }
     };
 
@@ -442,14 +446,14 @@ function SalesOrdersPage() {
             await markSalesOrderDelivered({ data: { salesOrderId: orderId } });
             toast.success("Order marked delivered.");
             await refresh();
+            setIsActionBusyId(null);
         } catch (error) {
+            setIsActionBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to mark order delivered."
             );
-        } finally {
-            setIsActionBusyId(null);
         }
     };
 
@@ -486,31 +490,33 @@ function SalesOrdersPage() {
             toast.error("Select at least one shipment line with quantity.");
             return;
         }
+        const carrierValue = shipmentCarrier.trim() || null;
+        const trackingNumberValue = shipmentTrackingNumber.trim() || null;
 
         try {
             setIsShipping(true);
             await shipOrder({
                 data: {
-                    carrier: shipmentCarrier.trim() || null,
+                    carrier: carrierValue,
                     items: payloadItems,
                     notes: null,
                     salesOrderId: selectedOrderDetail.id,
                     shippedDate: new Date(),
-                    trackingNumber: shipmentTrackingNumber.trim() || null,
+                    trackingNumber: trackingNumberValue,
                 },
             });
             toast.success("Shipment posted.");
             setShipmentCarrier("");
             setShipmentTrackingNumber("");
             await refresh();
+            setIsShipping(false);
         } catch (error) {
+            setIsShipping(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to post shipment."
             );
-        } finally {
-            setIsShipping(false);
         }
     };
 
@@ -538,32 +544,37 @@ function SalesOrdersPage() {
             toast.error("Draft needs at least one valid line.");
             return;
         }
+        const notesValue = draftNotes.trim() || null;
+        const requiredDateValue = draftRequiredDate
+            ? new Date(draftRequiredDate)
+            : null;
+        const shippingAddressValue = draftShippingAddress.trim() || null;
+        const shippingCostValue = Number(draftShippingCost) || 0;
+        const taxAmountValue = Number(draftTaxAmount) || 0;
 
         try {
             setIsSavingDraft(true);
             await updateSalesOrderDraft({
                 data: {
                     items: normalizedLines,
-                    notes: draftNotes.trim() || null,
-                    requiredDate: draftRequiredDate
-                        ? new Date(draftRequiredDate)
-                        : null,
+                    notes: notesValue,
+                    requiredDate: requiredDateValue,
                     salesOrderId: selectedOrderDetail.id,
-                    shippingAddress: draftShippingAddress.trim() || null,
-                    shippingCost: Number(draftShippingCost) || 0,
-                    taxAmount: Number(draftTaxAmount) || 0,
+                    shippingAddress: shippingAddressValue,
+                    shippingCost: shippingCostValue,
+                    taxAmount: taxAmountValue,
                 },
             });
             toast.success("Draft updated.");
             await refresh();
+            setIsSavingDraft(false);
         } catch (error) {
+            setIsSavingDraft(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to update draft."
             );
-        } finally {
-            setIsSavingDraft(false);
         }
     };
 

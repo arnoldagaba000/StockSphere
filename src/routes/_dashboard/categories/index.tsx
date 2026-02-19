@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { buildCategoryHierarchy } from "@/components/features/categories/utils";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
@@ -55,26 +55,46 @@ const toCategoryStatusFilter = (
     return "active";
 };
 
+interface CategoriesPageState {
+    deletingCategoryId: string | null;
+    filteredCategories: Awaited<ReturnType<typeof listCategories>> | null;
+    isFiltering: boolean;
+    reassignChildrenTo: string;
+    reassignProductsTo: string;
+    searchValue: string;
+    statusValue: "active" | "inactive" | "all";
+}
+
+const categoriesPageReducer = (
+    state: CategoriesPageState,
+    patch: Partial<CategoriesPageState>
+): CategoriesPageState => ({
+    ...state,
+    ...patch,
+});
+
 function CategoriesPage() {
     const router = useRouter();
     const { categories, analytics } = Route.useLoaderData();
-    const [visibleCategories, setVisibleCategories] = useState(categories);
-    const [searchValue, setSearchValue] = useState("");
-    const [statusValue, setStatusValue] = useState<
-        "active" | "inactive" | "all"
-    >("active");
-    const [isFiltering, setIsFiltering] = useState(false);
-    const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(
-        null
-    );
-    const [reassignProductsTo, setReassignProductsTo] =
-        useState<string>("none");
-    const [reassignChildrenTo, setReassignChildrenTo] =
-        useState<string>("none");
-
-    useEffect(() => {
-        setVisibleCategories(categories);
-    }, [categories]);
+    const [state, patchState] = useReducer(categoriesPageReducer, {
+        deletingCategoryId: null,
+        filteredCategories: null,
+        isFiltering: false,
+        reassignChildrenTo: "none",
+        reassignProductsTo: "none",
+        searchValue: "",
+        statusValue: "active",
+    });
+    const {
+        deletingCategoryId,
+        filteredCategories,
+        isFiltering,
+        reassignChildrenTo,
+        reassignProductsTo,
+        searchValue,
+        statusValue,
+    } = state;
+    const visibleCategories = filteredCategories ?? categories;
 
     const parentNameById = useMemo(
         () =>
@@ -96,55 +116,56 @@ function CategoriesPage() {
     );
 
     const applyFilters = async () => {
+        const isActiveFilter =
+            statusValue === "all" ? undefined : statusValue === "active";
+
         try {
-            setIsFiltering(true);
+            patchState({ isFiltering: true });
             const response = await listCategories({
                 data: {
-                    isActive:
-                        statusValue === "all"
-                            ? undefined
-                            : statusValue === "active",
+                    isActive: isActiveFilter,
                     search: searchValue,
                 },
             });
-            setVisibleCategories(response);
+            patchState({
+                filteredCategories: response,
+                isFiltering: false,
+            });
         } catch (error) {
+            patchState({ isFiltering: false });
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to fetch categories.";
             toast.error(message);
-        } finally {
-            setIsFiltering(false);
         }
     };
 
     const handleDeleteCategory = async (categoryId: string) => {
+        const reassignChildCategoriesToValue =
+            reassignChildrenTo === "none" ? null : reassignChildrenTo;
+        const reassignProductsToValue =
+            reassignProductsTo === "none" ? null : reassignProductsTo;
+
         try {
-            setDeletingCategoryId(categoryId);
+            patchState({ deletingCategoryId: categoryId });
             await deleteCategory({
                 data: {
                     id: categoryId,
-                    reassignChildCategoriesTo:
-                        reassignChildrenTo === "none"
-                            ? null
-                            : reassignChildrenTo,
-                    reassignProductsTo:
-                        reassignProductsTo === "none"
-                            ? null
-                            : reassignProductsTo,
+                    reassignChildCategoriesTo: reassignChildCategoriesToValue,
+                    reassignProductsTo: reassignProductsToValue,
                 },
             });
             toast.success("Category archived.");
             await router.invalidate();
+            patchState({ deletingCategoryId: null });
         } catch (error) {
+            patchState({ deletingCategoryId: null });
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to archive category.";
             toast.error(message);
-        } finally {
-            setDeletingCategoryId(null);
         }
     };
 
@@ -170,7 +191,11 @@ function CategoriesPage() {
                     <Label htmlFor="category-search">Search</Label>
                     <Input
                         id="category-search"
-                        onChange={(event) => setSearchValue(event.target.value)}
+                        onChange={(event) =>
+                            patchState({
+                                searchValue: event.target.value,
+                            })
+                        }
                         placeholder="Search categories by name"
                         value={searchValue}
                     />
@@ -179,7 +204,9 @@ function CategoriesPage() {
                     <Label>Status</Label>
                     <Select
                         onValueChange={(nextValue) =>
-                            setStatusValue(toCategoryStatusFilter(nextValue))
+                            patchState({
+                                statusValue: toCategoryStatusFilter(nextValue),
+                            })
                         }
                         value={statusValue}
                     >
@@ -205,7 +232,9 @@ function CategoriesPage() {
                     <Label>Reassign products on archive</Label>
                     <Select
                         onValueChange={(value) =>
-                            setReassignProductsTo(value ?? "none")
+                            patchState({
+                                reassignProductsTo: value ?? "none",
+                            })
                         }
                         value={reassignProductsTo}
                     >
@@ -231,7 +260,9 @@ function CategoriesPage() {
                     <Label>Reassign child categories on archive</Label>
                     <Select
                         onValueChange={(value) =>
-                            setReassignChildrenTo(value ?? "none")
+                            patchState({
+                                reassignChildrenTo: value ?? "none",
+                            })
                         }
                         value={reassignChildrenTo}
                     >

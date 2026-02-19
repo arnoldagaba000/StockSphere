@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +36,7 @@ interface ReceiptLineInput {
 }
 
 type ReceiptLineInputMap = Record<string, ReceiptLineInput>;
+type PurchaseOrderDetail = Awaited<ReturnType<typeof getPurchaseOrderDetail>>;
 
 const createEmptyLineInput = (
     productId: string,
@@ -47,6 +48,55 @@ const createEmptyLineInput = (
     quantity: quantity > 0 ? String(quantity) : "",
     serialNumber: "",
 });
+
+interface GoodsReceiptsState {
+    isLoadingOrder: boolean;
+    isSubmitting: boolean;
+    isVoidingId: string | null;
+    lineInputs: ReceiptLineInputMap;
+    purchaseOrderId: string;
+    selectedOrderDetail: PurchaseOrderDetail | null;
+    voidReason: string;
+    warehouseId: string;
+}
+
+type GoodsReceiptsAction =
+    | {
+          patch: Partial<GoodsReceiptsState>;
+          type: "patch";
+      }
+    | {
+          patch: Partial<ReceiptLineInput>;
+          productId: string;
+          type: "updateLineInput";
+      };
+
+const goodsReceiptsReducer = (
+    state: GoodsReceiptsState,
+    action: GoodsReceiptsAction
+): GoodsReceiptsState => {
+    if (action.type === "patch") {
+        return {
+            ...state,
+            ...action.patch,
+        };
+    }
+
+    const currentInput =
+        state.lineInputs[action.productId] ??
+        createEmptyLineInput(action.productId, 0);
+
+    return {
+        ...state,
+        lineInputs: {
+            ...state.lineInputs,
+            [action.productId]: {
+                ...currentInput,
+                ...action.patch,
+            },
+        },
+    };
+};
 
 export const Route = createFileRoute("/_dashboard/goods-receipts")({
     component: GoodsReceiptsPage,
@@ -75,19 +125,32 @@ function GoodsReceiptsPage() {
         [purchaseOrders]
     );
 
-    const [purchaseOrderId, setPurchaseOrderId] = useState(
-        receivableOrders[0]?.id ?? ""
-    );
-    const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id ?? "");
-    const [lineInputs, setLineInputs] = useState<ReceiptLineInputMap>({});
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isVoidingId, setIsVoidingId] = useState<string | null>(null);
-    const [voidReason, setVoidReason] = useState("");
-
-    const [selectedOrderDetail, setSelectedOrderDetail] = useState<Awaited<
-        ReturnType<typeof getPurchaseOrderDetail>
-    > | null>(null);
-    const [isLoadingOrder, setIsLoadingOrder] = useState(false);
+    const [state, dispatch] = useReducer(goodsReceiptsReducer, {
+        isLoadingOrder: false,
+        isSubmitting: false,
+        isVoidingId: null,
+        lineInputs: {},
+        purchaseOrderId: receivableOrders[0]?.id ?? "",
+        selectedOrderDetail: null,
+        voidReason: "",
+        warehouseId: warehouses[0]?.id ?? "",
+    });
+    const {
+        isLoadingOrder,
+        isSubmitting,
+        isVoidingId,
+        lineInputs,
+        purchaseOrderId,
+        selectedOrderDetail,
+        voidReason,
+        warehouseId,
+    } = state;
+    const patchState = (patch: Partial<GoodsReceiptsState>) => {
+        dispatch({
+            patch,
+            type: "patch",
+        });
+    };
 
     const refresh = async (): Promise<void> => {
         await router.invalidate();
@@ -95,15 +158,13 @@ function GoodsReceiptsPage() {
 
     useEffect(() => {
         if (!purchaseOrderId) {
-            setSelectedOrderDetail(null);
-            setLineInputs({});
             return;
         }
 
-        setIsLoadingOrder(true);
-        getPurchaseOrderDetail({ data: { purchaseOrderId } })
+        getPurchaseOrderDetail({
+            data: { purchaseOrderId },
+        })
             .then((detail) => {
-                setSelectedOrderDetail(detail);
                 const nextInputs: ReceiptLineInputMap = {};
                 for (const item of detail.items) {
                     const outstandingQuantity = Math.max(
@@ -115,7 +176,15 @@ function GoodsReceiptsPage() {
                         outstandingQuantity
                     );
                 }
-                setLineInputs(nextInputs);
+
+                dispatch({
+                    patch: {
+                        isLoadingOrder: false,
+                        lineInputs: nextInputs,
+                        selectedOrderDetail: detail,
+                    },
+                    type: "patch",
+                });
             })
             .catch((error) => {
                 toast.error(
@@ -123,24 +192,26 @@ function GoodsReceiptsPage() {
                         ? error.message
                         : "Failed to load purchase order details."
                 );
-                setSelectedOrderDetail(null);
-                setLineInputs({});
-            })
-            .finally(() => setIsLoadingOrder(false));
+                dispatch({
+                    patch: {
+                        isLoadingOrder: false,
+                        lineInputs: {},
+                        selectedOrderDetail: null,
+                    },
+                    type: "patch",
+                });
+            });
     }, [purchaseOrderId]);
 
     const updateLineInput = (
         productId: string,
         patch: Partial<ReceiptLineInput>
     ): void => {
-        setLineInputs((currentInputs) => ({
-            ...currentInputs,
-            [productId]: {
-                ...(currentInputs[productId] ??
-                    createEmptyLineInput(productId, 0)),
-                ...patch,
-            },
-        }));
+        dispatch({
+            patch,
+            productId,
+            type: "updateLineInput",
+        });
     };
 
     const handleReceive = async () => {
@@ -173,7 +244,7 @@ function GoodsReceiptsPage() {
         }
 
         try {
-            setIsSubmitting(true);
+            patchState({ isSubmitting: true });
             await receiveGoods({
                 data: {
                     idempotencyKey: crypto.randomUUID(),
@@ -185,14 +256,14 @@ function GoodsReceiptsPage() {
             });
             toast.success("Goods receipt posted.");
             await refresh();
+            patchState({ isSubmitting: false });
         } catch (error) {
+            patchState({ isSubmitting: false });
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to receive goods."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -203,20 +274,20 @@ function GoodsReceiptsPage() {
         }
 
         try {
-            setIsVoidingId(receiptId);
+            patchState({ isVoidingId: receiptId });
             await voidGoodsReceipt({
                 data: { goodsReceiptId: receiptId, reason: voidReason.trim() },
             });
             toast.success("Goods receipt voided.");
             await refresh();
+            patchState({ isVoidingId: null });
         } catch (error) {
+            patchState({ isVoidingId: null });
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to void goods receipt."
             );
-        } finally {
-            setIsVoidingId(null);
         }
     };
 
@@ -239,9 +310,18 @@ function GoodsReceiptsPage() {
                         <div className="space-y-2">
                             <Label>Purchase Order</Label>
                             <Select
-                                onValueChange={(value) =>
-                                    setPurchaseOrderId(value ?? "")
-                                }
+                                onValueChange={(value) => {
+                                    const nextPurchaseOrderId = value ?? "";
+                                    patchState({
+                                        purchaseOrderId: nextPurchaseOrderId,
+                                    });
+                                    if (!nextPurchaseOrderId) {
+                                        patchState({
+                                            lineInputs: {},
+                                            selectedOrderDetail: null,
+                                        });
+                                    }
+                                }}
                                 value={purchaseOrderId}
                             >
                                 <SelectTrigger>
@@ -264,7 +344,9 @@ function GoodsReceiptsPage() {
                             <Label>Warehouse</Label>
                             <Select
                                 onValueChange={(value) =>
-                                    setWarehouseId(value ?? "")
+                                    patchState({
+                                        warehouseId: value ?? "",
+                                    })
                                 }
                                 value={warehouseId}
                             >
@@ -412,7 +494,9 @@ function GoodsReceiptsPage() {
                         <Input
                             id="void-reason"
                             onChange={(event) =>
-                                setVoidReason(event.target.value)
+                                patchState({
+                                    voidReason: event.target.value,
+                                })
                             }
                             placeholder="Reason required to reverse a receipt"
                             value={voidReason}

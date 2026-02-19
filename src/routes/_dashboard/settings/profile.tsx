@@ -69,9 +69,9 @@ function ProfileSettingsPage() {
                     ? error.message
                     : "Failed to load selected image.";
             toast.error(message);
-        } finally {
-            event.target.value = "";
         }
+
+        event.target.value = "";
     };
 
     const handleSave = async () => {
@@ -85,14 +85,14 @@ function ProfileSettingsPage() {
             });
             toast.success("Profile settings updated.");
             await router.invalidate();
+            setIsSaving(false);
         } catch (error) {
+            setIsSaving(false);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to update profile settings.";
             toast.error(message);
-        } finally {
-            setIsSaving(false);
         }
     };
 

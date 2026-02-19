@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useReducer } from "react";
 import { buildCategoryHierarchy } from "@/components/features/categories/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,26 +33,39 @@ export interface CategorySubmitData {
 interface CategoryFormProps {
     categories: CategoryOption[];
     excludeCategoryIds?: readonly string[];
-    initialValues: CategoryFormValues;
+    defaultValues: CategoryFormValues;
     isSubmitting: boolean;
     onSubmit: (data: CategorySubmitData) => Promise<void>;
     submitLabel: string;
 }
+
+const EMPTY_EXCLUDED_CATEGORY_IDS: readonly string[] = [];
 
 const toNullableString = (value: string): string | null => {
     const trimmedValue = value.trim();
     return trimmedValue.length > 0 ? trimmedValue : null;
 };
 
+const updateCategoryFormValues = (
+    values: CategoryFormValues,
+    patch: Partial<CategoryFormValues>
+): CategoryFormValues => ({
+    ...values,
+    ...patch,
+});
+
 const CategoryForm = ({
     categories,
-    excludeCategoryIds = [],
-    initialValues,
+    excludeCategoryIds = EMPTY_EXCLUDED_CATEGORY_IDS,
+    defaultValues,
     isSubmitting,
     onSubmit,
     submitLabel,
 }: CategoryFormProps) => {
-    const [values, setValues] = useState(initialValues);
+    const [values, setValues] = useReducer(
+        updateCategoryFormValues,
+        defaultValues
+    );
     const parentCategoryOptions = useMemo(
         () => buildCategoryHierarchy(categories, excludeCategoryIds),
         [categories, excludeCategoryIds]
@@ -60,26 +73,23 @@ const CategoryForm = ({
 
     return (
         <form
-            className="space-y-4"
-            onSubmit={async (event) => {
-                event.preventDefault();
-
+            action={async () => {
                 await onSubmit({
                     description: toNullableString(values.description),
                     name: values.name.trim(),
                     parentId: toNullableString(values.parentId),
                 });
             }}
+            className="space-y-4"
         >
             <div className="space-y-2">
                 <Label htmlFor="category-name">Category Name</Label>
                 <Input
                     id="category-name"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             name: event.target.value,
-                        }))
+                        })
                     }
                     required
                     value={values.name}
@@ -90,13 +100,12 @@ const CategoryForm = ({
                 <Label htmlFor="category-parent">Parent Category</Label>
                 <Select
                     onValueChange={(nextValue) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             parentId:
                                 nextValue && nextValue !== "none"
                                     ? nextValue
                                     : "",
-                        }))
+                        })
                     }
                     value={values.parentId || "none"}
                 >
@@ -119,10 +128,9 @@ const CategoryForm = ({
                 <Textarea
                     id="category-description"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             description: event.target.value,
-                        }))
+                        })
                     }
                     rows={4}
                     value={values.description}

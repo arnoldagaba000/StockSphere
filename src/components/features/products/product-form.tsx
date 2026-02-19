@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useReducer } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -65,7 +65,7 @@ export interface ProductSubmitData {
 
 interface ProductFormProps {
     categories: CategoryOption[];
-    initialValues: ProductFormValues;
+    defaultValues: ProductFormValues;
     isSubmitting: boolean;
     onSubmit: (data: ProductSubmitData) => Promise<void>;
     submitLabel: string;
@@ -86,21 +86,29 @@ const toNullableNumber = (value: string): number | null => {
     return Number.isFinite(parsedValue) ? parsedValue : null;
 };
 
+const updateProductFormValues = (
+    values: ProductFormValues,
+    patch: Partial<ProductFormValues>
+): ProductFormValues => ({
+    ...values,
+    ...patch,
+});
+
 const ProductForm = ({
     categories,
-    initialValues,
+    defaultValues,
     isSubmitting,
     onSubmit,
     submitLabel,
 }: ProductFormProps) => {
-    const [values, setValues] = useState<ProductFormValues>(initialValues);
+    const [values, setValues] = useReducer(
+        updateProductFormValues,
+        defaultValues
+    );
 
     return (
         <form
-            className="grid gap-4 md:grid-cols-2"
-            onSubmit={async (event) => {
-                event.preventDefault();
-
+            action={async () => {
                 await onSubmit({
                     barcode: toNullableString(values.barcode),
                     categoryId: toNullableString(values.categoryId),
@@ -124,16 +132,16 @@ const ProductForm = ({
                     weightUnit: toNullableString(values.weightUnit),
                 });
             }}
+            className="grid gap-4 md:grid-cols-2"
         >
             <div className="space-y-2">
                 <Label htmlFor="name">Product Name</Label>
                 <Input
                     id="name"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             name: event.target.value,
-                        }))
+                        })
                     }
                     required
                     value={values.name}
@@ -144,10 +152,9 @@ const ProductForm = ({
                 <Input
                     id="sku"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             sku: event.target.value,
-                        }))
+                        })
                     }
                     required
                     value={values.sku}
@@ -158,10 +165,9 @@ const ProductForm = ({
                 <Textarea
                     id="description"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             description: event.target.value,
-                        }))
+                        })
                     }
                     rows={3}
                     value={values.description}
@@ -172,10 +178,9 @@ const ProductForm = ({
                 <Input
                     id="barcode"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             barcode: event.target.value,
-                        }))
+                        })
                     }
                     value={values.barcode}
                 />
@@ -184,13 +189,12 @@ const ProductForm = ({
                 <Label htmlFor="category">Category</Label>
                 <Select
                     onValueChange={(nextValue) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             categoryId:
                                 nextValue && nextValue !== "none"
                                     ? nextValue
                                     : "",
-                        }))
+                        })
                     }
                     value={values.categoryId || "none"}
                 >
@@ -213,10 +217,9 @@ const ProductForm = ({
                     id="cost-price"
                     min={0}
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             costPrice: event.target.value,
-                        }))
+                        })
                     }
                     step={1}
                     type="number"
@@ -229,10 +232,9 @@ const ProductForm = ({
                     id="selling-price"
                     min={0}
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             sellingPrice: event.target.value,
-                        }))
+                        })
                     }
                     step={1}
                     type="number"
@@ -246,10 +248,9 @@ const ProductForm = ({
                     max={100}
                     min={0}
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             taxRate: event.target.value,
-                        }))
+                        })
                     }
                     step={1}
                     type="number"
@@ -260,15 +261,14 @@ const ProductForm = ({
                 <Label htmlFor="status">Lifecycle Status</Label>
                 <Select
                     onValueChange={(nextValue) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             status:
                                 nextValue === "DRAFT" ||
                                 nextValue === "DISCONTINUED" ||
                                 nextValue === "ARCHIVED"
                                     ? nextValue
                                     : "ACTIVE",
-                        }))
+                        })
                     }
                     value={values.status}
                 >
@@ -290,10 +290,9 @@ const ProductForm = ({
                 <Input
                     id="unit"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             unit: event.target.value,
-                        }))
+                        })
                     }
                     value={values.unit}
                 />
@@ -304,10 +303,9 @@ const ProductForm = ({
                     id="weight"
                     min={0}
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             weight: event.target.value,
-                        }))
+                        })
                     }
                     step="0.001"
                     type="number"
@@ -319,10 +317,9 @@ const ProductForm = ({
                 <Input
                     id="weight-unit"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             weightUnit: event.target.value,
-                        }))
+                        })
                     }
                     value={values.weightUnit}
                 />
@@ -332,10 +329,9 @@ const ProductForm = ({
                 <Input
                     id="dimensions"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             dimensions: event.target.value,
-                        }))
+                        })
                     }
                     placeholder="LxWxH"
                     value={values.dimensions}
@@ -347,10 +343,9 @@ const ProductForm = ({
                     id="reorder-point"
                     min={0}
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             reorderPoint: event.target.value,
-                        }))
+                        })
                     }
                     step={1}
                     type="number"
@@ -363,10 +358,9 @@ const ProductForm = ({
                     id="reorder-quantity"
                     min={0}
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             reorderQuantity: event.target.value,
-                        }))
+                        })
                     }
                     step={1}
                     type="number"
@@ -379,10 +373,9 @@ const ProductForm = ({
                     id="minimum-stock"
                     min={0}
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             minimumStock: event.target.value,
-                        }))
+                        })
                     }
                     step={1}
                     type="number"
@@ -395,10 +388,9 @@ const ProductForm = ({
                     id="maximum-stock"
                     min={0}
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             maximumStock: event.target.value,
-                        }))
+                        })
                     }
                     step={1}
                     type="number"
@@ -413,10 +405,9 @@ const ProductForm = ({
                         <Switch
                             checked={values.trackBySerialNumber}
                             onCheckedChange={(checked) =>
-                                setValues((currentValues) => ({
-                                    ...currentValues,
+                                setValues({
                                     trackBySerialNumber: checked,
-                                }))
+                                })
                             }
                         />
                     </Label>
@@ -425,10 +416,9 @@ const ProductForm = ({
                         <Switch
                             checked={values.trackByBatch}
                             onCheckedChange={(checked) =>
-                                setValues((currentValues) => ({
-                                    ...currentValues,
+                                setValues({
                                     trackByBatch: checked,
-                                }))
+                                })
                             }
                         />
                     </Label>
@@ -437,10 +427,9 @@ const ProductForm = ({
                         <Switch
                             checked={values.trackByExpiry}
                             onCheckedChange={(checked) =>
-                                setValues((currentValues) => ({
-                                    ...currentValues,
+                                setValues({
                                     trackByExpiry: checked,
-                                }))
+                                })
                             }
                         />
                     </Label>

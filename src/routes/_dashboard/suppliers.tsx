@@ -143,18 +143,22 @@ function SuppliersPage() {
             }
             resetForm();
             await refresh();
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to save supplier."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
     const handleToggleSupplierActive = async (supplier: SupplierRecord) => {
+        const successMessage = supplier.isActive
+            ? "Supplier deactivated."
+            : "Supplier activated.";
+
         try {
             setIsRowBusyId(supplier.id);
             await setSupplierActive({
@@ -163,20 +167,16 @@ function SuppliersPage() {
                     supplierId: supplier.id,
                 },
             });
-            toast.success(
-                supplier.isActive
-                    ? "Supplier deactivated."
-                    : "Supplier activated."
-            );
+            toast.success(successMessage);
             await refresh();
+            setIsRowBusyId(null);
         } catch (error) {
+            setIsRowBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to update supplier status."
             );
-        } finally {
-            setIsRowBusyId(null);
         }
     };
 
@@ -197,14 +197,14 @@ function SuppliersPage() {
                 resetForm();
             }
             await refresh();
+            setIsRowBusyId(null);
         } catch (error) {
+            setIsRowBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to delete supplier."
             );
-        } finally {
-            setIsRowBusyId(null);
         }
     };
 

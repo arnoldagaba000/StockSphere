@@ -74,6 +74,32 @@ interface ProductEditLoaderData {
     variants: Awaited<ReturnType<typeof listProductVariants>>;
 }
 
+const hasPendingApprovalResponse = (response: unknown): boolean => {
+    if (typeof response !== "object" || response === null) {
+        return false;
+    }
+
+    if (!("pendingApproval" in response)) {
+        return false;
+    }
+
+    return Boolean(response.pendingApproval);
+};
+
+const parseVariantAttributes = (
+    value: string
+): Record<string, string> | null => {
+    if (!value) {
+        return {};
+    }
+
+    try {
+        return JSON.parse(value) as Record<string, string>;
+    } catch {
+        return null;
+    }
+};
+
 const formatUtcDateTime = (value: Date | string): string => {
     const date = value instanceof Date ? value : new Date(value);
     return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
@@ -189,23 +215,25 @@ function EditProductPage() {
                     id: product.id,
                 },
             });
+            const hasPendingApproval = hasPendingApprovalResponse(response);
 
-            if ("pendingApproval" in response && response.pendingApproval) {
+            if (hasPendingApproval) {
                 toast.success("Critical change submitted for approval.");
                 await router.invalidate();
+                setIsSubmitting(false);
                 return;
             }
 
             toast.success("Product updated.");
             await navigate({ to: "/products" });
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to update product."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -218,7 +246,7 @@ function EditProductPage() {
                 <CardContent>
                     <ProductForm
                         categories={categoryOptions}
-                        initialValues={toFormValues(product)}
+                        defaultValues={toFormValues(product)}
                         isSubmitting={isSubmitting}
                         onSubmit={handleSubmit}
                         submitLabel="Save Changes"
@@ -369,14 +397,9 @@ function EditProductPage() {
                         />
                         <Button
                             onClick={async () => {
-                                let attributes: Record<string, string> = {};
-                                try {
-                                    attributes = variantAttributes
-                                        ? (JSON.parse(
-                                              variantAttributes
-                                          ) as Record<string, string>)
-                                        : {};
-                                } catch {
+                                const attributes =
+                                    parseVariantAttributes(variantAttributes);
+                                if (!attributes) {
                                     toast.error(
                                         "Invalid variant attributes JSON."
                                     );

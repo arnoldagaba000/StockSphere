@@ -114,14 +114,14 @@ function SecuritySettingsPage() {
             setNewPassword("");
             setConfirmPassword("");
             await router.invalidate();
+            setIsSubmittingPassword(false);
         } catch (error) {
+            setIsSubmittingPassword(false);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to change password.";
             toast.error(message);
-        } finally {
-            setIsSubmittingPassword(false);
         }
     };
 
@@ -134,14 +134,14 @@ function SecuritySettingsPage() {
                 },
             });
             toast.success("Verification email sent to confirm email change.");
+            setIsSubmittingEmail(false);
         } catch (error) {
+            setIsSubmittingEmail(false);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to request email change.";
             toast.error(message);
-        } finally {
-            setIsSubmittingEmail(false);
         }
     };
 
@@ -151,14 +151,14 @@ function SecuritySettingsPage() {
             await revokeCurrentUserSession({ data: { token } });
             toast.success("Session revoked.");
             await router.invalidate();
+            setRevokingToken(null);
         } catch (error) {
+            setRevokingToken(null);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to revoke session.";
             toast.error(message);
-        } finally {
-            setRevokingToken(null);
         }
     };
 

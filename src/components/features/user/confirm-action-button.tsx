@@ -48,14 +48,14 @@ const ConfirmActionButton = ({
         try {
             setIsPending(true);
             await onConfirm();
+            setIsPending(false);
         } catch (error) {
+            setIsPending(false);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to perform action.";
             toast.error(message);
-        } finally {
-            setIsPending(false);
         }
     };
 

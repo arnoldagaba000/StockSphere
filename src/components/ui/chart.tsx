@@ -5,13 +5,13 @@ import {
     type ComponentType,
     type CSSProperties,
     createContext,
+    lazy,
     type ReactNode,
+    Suspense,
     useContext,
     useId,
     useMemo,
 } from "react";
-import type { LegendPayload, TooltipContentProps } from "recharts";
-import { Legend, ResponsiveContainer, Tooltip } from "recharts";
 
 import { cn } from "@/lib/utils";
 
@@ -28,11 +28,26 @@ export type ChartConfig = {
     );
 };
 
-type ChartContextProps = {
+interface ChartContextProps {
     config: ChartConfig;
-};
+}
 
 const ChartContext = createContext<ChartContextProps | null>(null);
+
+const ResponsiveContainer = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.ResponsiveContainer };
+});
+
+const Tooltip = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.Tooltip };
+});
+
+const Legend = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.Legend };
+});
 
 function useChart() {
     const context = useContext(ChartContext);
@@ -69,7 +84,9 @@ function ChartContainer({
                 {...props}
             >
                 <ChartStyle config={config} id={chartId} />
-                <ResponsiveContainer>{children}</ResponsiveContainer>
+                <Suspense fallback={null}>
+                    <ResponsiveContainer>{children}</ResponsiveContainer>
+                </Suspense>
             </div>
         </ChartContext.Provider>
     );
@@ -85,11 +102,10 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
     }
 
     return (
-        <style
-            dangerouslySetInnerHTML={{
-                __html: Object.entries(THEMES)
-                    .map(
-                        ([theme, prefix]) => `
+        <style>
+            {Object.entries(THEMES)
+                .map(
+                    ([theme, prefix]) => `
 ${prefix} [data-chart=${id}] {
 ${colorConfig
     .map(([key, itemConfig]) => {
@@ -101,10 +117,9 @@ ${colorConfig
     .join("\n")}
 }
 `
-                    )
-                    .join("\n"),
-            }}
-        />
+                )
+                .join("\n")}
+        </style>
     );
 };
 
@@ -127,7 +142,7 @@ function ChartTooltipContent({
     color,
     nameKey,
     labelKey,
-}: TooltipContentProps<TooltipValue, TooltipName> &
+}: import("recharts").TooltipContentProps<TooltipValue, TooltipName> &
     ComponentProps<"div"> & {
         hideLabel?: boolean;
         hideIndicator?: boolean;
@@ -296,7 +311,7 @@ function ChartLegendContent({
     verticalAlign = "bottom",
     nameKey,
 }: ComponentProps<"div"> & {
-    payload?: readonly LegendPayload[];
+    payload?: readonly import("recharts").LegendPayload[];
     verticalAlign?: "top" | "bottom" | "middle";
     hideIcon?: boolean;
     nameKey?: string;

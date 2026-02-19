@@ -148,6 +148,10 @@ function CustomersPage() {
             toast.error("Customer name is required.");
             return;
         }
+        const creditLimitValue =
+            form.creditLimit.trim().length > 0
+                ? Number(form.creditLimit)
+                : null;
 
         try {
             setIsSubmitting(true);
@@ -158,10 +162,7 @@ function CustomersPage() {
                         address: null,
                         city: null,
                         country: null,
-                        creditLimit:
-                            form.creditLimit.trim().length > 0
-                                ? Number(form.creditLimit)
-                                : null,
+                        creditLimit: creditLimitValue,
                         customerId: editingCustomerId,
                         email: toOptional(form.email),
                         name: form.name.trim(),
@@ -174,6 +175,7 @@ function CustomersPage() {
             } else {
                 if (form.code.trim().length === 0) {
                     toast.error("Customer code is required.");
+                    setIsSubmitting(false);
                     return;
                 }
 
@@ -183,10 +185,7 @@ function CustomersPage() {
                         city: null,
                         code: form.code.trim().toUpperCase(),
                         country: null,
-                        creditLimit:
-                            form.creditLimit.trim().length > 0
-                                ? Number(form.creditLimit)
-                                : null,
+                        creditLimit: creditLimitValue,
                         email: toOptional(form.email),
                         isActive: true,
                         name: form.name.trim(),
@@ -200,14 +199,14 @@ function CustomersPage() {
 
             resetForm();
             await reload();
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to save customer."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -216,6 +215,9 @@ function CustomersPage() {
         if (!customer) {
             return;
         }
+        const successMessage = customer.isActive
+            ? "Customer deactivated."
+            : "Customer activated.";
 
         try {
             setIsRowBusyId(customer.id);
@@ -225,20 +227,16 @@ function CustomersPage() {
                     isActive: !customer.isActive,
                 },
             });
-            toast.success(
-                customer.isActive
-                    ? "Customer deactivated."
-                    : "Customer activated."
-            );
+            toast.success(successMessage);
             await reload();
+            setIsRowBusyId(null);
         } catch (error) {
+            setIsRowBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to change customer status."
             );
-        } finally {
-            setIsRowBusyId(null);
         }
     };
 
@@ -257,14 +255,14 @@ function CustomersPage() {
                 resetForm();
             }
             await reload();
+            setIsRowBusyId(null);
         } catch (error) {
+            setIsRowBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to delete customer."
             );
-        } finally {
-            setIsRowBusyId(null);
         }
     };
 

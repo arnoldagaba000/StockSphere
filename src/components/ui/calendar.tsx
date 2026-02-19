@@ -35,8 +35,8 @@ function Calendar({
             captionLayout={captionLayout}
             className={cn(
                 "group/calendar bg-background in-data-[slot=card-content]:bg-transparent in-data-[slot=popover-content]:bg-transparent p-2 [--cell-radius:var(--radius-md)] [--cell-size:--spacing(7)]",
-                String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
-                String.raw`rtl:**:[.rdp-button\_previous>svg]:rotate-180`,
+                "rtl:**:[.rdp-button\\_next>svg]:rotate-180",
+                "rtl:**:[.rdp-button\\_previous>svg]:rotate-180",
                 className
             )}
             classNames={{
