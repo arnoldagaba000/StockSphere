@@ -1,12 +1,71 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { lastLoginMethod } from "better-auth/plugins";
+import { createAccessControl } from "better-auth/plugins/access";
+import { admin } from "better-auth/plugins/admin";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { prisma } from "@/db";
 import { sendEmail } from "@/lib/email/sender";
 import { createResetPasswordEmailTemplate } from "@/lib/email/templates";
 import { DEFAULT_USER_ROLE, isSuperAdminEmail } from "./roles";
 import { ensureSuperAdminRole } from "./super-admin";
+
+const adminAccessControl = createAccessControl({
+    user: [
+        "create",
+        "list",
+        "set-role",
+        "ban",
+        "impersonate",
+        "delete",
+        "set-password",
+        "get",
+        "update",
+    ],
+    session: ["list", "revoke", "delete"],
+} as const);
+
+const betterAuthAdminRoles = {
+    SUPER_ADMIN: adminAccessControl.newRole({
+        user: [
+            "create",
+            "list",
+            "set-role",
+            "ban",
+            "impersonate",
+            "delete",
+            "set-password",
+            "get",
+            "update",
+        ],
+        session: ["list", "revoke", "delete"],
+    }),
+    ADMIN: adminAccessControl.newRole({
+        user: [
+            "create",
+            "list",
+            "set-role",
+            "ban",
+            "delete",
+            "set-password",
+            "get",
+            "update",
+        ],
+        session: ["list", "revoke", "delete"],
+    }),
+    MANAGER: adminAccessControl.newRole({
+        user: ["list", "get"],
+        session: ["list"],
+    }),
+    STAFF: adminAccessControl.newRole({
+        user: [],
+        session: [],
+    }),
+    VIEWER: adminAccessControl.newRole({
+        user: [],
+        session: [],
+    }),
+} as const;
 
 /**
  * Application auth instance.
@@ -82,7 +141,17 @@ export const auth = betterAuth({
             clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
         },
     },
-    plugins: [lastLoginMethod(), tanstackStartCookies()],
+    plugins: [
+        admin({
+            ac: adminAccessControl,
+            roles: betterAuthAdminRoles,
+            adminRoles: ["ADMIN", "SUPER_ADMIN"],
+            defaultRole: DEFAULT_USER_ROLE,
+            allowImpersonatingAdmins: false,
+        }),
+        lastLoginMethod(),
+        tanstackStartCookies(),
+    ],
 });
 
 export type AuthUser = typeof auth.$Infer.Session.user;
