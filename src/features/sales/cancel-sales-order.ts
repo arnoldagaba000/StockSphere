@@ -1,132 +1,85 @@
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { prisma } from "@/db";
-import type { Prisma } from "@/generated/prisma/client";
-import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
-import { canUser } from "@/lib/auth/authorize";
-import { PERMISSIONS } from "@/lib/auth/permissions";
-import { authMiddleware } from "@/middleware/auth";
-import { toNumber } from "./sales-helpers";
-
-const cancelSalesOrderInputSchema = z.object({
-    reason: z.string().trim().min(1, "Cancellation reason is required"),
-    salesOrderId: z.string().min(1),
-});
-
-const appendCancellationNote = (
-    existingNotes: string | null,
-    reason: string
-): string => {
-    const cancellationStamp = `Cancelled: ${new Date().toISOString()} - ${reason}`;
-    return existingNotes
-        ? `${existingNotes}\n${cancellationStamp}`
-        : cancellationStamp;
-};
-
-const releaseReservedStockForOrder = async (
-    tx: Prisma.TransactionClient,
-    productId: string,
-    quantityToRelease: number
-): Promise<void> => {
-    let remainingToRelease = quantityToRelease;
-
-    const reservedBuckets = await tx.stockItem.findMany({
-        orderBy: [{ updatedAt: "asc" }],
-        where: {
-            productId,
-            reservedQuantity: { gt: 0 },
-        },
-    });
-
-    for (const bucket of reservedBuckets) {
-        if (remainingToRelease <= 0) {
-            break;
-        }
-
-        const releasableQty = Math.min(
-            remainingToRelease,
-            toNumber(bucket.reservedQuantity)
-        );
-        if (releasableQty <= 0) {
-            continue;
-        }
-
-        await tx.stockItem.update({
-            data: {
-                reservedQuantity: {
-                    decrement: releasableQty,
-                },
-            },
-            where: { id: bucket.id },
-        });
-
-        remainingToRelease -= releasableQty;
-    }
-
-    if (remainingToRelease > 0) {
-        throw new Error(
-            "Unable to release all reserved stock for cancellation."
-        );
-    }
-};
 
 export const cancelSalesOrder = createServerFn({ method: "POST" })
-    .inputValidator(cancelSalesOrderInputSchema)
-    .middleware([authMiddleware])
-    .handler(async ({ context, data }) => {
-        if (!canUser(context.session.user, PERMISSIONS.SALES_ORDERS_CANCEL)) {
-            throw new Error(
-                "You do not have permission to cancel sales orders."
-            );
-        }
+    .inputValidator(
+        z.object({ salesOrderId: z.string(), reason: z.string().min(1) })
+    )
+    .handler(async ({ data, request }) => {
+        const session = await requireAuth({ request, requiredRole: "STAFF" });
 
-        const order = await prisma.salesOrder.findFirst({
+        const order = await prisma.salesOrder.findUnique({
+            where: { id: data.salesOrderId },
             include: { items: true },
-            where: { deletedAt: null, id: data.salesOrderId },
         });
         if (!order) {
-            throw new Error("Sales order not found.");
+            throw new Error("Sales order not found");
         }
 
+        // Only DRAFT and CONFIRMED orders can be cancelled.
+        // Once partially fulfilled, a manager must handle it manually
+        // because some stock has already shipped.
         if (!["DRAFT", "CONFIRMED"].includes(order.status)) {
             throw new Error(
                 `Cannot cancel an order in "${order.status}" status. Contact a manager.`
             );
         }
 
-        const cancelledOrder = await prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx) => {
+            // If the order was CONFIRMED, reservations are held — release them.
+            // For DRAFT orders, no reservations were made, so this loop does nothing.
             if (order.status === "CONFIRMED") {
                 for (const item of order.items) {
-                    await releaseReservedStockForOrder(
-                        tx,
-                        item.productId,
-                        toNumber(item.quantity)
-                    );
+                    // Find all StockItem rows that have reservations for this order's product
+                    // and warehouse, then release them proportionally.
+                    // The safest approach: reduce reservedQuantity by the item's quantity,
+                    // clamped to 0 so we never go negative.
+                    const stockItems = await tx.stockItem.findMany({
+                        where: {
+                            productId: item.productId,
+                            warehouseId: order.warehouseId,
+                            reservedQuantity: { gt: 0 },
+                        },
+                    });
+
+                    let remainingToRelease = Number(item.quantity);
+                    for (const stock of stockItems) {
+                        if (remainingToRelease <= 0) {
+                            break;
+                        }
+                        const toRelease = Math.min(
+                            Number(stock.reservedQuantity),
+                            remainingToRelease
+                        );
+                        await tx.stockItem.update({
+                            where: { id: stock.id },
+                            data: {
+                                reservedQuantity: { decrement: toRelease },
+                            },
+                        });
+                        remainingToRelease -= toRelease;
+                    }
                 }
             }
 
-            return await tx.salesOrder.update({
+            await tx.salesOrder.update({
+                where: { id: data.salesOrderId },
+                data: { status: "CANCELLED", cancellationReason: data.reason },
+            });
+
+            await tx.activityLog.create({
                 data: {
-                    notes: appendCancellationNote(order.notes, data.reason),
-                    status: "CANCELLED",
+                    userId: session.user.id,
+                    action: "UPDATE",
+                    entity: "SalesOrder",
+                    entityId: order.id,
+                    changes: {
+                        before: { status: order.status },
+                        after: { status: "CANCELLED" },
+                        reason: data.reason,
+                    },
                 },
-                where: { id: order.id },
             });
         });
-
-        await logActivity({
-            action: "SALES_ORDER_CANCELLED",
-            actorUserId: context.session.user.id,
-            changes: {
-                after: { status: "CANCELLED" },
-                before: { status: order.status },
-                metadata: { reason: data.reason },
-            },
-            entity: "SalesOrder",
-            entityId: order.id,
-            ipAddress: getRequestIpAddress(getRequestHeaders()),
-        });
-
-        return cancelledOrder;
     });

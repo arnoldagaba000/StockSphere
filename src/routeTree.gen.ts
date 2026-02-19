@@ -15,10 +15,12 @@ import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
 import { Route as DashboardWarehousesRouteImport } from './routes/_dashboard/warehouses'
 import { Route as DashboardSuppliersRouteImport } from './routes/_dashboard/suppliers'
 import { Route as DashboardStockRouteImport } from './routes/_dashboard/stock'
+import { Route as DashboardSalesOrdersRouteImport } from './routes/_dashboard/sales-orders'
 import { Route as DashboardPurchaseOrdersRouteImport } from './routes/_dashboard/purchase-orders'
 import { Route as DashboardProfileRouteImport } from './routes/_dashboard/profile'
 import { Route as DashboardLocationsRouteImport } from './routes/_dashboard/locations'
 import { Route as DashboardGoodsReceiptsRouteImport } from './routes/_dashboard/goods-receipts'
+import { Route as DashboardCustomersRouteImport } from './routes/_dashboard/customers'
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
 import { Route as AuthRegisterRouteImport } from './routes/_auth/register'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
@@ -66,6 +68,11 @@ const DashboardStockRoute = DashboardStockRouteImport.update({
   path: '/stock',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardSalesOrdersRoute = DashboardSalesOrdersRouteImport.update({
+  id: '/sales-orders',
+  path: '/sales-orders',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardPurchaseOrdersRoute = DashboardPurchaseOrdersRouteImport.update({
   id: '/purchase-orders',
   path: '/purchase-orders',
@@ -84,6 +91,11 @@ const DashboardLocationsRoute = DashboardLocationsRouteImport.update({
 const DashboardGoodsReceiptsRoute = DashboardGoodsReceiptsRouteImport.update({
   id: '/goods-receipts',
   path: '/goods-receipts',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardCustomersRoute = DashboardCustomersRouteImport.update({
+  id: '/customers',
+  path: '/customers',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
@@ -193,10 +205,12 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/customers': typeof DashboardCustomersRoute
   '/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
   '/purchase-orders': typeof DashboardPurchaseOrdersRoute
+  '/sales-orders': typeof DashboardSalesOrdersRoute
   '/stock': typeof DashboardStockRoute
   '/suppliers': typeof DashboardSuppliersRoute
   '/warehouses': typeof DashboardWarehousesRoute
@@ -218,10 +232,12 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/customers': typeof DashboardCustomersRoute
   '/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
   '/purchase-orders': typeof DashboardPurchaseOrdersRoute
+  '/sales-orders': typeof DashboardSalesOrdersRoute
   '/stock': typeof DashboardStockRoute
   '/suppliers': typeof DashboardSuppliersRoute
   '/warehouses': typeof DashboardWarehousesRoute
@@ -248,10 +264,12 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
+  '/_dashboard/customers': typeof DashboardCustomersRoute
   '/_dashboard/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/_dashboard/locations': typeof DashboardLocationsRoute
   '/_dashboard/profile': typeof DashboardProfileRoute
   '/_dashboard/purchase-orders': typeof DashboardPurchaseOrdersRoute
+  '/_dashboard/sales-orders': typeof DashboardSalesOrdersRoute
   '/_dashboard/stock': typeof DashboardStockRoute
   '/_dashboard/suppliers': typeof DashboardSuppliersRoute
   '/_dashboard/warehouses': typeof DashboardWarehousesRoute
@@ -279,10 +297,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/customers'
     | '/goods-receipts'
     | '/locations'
     | '/profile'
     | '/purchase-orders'
+    | '/sales-orders'
     | '/stock'
     | '/suppliers'
     | '/warehouses'
@@ -304,10 +324,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/customers'
     | '/goods-receipts'
     | '/locations'
     | '/profile'
     | '/purchase-orders'
+    | '/sales-orders'
     | '/stock'
     | '/suppliers'
     | '/warehouses'
@@ -333,10 +355,12 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/register'
     | '/_auth/reset-password'
+    | '/_dashboard/customers'
     | '/_dashboard/goods-receipts'
     | '/_dashboard/locations'
     | '/_dashboard/profile'
     | '/_dashboard/purchase-orders'
+    | '/_dashboard/sales-orders'
     | '/_dashboard/stock'
     | '/_dashboard/suppliers'
     | '/_dashboard/warehouses'
@@ -404,6 +428,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardStockRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/_dashboard/sales-orders': {
+      id: '/_dashboard/sales-orders'
+      path: '/sales-orders'
+      fullPath: '/sales-orders'
+      preLoaderRoute: typeof DashboardSalesOrdersRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/_dashboard/purchase-orders': {
       id: '/_dashboard/purchase-orders'
       path: '/purchase-orders'
@@ -430,6 +461,13 @@ declare module '@tanstack/react-router' {
       path: '/goods-receipts'
       fullPath: '/goods-receipts'
       preLoaderRoute: typeof DashboardGoodsReceiptsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/_dashboard/customers': {
+      id: '/_dashboard/customers'
+      path: '/customers'
+      fullPath: '/customers'
+      preLoaderRoute: typeof DashboardCustomersRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/_auth/reset-password': {
@@ -639,10 +677,12 @@ interface DashboardRouteRouteChildren {
   DashboardCategoriesRouteRoute: typeof DashboardCategoriesRouteRouteWithChildren
   DashboardProductsRouteRoute: typeof DashboardProductsRouteRouteWithChildren
   DashboardSettingsRouteRoute: typeof DashboardSettingsRouteRouteWithChildren
+  DashboardCustomersRoute: typeof DashboardCustomersRoute
   DashboardGoodsReceiptsRoute: typeof DashboardGoodsReceiptsRoute
   DashboardLocationsRoute: typeof DashboardLocationsRoute
   DashboardProfileRoute: typeof DashboardProfileRoute
   DashboardPurchaseOrdersRoute: typeof DashboardPurchaseOrdersRoute
+  DashboardSalesOrdersRoute: typeof DashboardSalesOrdersRoute
   DashboardStockRoute: typeof DashboardStockRoute
   DashboardSuppliersRoute: typeof DashboardSuppliersRoute
   DashboardWarehousesRoute: typeof DashboardWarehousesRoute
@@ -653,10 +693,12 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardCategoriesRouteRoute: DashboardCategoriesRouteRouteWithChildren,
   DashboardProductsRouteRoute: DashboardProductsRouteRouteWithChildren,
   DashboardSettingsRouteRoute: DashboardSettingsRouteRouteWithChildren,
+  DashboardCustomersRoute: DashboardCustomersRoute,
   DashboardGoodsReceiptsRoute: DashboardGoodsReceiptsRoute,
   DashboardLocationsRoute: DashboardLocationsRoute,
   DashboardProfileRoute: DashboardProfileRoute,
   DashboardPurchaseOrdersRoute: DashboardPurchaseOrdersRoute,
+  DashboardSalesOrdersRoute: DashboardSalesOrdersRoute,
   DashboardStockRoute: DashboardStockRoute,
   DashboardSuppliersRoute: DashboardSuppliersRoute,
   DashboardWarehousesRoute: DashboardWarehousesRoute,
