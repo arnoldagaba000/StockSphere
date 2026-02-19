@@ -43,8 +43,22 @@ export interface SalesOrderListItem {
     updatedAt: Date;
 }
 
+export interface SalesOrdersListResponse {
+    orders: SalesOrderListItem[];
+    pagination: {
+        page: number;
+        pageSize: number;
+        total: number;
+        totalPages: number;
+    };
+}
+
 const getSalesOrdersInputSchema = z.object({
-    limit: z.number().int().min(1).max(200).optional().default(100),
+    customerId: z.string().min(1).optional(),
+    dateFrom: z.date().optional(),
+    dateTo: z.date().optional(),
+    page: z.number().int().min(1).optional().default(1),
+    pageSize: z.number().int().min(1).max(200).optional().default(20),
     search: z.string().trim().max(100).optional(),
     status: z
         .enum([
@@ -69,64 +83,87 @@ export const getSalesOrders = createServerFn({ method: "GET" })
             throw new Error("You do not have permission to view sales orders.");
         }
 
-        const orders = await prisma.salesOrder.findMany({
-            include: {
-                customer: {
-                    select: { code: true, id: true, name: true },
-                },
-                items: {
-                    select: {
-                        id: true,
-                        productId: true,
-                        quantity: true,
-                        shippedQuantity: true,
+        const where = {
+            deletedAt: null,
+            ...(data.status ? { status: data.status } : {}),
+            ...(data.customerId ? { customerId: data.customerId } : {}),
+            ...(data.dateFrom || data.dateTo
+                ? {
+                      orderDate: {
+                          ...(data.dateFrom ? { gte: data.dateFrom } : {}),
+                          ...(data.dateTo ? { lte: data.dateTo } : {}),
+                      },
+                  }
+                : {}),
+            ...(data.search
+                ? {
+                      OR: [
+                          {
+                              orderNumber: {
+                                  contains: data.search,
+                                  mode: "insensitive" as const,
+                              },
+                          },
+                          {
+                              customer: {
+                                  name: {
+                                      contains: data.search,
+                                      mode: "insensitive" as const,
+                                  },
+                              },
+                          },
+                          {
+                              customer: {
+                                  code: {
+                                      contains: data.search,
+                                      mode: "insensitive" as const,
+                                  },
+                              },
+                          },
+                      ],
+                  }
+                : {}),
+        };
+
+        const [total, orders] = await Promise.all([
+            prisma.salesOrder.count({ where }),
+            prisma.salesOrder.findMany({
+                include: {
+                    customer: {
+                        select: { code: true, id: true, name: true },
+                    },
+                    items: {
+                        select: {
+                            id: true,
+                            productId: true,
+                            quantity: true,
+                            shippedQuantity: true,
+                        },
                     },
                 },
-            },
-            orderBy: [{ createdAt: "desc" }],
-            take: data.limit,
-            where: {
-                deletedAt: null,
-                ...(data.status ? { status: data.status } : {}),
-                ...(data.search
-                    ? {
-                          OR: [
-                              {
-                                  orderNumber: {
-                                      contains: data.search,
-                                      mode: "insensitive",
-                                  },
-                              },
-                              {
-                                  customer: {
-                                      name: {
-                                          contains: data.search,
-                                          mode: "insensitive",
-                                      },
-                                  },
-                              },
-                              {
-                                  customer: {
-                                      code: {
-                                          contains: data.search,
-                                          mode: "insensitive",
-                                      },
-                                  },
-                              },
-                          ],
-                      }
-                    : {}),
-            },
-        });
+                orderBy: [{ createdAt: "desc" }],
+                skip: (data.page - 1) * data.pageSize,
+                take: data.pageSize,
+                where,
+            }),
+        ]);
 
-        return orders.map(
-            (order): SalesOrderListItem => ({
-                ...order,
-                items: order.items.map((item) => ({
-                    ...item,
-                    quantity: toNumber(item.quantity),
-                    shippedQuantity: toNumber(item.shippedQuantity),
-                })),
-            })
-        );
+        return {
+            orders: orders.map(
+                (order): SalesOrderListItem => ({
+                    ...order,
+                    items: order.items.map((item) => ({
+                        ...item,
+                        quantity: toNumber(item.quantity),
+                        shippedQuantity: toNumber(item.shippedQuantity),
+                    })),
+                })
+            ),
+            pagination: {
+                page: data.page,
+                pageSize: data.pageSize,
+                total,
+                totalPages: Math.max(1, Math.ceil(total / data.pageSize)),
+            },
+        } satisfies SalesOrdersListResponse;
     });

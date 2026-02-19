@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
@@ -28,11 +28,17 @@ import { getProducts } from "@/features/products/get-products";
 import { cancelSalesOrder } from "@/features/sales/cancel-sales-order";
 import { confirmSalesOrder } from "@/features/sales/confirm-sales-order";
 import { createSalesOrder } from "@/features/sales/create-sales-order";
+import { deleteSalesOrderDraft } from "@/features/sales/delete-sales-order-draft";
 import type { SalesOrderDetailResponse } from "@/features/sales/get-sales-order-detail";
 import { getSalesOrderDetail } from "@/features/sales/get-sales-order-detail";
-import type { SalesOrderListItem } from "@/features/sales/get-sales-orders";
+import type {
+    SalesOrderListItem,
+    SalesOrdersListResponse,
+} from "@/features/sales/get-sales-orders";
 import { getSalesOrders } from "@/features/sales/get-sales-orders";
+import { markSalesOrderDelivered } from "@/features/sales/mark-sales-order-delivered";
 import { shipOrder } from "@/features/sales/ship-order";
+import { updateSalesOrderDraft } from "@/features/sales/update-sales-order-draft";
 
 interface SalesOrderLineItemFormState {
     id: string;
@@ -46,6 +52,14 @@ interface ShipmentLineFormState {
     orderItemId: string;
     quantity: string;
     stockItemId: string;
+}
+
+interface SalesListFilters {
+    customerId: string;
+    dateFrom: string;
+    dateTo: string;
+    search: string;
+    status: string;
 }
 
 const createSalesLineItem = (
@@ -68,26 +82,60 @@ const createShipmentLine = (
     stockItemId,
 });
 
+const emptyFilters: SalesListFilters = {
+    customerId: "",
+    dateFrom: "",
+    dateTo: "",
+    search: "",
+    status: "",
+};
+
+const buildSalesOrdersQuery = (
+    filters: SalesListFilters,
+    page: number
+): Parameters<typeof getSalesOrders>[0] => ({
+    data: {
+        customerId: filters.customerId || undefined,
+        dateFrom: filters.dateFrom ? new Date(filters.dateFrom) : undefined,
+        dateTo: filters.dateTo ? new Date(filters.dateTo) : undefined,
+        page,
+        pageSize: 20,
+        search: filters.search.trim() || undefined,
+        status:
+            filters.status.length > 0
+                ? (filters.status as
+                      | "CANCELLED"
+                      | "CONFIRMED"
+                      | "DELIVERED"
+                      | "DRAFT"
+                      | "FULFILLED"
+                      | "PARTIALLY_FULFILLED"
+                      | "SHIPPED")
+                : undefined,
+    },
+});
+
 export const Route = createFileRoute("/_dashboard/sales-orders")({
     component: SalesOrdersPage,
     loader: async () => {
-        const [customers, productsResponse, salesOrders] = await Promise.all([
-            getCustomers({ data: { isActive: true } }),
-            getProducts({ data: { isActive: true, pageSize: 200 } }),
-            getSalesOrders({ data: {} }),
-        ]);
+        const [customers, productsResponse, initialSalesOrders] =
+            await Promise.all([
+                getCustomers({ data: { isActive: true } }),
+                getProducts({ data: { isActive: true, pageSize: 200 } }),
+                getSalesOrders(buildSalesOrdersQuery(emptyFilters, 1)),
+            ]);
 
         return {
             customers,
+            initialSalesOrders,
             products: productsResponse.products,
-            salesOrders,
         };
     },
 });
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: page coordinates multiple workflows (create/filter/detail/shipment) in one route component.
 function SalesOrdersPage() {
-    const router = useRouter();
-    const { customers, products, salesOrders } = Route.useLoaderData();
+    const { customers, initialSalesOrders, products } = Route.useLoaderData();
 
     const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
     const [requiredDate, setRequiredDate] = useState("");
@@ -97,6 +145,12 @@ function SalesOrdersPage() {
     const [items, setItems] = useState<SalesOrderLineItemFormState[]>([
         createSalesLineItem(products[0]?.id ?? ""),
     ]);
+
+    const [listFilters, setListFilters] =
+        useState<SalesListFilters>(emptyFilters);
+    const [salesOrdersResponse, setSalesOrdersResponse] =
+        useState<SalesOrdersListResponse>(initialSalesOrders);
+    const [isLoadingOrders, setIsLoadingOrders] = useState(false);
 
     const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
     const [selectedOrderDetail, setSelectedOrderDetail] =
@@ -108,10 +162,20 @@ function SalesOrdersPage() {
     const [shipmentTrackingNumber, setShipmentTrackingNumber] = useState("");
     const [cancelReason, setCancelReason] = useState("");
 
+    const [draftNotes, setDraftNotes] = useState("");
+    const [draftRequiredDate, setDraftRequiredDate] = useState("");
+    const [draftShippingAddress, setDraftShippingAddress] = useState("");
+    const [draftTaxAmount, setDraftTaxAmount] = useState("0");
+    const [draftShippingCost, setDraftShippingCost] = useState("0");
+    const [draftLines, setDraftLines] = useState<SalesOrderLineItemFormState[]>(
+        []
+    );
+
     const [isCreating, setIsCreating] = useState(false);
     const [isLoadingDetail, setIsLoadingDetail] = useState(false);
     const [isActionBusyId, setIsActionBusyId] = useState<string | null>(null);
     const [isShipping, setIsShipping] = useState(false);
+    const [isSavingDraft, setIsSavingDraft] = useState(false);
 
     const subtotal = useMemo(
         () =>
@@ -125,6 +189,96 @@ function SalesOrdersPage() {
 
     const total =
         subtotal + (Number(taxAmount) || 0) + (Number(shippingCost) || 0);
+
+    const buildDefaultShipmentLines = (
+        detail: SalesOrderDetailResponse
+    ): ShipmentLineFormState[] => {
+        return detail.items
+            .map((item) => {
+                const remainingQuantity = item.quantity - item.shippedQuantity;
+                const bucket = detail.stockBuckets.find(
+                    (stockBucket) =>
+                        stockBucket.productId === item.productId &&
+                        stockBucket.availableQuantity > 0
+                );
+
+                return createShipmentLine(
+                    item.id,
+                    bucket?.id ?? "",
+                    Math.max(0, remainingQuantity)
+                );
+            })
+            .filter((line) => line.stockItemId.length > 0);
+    };
+
+    const setDraftFromDetail = (detail: SalesOrderDetailResponse) => {
+        setDraftNotes(detail.notes ?? "");
+        setDraftRequiredDate(
+            detail.requiredDate
+                ? new Date(detail.requiredDate).toISOString().slice(0, 10)
+                : ""
+        );
+        setDraftShippingAddress(detail.shippingAddress ?? "");
+        setDraftTaxAmount(String(detail.taxAmount));
+        setDraftShippingCost(String(detail.shippingCost));
+        setDraftLines(
+            detail.items.map((item) => ({
+                id: item.id,
+                productId: item.productId,
+                quantity: String(item.quantity),
+                taxRate: String(item.taxRate),
+                unitPrice: String(item.unitPrice),
+            }))
+        );
+    };
+
+    const loadOrderDetail = async (orderId: string): Promise<void> => {
+        try {
+            setIsLoadingDetail(true);
+            setSelectedOrderId(orderId);
+            const detail = (await getSalesOrderDetail({
+                data: { salesOrderId: orderId },
+            })) as SalesOrderDetailResponse;
+            setSelectedOrderDetail(detail);
+            setShipmentLines(buildDefaultShipmentLines(detail));
+            if (detail.status === "DRAFT") {
+                setDraftFromDetail(detail);
+            }
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load sales order detail."
+            );
+        } finally {
+            setIsLoadingDetail(false);
+        }
+    };
+
+    const loadSalesOrders = async (page = 1): Promise<void> => {
+        try {
+            setIsLoadingOrders(true);
+            const response = await getSalesOrders(
+                buildSalesOrdersQuery(listFilters, page)
+            );
+            setSalesOrdersResponse(response);
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load sales orders."
+            );
+        } finally {
+            setIsLoadingOrders(false);
+        }
+    };
+
+    const refresh = async (): Promise<void> => {
+        await loadSalesOrders(salesOrdersResponse.pagination.page);
+        if (selectedOrderId) {
+            await loadOrderDetail(selectedOrderId);
+        }
+    };
 
     const updateLineItem = (
         index: number,
@@ -156,54 +310,6 @@ function SalesOrdersPage() {
         setTaxAmount("0");
         setShippingCost("0");
         setItems([createSalesLineItem(products[0]?.id ?? "")]);
-    };
-
-    const refresh = async (): Promise<void> => {
-        await router.invalidate();
-        if (selectedOrderId) {
-            await loadOrderDetail(selectedOrderId);
-        }
-    };
-
-    const buildDefaultShipmentLines = (
-        detail: SalesOrderDetailResponse
-    ): ShipmentLineFormState[] => {
-        return detail.items
-            .map((item) => {
-                const remainingQuantity = item.quantity - item.shippedQuantity;
-                const bucket = detail.stockBuckets.find(
-                    (stockBucket) =>
-                        stockBucket.productId === item.productId &&
-                        stockBucket.availableQuantity > 0
-                );
-
-                return createShipmentLine(
-                    item.id,
-                    bucket?.id ?? "",
-                    Math.max(0, remainingQuantity)
-                );
-            })
-            .filter((line) => line.stockItemId.length > 0);
-    };
-
-    const loadOrderDetail = async (orderId: string): Promise<void> => {
-        try {
-            setIsLoadingDetail(true);
-            setSelectedOrderId(orderId);
-            const detail = (await getSalesOrderDetail({
-                data: { salesOrderId: orderId },
-            })) as SalesOrderDetailResponse;
-            setSelectedOrderDetail(detail);
-            setShipmentLines(buildDefaultShipmentLines(detail));
-        } catch (error) {
-            toast.error(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to load sales order detail."
-            );
-        } finally {
-            setIsLoadingDetail(false);
-        }
     };
 
     const handleCreateSalesOrder = async (): Promise<void> => {
@@ -309,6 +415,44 @@ function SalesOrdersPage() {
         }
     };
 
+    const handleDeleteDraft = async (orderId: string): Promise<void> => {
+        try {
+            setIsActionBusyId(orderId);
+            await deleteSalesOrderDraft({ data: { salesOrderId: orderId } });
+            toast.success("Draft sales order deleted.");
+            if (selectedOrderId === orderId) {
+                setSelectedOrderId(null);
+                setSelectedOrderDetail(null);
+            }
+            await refresh();
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to delete draft sales order."
+            );
+        } finally {
+            setIsActionBusyId(null);
+        }
+    };
+
+    const handleMarkDelivered = async (orderId: string): Promise<void> => {
+        try {
+            setIsActionBusyId(orderId);
+            await markSalesOrderDelivered({ data: { salesOrderId: orderId } });
+            toast.success("Order marked delivered.");
+            await refresh();
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to mark order delivered."
+            );
+        } finally {
+            setIsActionBusyId(null);
+        }
+    };
+
     const updateShipmentLine = (
         orderItemId: string,
         patch: Partial<ShipmentLineFormState>
@@ -326,21 +470,13 @@ function SalesOrdersPage() {
         }
 
         const payloadItems = shipmentLines
-            .map((line) => {
-                const orderItem = selectedOrderDetail.items.find(
-                    (item) => item.id === line.orderItemId
-                );
-
-                return {
-                    quantity: Number(line.quantity) || 0,
-                    salesOrderItemId: line.orderItemId,
-                    stockItemId: line.stockItemId,
-                    valid: Boolean(orderItem),
-                };
-            })
+            .map((line) => ({
+                quantity: Number(line.quantity) || 0,
+                salesOrderItemId: line.orderItemId,
+                stockItemId: line.stockItemId,
+            }))
             .filter(
                 (line) =>
-                    line.valid &&
                     line.salesOrderItemId.length > 0 &&
                     line.stockItemId.length > 0 &&
                     line.quantity > 0
@@ -356,11 +492,7 @@ function SalesOrdersPage() {
             await shipOrder({
                 data: {
                     carrier: shipmentCarrier.trim() || null,
-                    items: payloadItems.map((line) => ({
-                        quantity: line.quantity,
-                        salesOrderItemId: line.salesOrderItemId,
-                        stockItemId: line.stockItemId,
-                    })),
+                    items: payloadItems,
                     notes: null,
                     salesOrderId: selectedOrderDetail.id,
                     shippedDate: new Date(),
@@ -382,6 +514,59 @@ function SalesOrdersPage() {
         }
     };
 
+    const handleSaveDraft = async (): Promise<void> => {
+        if (!selectedOrderDetail || selectedOrderDetail.status !== "DRAFT") {
+            return;
+        }
+
+        const normalizedLines = draftLines
+            .map((line) => ({
+                notes: null,
+                productId: line.productId,
+                quantity: Number(line.quantity),
+                taxRate: Number(line.taxRate) || 0,
+                unitPrice: Number(line.unitPrice),
+            }))
+            .filter(
+                (line) =>
+                    line.productId.length > 0 &&
+                    line.quantity > 0 &&
+                    line.unitPrice >= 0
+            );
+
+        if (normalizedLines.length === 0) {
+            toast.error("Draft needs at least one valid line.");
+            return;
+        }
+
+        try {
+            setIsSavingDraft(true);
+            await updateSalesOrderDraft({
+                data: {
+                    items: normalizedLines,
+                    notes: draftNotes.trim() || null,
+                    requiredDate: draftRequiredDate
+                        ? new Date(draftRequiredDate)
+                        : null,
+                    salesOrderId: selectedOrderDetail.id,
+                    shippingAddress: draftShippingAddress.trim() || null,
+                    shippingCost: Number(draftShippingCost) || 0,
+                    taxAmount: Number(draftTaxAmount) || 0,
+                },
+            });
+            toast.success("Draft updated.");
+            await refresh();
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to update draft."
+            );
+        } finally {
+            setIsSavingDraft(false);
+        }
+    };
+
     const onCreateSalesOrderClick = () => {
         handleCreateSalesOrder().catch(() => undefined);
     };
@@ -398,17 +583,26 @@ function SalesOrdersPage() {
         handleCancelOrder(orderId).catch(() => undefined);
     };
 
+    const onDeleteDraftClick = (orderId: string) => () => {
+        handleDeleteDraft(orderId).catch(() => undefined);
+    };
+
+    const onMarkDeliveredClick = (orderId: string) => () => {
+        handleMarkDelivered(orderId).catch(() => undefined);
+    };
+
     const onShipOrderClick = () => {
         handleShipOrder().catch(() => undefined);
     };
+
+    const salesOrders: SalesOrderListItem[] = salesOrdersResponse.orders;
 
     return (
         <section className="w-full space-y-4">
             <div>
                 <h1 className="font-semibold text-2xl">Sales Orders</h1>
                 <p className="text-muted-foreground text-sm">
-                    Draft, confirm, and fulfill customer orders with stock-aware
-                    shipment posting.
+                    Draft, confirm, ship, and deliver customer orders.
                 </p>
             </div>
 
@@ -596,6 +790,114 @@ function SalesOrdersPage() {
                     <CardTitle>Sales Orders</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                        <Input
+                            onChange={(event) =>
+                                setListFilters((current) => ({
+                                    ...current,
+                                    search: event.target.value,
+                                }))
+                            }
+                            placeholder="Search order/customer"
+                            value={listFilters.search}
+                        />
+                        <Select
+                            onValueChange={(value) =>
+                                setListFilters((current) => ({
+                                    ...current,
+                                    status: value ?? "",
+                                }))
+                            }
+                            value={listFilters.status || null}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">All Statuses</SelectItem>
+                                <SelectItem value="DRAFT">DRAFT</SelectItem>
+                                <SelectItem value="CONFIRMED">
+                                    CONFIRMED
+                                </SelectItem>
+                                <SelectItem value="PARTIALLY_FULFILLED">
+                                    PARTIALLY_FULFILLED
+                                </SelectItem>
+                                <SelectItem value="FULFILLED">
+                                    FULFILLED
+                                </SelectItem>
+                                <SelectItem value="SHIPPED">SHIPPED</SelectItem>
+                                <SelectItem value="DELIVERED">
+                                    DELIVERED
+                                </SelectItem>
+                                <SelectItem value="CANCELLED">
+                                    CANCELLED
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <Select
+                            onValueChange={(value) =>
+                                setListFilters((current) => ({
+                                    ...current,
+                                    customerId: value ?? "",
+                                }))
+                            }
+                            value={listFilters.customerId || null}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Customer" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="">All Customers</SelectItem>
+                                {customers.map((customer) => (
+                                    <SelectItem
+                                        key={customer.id}
+                                        value={customer.id}
+                                    >
+                                        {customer.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Input
+                            onChange={(event) =>
+                                setListFilters((current) => ({
+                                    ...current,
+                                    dateFrom: event.target.value,
+                                }))
+                            }
+                            type="date"
+                            value={listFilters.dateFrom}
+                        />
+                        <Input
+                            onChange={(event) =>
+                                setListFilters((current) => ({
+                                    ...current,
+                                    dateTo: event.target.value,
+                                }))
+                            }
+                            type="date"
+                            value={listFilters.dateTo}
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button
+                            disabled={isLoadingOrders}
+                            onClick={() => {
+                                loadSalesOrders(1).catch(() => undefined);
+                            }}
+                            type="button"
+                            variant="outline"
+                        >
+                            {isLoadingOrders ? "Loading..." : "Apply Filters"}
+                        </Button>
+                        <span className="text-muted-foreground text-sm">
+                            Page {salesOrdersResponse.pagination.page} of{" "}
+                            {salesOrdersResponse.pagination.totalPages} ({" "}
+                            {salesOrdersResponse.pagination.total} orders)
+                        </span>
+                    </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="cancel-reason">
                             Cancellation Reason
@@ -697,6 +999,41 @@ function SalesOrdersPage() {
                                                         Cancel
                                                     </Button>
                                                 ) : null}
+                                                {order.status === "DRAFT" ? (
+                                                    <Button
+                                                        disabled={
+                                                            isActionBusyId ===
+                                                            order.id
+                                                        }
+                                                        onClick={onDeleteDraftClick(
+                                                            order.id
+                                                        )}
+                                                        size="sm"
+                                                        type="button"
+                                                        variant="outline"
+                                                    >
+                                                        Delete Draft
+                                                    </Button>
+                                                ) : null}
+                                                {[
+                                                    "SHIPPED",
+                                                    "FULFILLED",
+                                                ].includes(order.status) ? (
+                                                    <Button
+                                                        disabled={
+                                                            isActionBusyId ===
+                                                            order.id
+                                                        }
+                                                        onClick={onMarkDeliveredClick(
+                                                            order.id
+                                                        )}
+                                                        size="sm"
+                                                        type="button"
+                                                        variant="outline"
+                                                    >
+                                                        Mark Delivered
+                                                    </Button>
+                                                ) : null}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -704,6 +1041,40 @@ function SalesOrdersPage() {
                             )}
                         </TableBody>
                     </Table>
+
+                    <div className="flex items-center justify-end gap-2">
+                        <Button
+                            disabled={
+                                isLoadingOrders ||
+                                salesOrdersResponse.pagination.page <= 1
+                            }
+                            onClick={() => {
+                                loadSalesOrders(
+                                    salesOrdersResponse.pagination.page - 1
+                                ).catch(() => undefined);
+                            }}
+                            type="button"
+                            variant="outline"
+                        >
+                            Previous
+                        </Button>
+                        <Button
+                            disabled={
+                                isLoadingOrders ||
+                                salesOrdersResponse.pagination.page >=
+                                    salesOrdersResponse.pagination.totalPages
+                            }
+                            onClick={() => {
+                                loadSalesOrders(
+                                    salesOrdersResponse.pagination.page + 1
+                                ).catch(() => undefined);
+                            }}
+                            type="button"
+                            variant="outline"
+                        >
+                            Next
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
 
@@ -724,7 +1095,7 @@ function SalesOrdersPage() {
                                 <div className="text-sm">
                                     <p>
                                         Customer:{" "}
-                                        {selectedOrderDetail.customer.name} ({" "}
+                                        {selectedOrderDetail.customer.name} (
                                         {selectedOrderDetail.customer.code})
                                     </p>
                                     <p className="text-muted-foreground">
@@ -732,50 +1103,217 @@ function SalesOrdersPage() {
                                     </p>
                                 </div>
 
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>SKU</TableHead>
-                                            <TableHead>Product</TableHead>
-                                            <TableHead className="text-right">
-                                                Qty
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                Shipped
-                                            </TableHead>
-                                            <TableHead className="text-right">
-                                                Remaining
-                                            </TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {selectedOrderDetail.items.map(
-                                            (item) => (
-                                                <TableRow key={item.id}>
-                                                    <TableCell>
-                                                        {item.product.sku}
-                                                    </TableCell>
-                                                    <TableCell>
-                                                        {item.product.name}
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        {item.quantity}
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        {item.shippedQuantity}
-                                                    </TableCell>
-                                                    <TableCell className="text-right">
-                                                        {Math.max(
-                                                            0,
-                                                            item.quantity -
-                                                                item.shippedQuantity
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                            )
-                                        )}
-                                    </TableBody>
-                                </Table>
+                                {selectedOrderDetail.status === "DRAFT" ? (
+                                    <Card>
+                                        <CardHeader>
+                                            <CardTitle>Edit Draft</CardTitle>
+                                        </CardHeader>
+                                        <CardContent className="space-y-3">
+                                            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                                                <Input
+                                                    onChange={(event) =>
+                                                        setDraftRequiredDate(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    type="date"
+                                                    value={draftRequiredDate}
+                                                />
+                                                <Input
+                                                    min={0}
+                                                    onChange={(event) =>
+                                                        setDraftTaxAmount(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    placeholder="Tax (UGX)"
+                                                    type="number"
+                                                    value={draftTaxAmount}
+                                                />
+                                                <Input
+                                                    min={0}
+                                                    onChange={(event) =>
+                                                        setDraftShippingCost(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    placeholder="Shipping (UGX)"
+                                                    type="number"
+                                                    value={draftShippingCost}
+                                                />
+                                                <Input
+                                                    onChange={(event) =>
+                                                        setDraftShippingAddress(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    placeholder="Shipping Address"
+                                                    value={draftShippingAddress}
+                                                />
+                                            </div>
+                                            <Textarea
+                                                onChange={(event) =>
+                                                    setDraftNotes(
+                                                        event.target.value
+                                                    )
+                                                }
+                                                placeholder="Order notes"
+                                                value={draftNotes}
+                                            />
+
+                                            {draftLines.map((line, index) => (
+                                                <div
+                                                    className="grid gap-2 md:grid-cols-4"
+                                                    key={line.id}
+                                                >
+                                                    <Select
+                                                        onValueChange={(
+                                                            value
+                                                        ) =>
+                                                            setDraftLines(
+                                                                (current) =>
+                                                                    current.map(
+                                                                        (
+                                                                            currentLine,
+                                                                            currentIndex
+                                                                        ) =>
+                                                                            currentIndex ===
+                                                                            index
+                                                                                ? {
+                                                                                      ...currentLine,
+                                                                                      productId:
+                                                                                          value ??
+                                                                                          "",
+                                                                                  }
+                                                                                : currentLine
+                                                                    )
+                                                            )
+                                                        }
+                                                        value={line.productId}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue placeholder="Product" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {products.map(
+                                                                (product) => (
+                                                                    <SelectItem
+                                                                        key={
+                                                                            product.id
+                                                                        }
+                                                                        value={
+                                                                            product.id
+                                                                        }
+                                                                    >
+                                                                        {
+                                                                            product.name
+                                                                        }
+                                                                    </SelectItem>
+                                                                )
+                                                            )}
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <Input
+                                                        min={0}
+                                                        onChange={(event) =>
+                                                            setDraftLines(
+                                                                (current) =>
+                                                                    current.map(
+                                                                        (
+                                                                            currentLine,
+                                                                            currentIndex
+                                                                        ) =>
+                                                                            currentIndex ===
+                                                                            index
+                                                                                ? {
+                                                                                      ...currentLine,
+                                                                                      quantity:
+                                                                                          event
+                                                                                              .target
+                                                                                              .value,
+                                                                                  }
+                                                                                : currentLine
+                                                                    )
+                                                            )
+                                                        }
+                                                        placeholder="Qty"
+                                                        type="number"
+                                                        value={line.quantity}
+                                                    />
+                                                    <Input
+                                                        min={0}
+                                                        onChange={(event) =>
+                                                            setDraftLines(
+                                                                (current) =>
+                                                                    current.map(
+                                                                        (
+                                                                            currentLine,
+                                                                            currentIndex
+                                                                        ) =>
+                                                                            currentIndex ===
+                                                                            index
+                                                                                ? {
+                                                                                      ...currentLine,
+                                                                                      unitPrice:
+                                                                                          event
+                                                                                              .target
+                                                                                              .value,
+                                                                                  }
+                                                                                : currentLine
+                                                                    )
+                                                            )
+                                                        }
+                                                        placeholder="Unit Price"
+                                                        type="number"
+                                                        value={line.unitPrice}
+                                                    />
+                                                    <Input
+                                                        max={100}
+                                                        min={0}
+                                                        onChange={(event) =>
+                                                            setDraftLines(
+                                                                (current) =>
+                                                                    current.map(
+                                                                        (
+                                                                            currentLine,
+                                                                            currentIndex
+                                                                        ) =>
+                                                                            currentIndex ===
+                                                                            index
+                                                                                ? {
+                                                                                      ...currentLine,
+                                                                                      taxRate:
+                                                                                          event
+                                                                                              .target
+                                                                                              .value,
+                                                                                  }
+                                                                                : currentLine
+                                                                    )
+                                                            )
+                                                        }
+                                                        placeholder="Tax %"
+                                                        type="number"
+                                                        value={line.taxRate}
+                                                    />
+                                                </div>
+                                            ))}
+
+                                            <Button
+                                                disabled={isSavingDraft}
+                                                onClick={() => {
+                                                    handleSaveDraft().catch(
+                                                        () => undefined
+                                                    );
+                                                }}
+                                                type="button"
+                                            >
+                                                {isSavingDraft
+                                                    ? "Saving draft..."
+                                                    : "Save Draft"}
+                                            </Button>
+                                        </CardContent>
+                                    </Card>
+                                ) : null}
 
                                 {["CONFIRMED", "PARTIALLY_FULFILLED"].includes(
                                     selectedOrderDetail.status
@@ -788,38 +1326,26 @@ function SalesOrdersPage() {
                                         </CardHeader>
                                         <CardContent className="space-y-3">
                                             <div className="grid gap-3 md:grid-cols-2">
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="shipment-carrier">
-                                                        Carrier
-                                                    </Label>
-                                                    <Input
-                                                        id="shipment-carrier"
-                                                        onChange={(event) =>
-                                                            setShipmentCarrier(
-                                                                event.target
-                                                                    .value
-                                                            )
-                                                        }
-                                                        value={shipmentCarrier}
-                                                    />
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="shipment-tracking">
-                                                        Tracking Number
-                                                    </Label>
-                                                    <Input
-                                                        id="shipment-tracking"
-                                                        onChange={(event) =>
-                                                            setShipmentTrackingNumber(
-                                                                event.target
-                                                                    .value
-                                                            )
-                                                        }
-                                                        value={
-                                                            shipmentTrackingNumber
-                                                        }
-                                                    />
-                                                </div>
+                                                <Input
+                                                    onChange={(event) =>
+                                                        setShipmentCarrier(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    placeholder="Carrier"
+                                                    value={shipmentCarrier}
+                                                />
+                                                <Input
+                                                    onChange={(event) =>
+                                                        setShipmentTrackingNumber(
+                                                            event.target.value
+                                                        )
+                                                    }
+                                                    placeholder="Tracking Number"
+                                                    value={
+                                                        shipmentTrackingNumber
+                                                    }
+                                                />
                                             </div>
 
                                             {shipmentLines.map((line) => {
@@ -847,23 +1373,13 @@ function SalesOrdersPage() {
                                                         className="grid gap-2 md:grid-cols-4"
                                                         key={line.orderItemId}
                                                     >
-                                                        <div className="md:col-span-2">
-                                                            <p className="font-medium text-sm">
-                                                                {
-                                                                    orderItem
-                                                                        .product
-                                                                        .name
-                                                                }
-                                                            </p>
-                                                            <p className="text-muted-foreground text-xs">
-                                                                Remaining:{" "}
-                                                                {Math.max(
-                                                                    0,
-                                                                    orderItem.quantity -
-                                                                        orderItem.shippedQuantity
-                                                                )}
-                                                            </p>
-                                                        </div>
+                                                        <p className="md:col-span-2">
+                                                            {
+                                                                orderItem
+                                                                    .product
+                                                                    .name
+                                                            }
+                                                        </p>
                                                         <Select
                                                             onValueChange={(
                                                                 value
@@ -905,7 +1421,7 @@ function SalesOrdersPage() {
                                                                             {bucket.location
                                                                                 ? ` / ${bucket.location.code}`
                                                                                 : ""}
-                                                                            {` - Available ${bucket.availableQuantity}`}
+                                                                            {` (Avail ${bucket.availableQuantity})`}
                                                                         </SelectItem>
                                                                     )
                                                                 )}
