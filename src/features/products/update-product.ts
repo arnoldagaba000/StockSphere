@@ -3,6 +3,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { prisma } from "@/db";
 import {
     assertCategoryExists,
+    assertTrackingChangeAllowed,
     assertUniqueProductIdentifiers,
     toMinorUnits,
     toProductAuditSnapshot,
@@ -22,6 +23,30 @@ interface AuthorizableUser {
     isActive?: boolean | null;
     role?: string | null;
 }
+
+const APPROVER_ROLES = ["ADMIN", "SUPER_ADMIN"] as const;
+type ApproverRole = (typeof APPROVER_ROLES)[number];
+
+const isApproverRole = (
+    role: string | null | undefined
+): role is ApproverRole =>
+    typeof role === "string" &&
+    APPROVER_ROLES.includes(role as (typeof APPROVER_ROLES)[number]);
+
+const getRequestChangeType = (
+    pricingUpdated: boolean,
+    trackingUpdated: boolean
+): "PRICE" | "STATUS" | "TRACKING" => {
+    if (pricingUpdated) {
+        return "PRICE";
+    }
+
+    if (trackingUpdated) {
+        return "TRACKING";
+    }
+
+    return "STATUS";
+};
 
 /**
  * Asserts that a user has the necessary permissions to update a product.
@@ -75,6 +100,14 @@ const assertUpdatePermissions = (
             "You do not have permission to update tracking fields."
         );
     }
+
+    if (
+        data.status !== undefined &&
+        data.status !== "ACTIVE" &&
+        !canUser(user, PERMISSIONS.PRODUCTS_MARK_INACTIVE)
+    ) {
+        throw new Error("You do not have permission to update product status.");
+    }
 };
 
 /**
@@ -123,6 +156,7 @@ const buildUpdatePayload = (
         data.sellingPrice === undefined
             ? undefined
             : toMinorUnits(data.sellingPrice),
+    status: data.status,
     sku: data.sku,
     taxRate: data.taxRate,
     trackByBatch: data.trackByBatch,
@@ -131,6 +165,18 @@ const buildUpdatePayload = (
     unit: data.unit,
     weight: data.weight,
     weightUnit: data.weightUnit,
+    isActive: data.status === undefined ? undefined : data.status === "ACTIVE",
+    deletedAt: (() => {
+        if (data.status === undefined) {
+            return undefined;
+        }
+
+        if (data.status === "ARCHIVED") {
+            return new Date();
+        }
+
+        return null;
+    })(),
 });
 
 export const updateProduct = createServerFn({ method: "POST" })
@@ -148,12 +194,85 @@ export const updateProduct = createServerFn({ method: "POST" })
             excludeProductId: data.id,
             sku: data.sku,
         });
+        await assertTrackingChangeAllowed(
+            data.id,
+            {
+                trackByBatch: data.trackByBatch,
+                trackByExpiry: data.trackByExpiry,
+                trackBySerialNumber: data.trackBySerialNumber,
+            },
+            {
+                trackByBatch: existingProduct.trackByBatch,
+                trackByExpiry: existingProduct.trackByExpiry,
+                trackBySerialNumber: existingProduct.trackBySerialNumber,
+            }
+        );
+
+        const pricingUpdated =
+            data.costPrice !== undefined ||
+            data.sellingPrice !== undefined ||
+            data.taxRate !== undefined;
+        const trackingUpdated =
+            data.trackByBatch !== undefined ||
+            data.trackByExpiry !== undefined ||
+            data.trackBySerialNumber !== undefined;
+        const statusUpdated = data.status !== undefined;
+        const criticalUpdateRequested =
+            pricingUpdated || trackingUpdated || statusUpdated;
+
+        if (
+            criticalUpdateRequested &&
+            !isApproverRole(context.session.user.role)
+        ) {
+            const request = await prisma.productChangeRequest.create({
+                data: {
+                    changeType: getRequestChangeType(
+                        pricingUpdated,
+                        trackingUpdated
+                    ),
+                    payload: JSON.parse(
+                        JSON.stringify(data)
+                    ) as Prisma.InputJsonValue,
+                    productId: data.id,
+                    requestedById: context.session.user.id,
+                },
+            });
+
+            await logActivity({
+                action: "PRODUCT_CHANGE_REQUEST_CREATED",
+                actorUserId: context.session.user.id,
+                changes: {
+                    changeRequestId: request.id,
+                    payload: data,
+                },
+                entity: "Product",
+                entityId: data.id,
+                ipAddress: getRequestIpAddress(getRequestHeaders()),
+            });
+
+            return {
+                pendingApproval: true,
+                requestId: request.id,
+            };
+        }
 
         const product = await prisma.product.update({
             data: buildUpdatePayload(data),
             include: { category: true },
             where: { id: data.id },
         });
+
+        if (pricingUpdated) {
+            await prisma.productPriceHistory.create({
+                data: {
+                    changedById: context.session.user.id,
+                    costPrice: product.costPrice,
+                    productId: product.id,
+                    reason: "Direct product update",
+                    sellingPrice: product.sellingPrice,
+                },
+            });
+        }
 
         await logActivity({
             action: "PRODUCT_UPDATED",

@@ -2,6 +2,7 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { buildCategoryHierarchy } from "@/components/features/categories/utils";
+import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,11 +23,22 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { deleteCategory } from "@/features/categories/delete-category";
+import { getCategoryAnalytics } from "@/features/categories/get-category-analytics";
 import { listCategories } from "@/features/categories/list-categories";
 
 export const Route = createFileRoute("/_dashboard/categories/")({
     component: CategoriesPage,
-    loader: () => listCategories({ data: { isActive: true } }),
+    loader: async () => {
+        const [categories, analytics] = await Promise.all([
+            listCategories({ data: { isActive: true } }),
+            getCategoryAnalytics(),
+        ]);
+
+        return {
+            analytics: analytics.categories,
+            categories,
+        };
+    },
 });
 
 const toCategoryStatusFilter = (
@@ -45,7 +57,7 @@ const toCategoryStatusFilter = (
 
 function CategoriesPage() {
     const router = useRouter();
-    const categories = Route.useLoaderData();
+    const { categories, analytics } = Route.useLoaderData();
     const [visibleCategories, setVisibleCategories] = useState(categories);
     const [searchValue, setSearchValue] = useState("");
     const [statusValue, setStatusValue] = useState<
@@ -55,6 +67,10 @@ function CategoriesPage() {
     const [deletingCategoryId, setDeletingCategoryId] = useState<string | null>(
         null
     );
+    const [reassignProductsTo, setReassignProductsTo] =
+        useState<string>("none");
+    const [reassignChildrenTo, setReassignChildrenTo] =
+        useState<string>("none");
 
     useEffect(() => {
         setVisibleCategories(categories);
@@ -74,6 +90,9 @@ function CategoriesPage() {
     );
     const categoryById = new Map(
         visibleCategories.map((category) => [category.id, category])
+    );
+    const analyticsByCategoryId = new Map(
+        analytics.map((item) => [item.categoryId, item])
     );
 
     const applyFilters = async () => {
@@ -106,6 +125,14 @@ function CategoriesPage() {
             await deleteCategory({
                 data: {
                     id: categoryId,
+                    reassignChildCategoriesTo:
+                        reassignChildrenTo === "none"
+                            ? null
+                            : reassignChildrenTo,
+                    reassignProductsTo:
+                        reassignProductsTo === "none"
+                            ? null
+                            : reassignProductsTo,
                 },
             });
             toast.success("Category archived.");
@@ -170,12 +197,69 @@ function CategoriesPage() {
                 </div>
             </div>
 
+            <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-2">
+                <div className="space-y-2">
+                    <Label>Reassign products on archive</Label>
+                    <Select
+                        onValueChange={(value) =>
+                            setReassignProductsTo(value ?? "none")
+                        }
+                        value={reassignProductsTo}
+                    >
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">
+                                Do not reassign
+                            </SelectItem>
+                            {categories.map((category) => (
+                                <SelectItem
+                                    key={category.id}
+                                    value={category.id}
+                                >
+                                    {category.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div className="space-y-2">
+                    <Label>Reassign child categories on archive</Label>
+                    <Select
+                        onValueChange={(value) =>
+                            setReassignChildrenTo(value ?? "none")
+                        }
+                        value={reassignChildrenTo}
+                    >
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="none">
+                                Do not reassign
+                            </SelectItem>
+                            {categories.map((category) => (
+                                <SelectItem
+                                    key={category.id}
+                                    value={category.id}
+                                >
+                                    {category.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+            </div>
+
             <div className="overflow-hidden rounded-lg border">
                 <Table>
                     <TableHeader>
                         <TableRow>
                             <TableHead>Name</TableHead>
                             <TableHead>Parent</TableHead>
+                            <TableHead>Products</TableHead>
+                            <TableHead>Stock Value</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="text-right">
                                 Actions
@@ -185,7 +269,7 @@ function CategoriesPage() {
                     <TableBody>
                         {hierarchicalCategories.length === 0 ? (
                             <TableRow>
-                                <TableCell className="text-center" colSpan={4}>
+                                <TableCell className="text-center" colSpan={6}>
                                     No categories found.
                                 </TableCell>
                             </TableRow>
@@ -207,6 +291,18 @@ function CategoriesPage() {
                                                       category.parentId
                                                   ) ?? "Unknown")
                                                 : "—"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {analyticsByCategoryId.get(
+                                                category.id
+                                            )?.activeProducts ?? 0}
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatCurrencyFromMinorUnits(
+                                                analyticsByCategoryId.get(
+                                                    category.id
+                                                )?.estimatedStockValueMinor ?? 0
+                                            )}
                                         </TableCell>
                                         <TableCell>
                                             <Badge

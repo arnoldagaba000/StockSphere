@@ -55,10 +55,11 @@ export const assertNoCategoryCycle = async (
             throw new Error("Category hierarchy cannot contain cycles.");
         }
 
-        const parentCategory = await prisma.category.findUnique({
-            select: { parentId: true },
-            where: { id: currentParentId },
-        });
+        const parentCategory: { parentId: string | null } | null =
+            await prisma.category.findUnique({
+                select: { parentId: true },
+                where: { id: currentParentId },
+            });
 
         currentParentId = parentCategory?.parentId ?? null;
     }

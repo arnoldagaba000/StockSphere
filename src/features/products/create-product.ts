@@ -34,7 +34,9 @@ export const createProduct = createServerFn({ method: "POST" })
                 categoryId: data.categoryId ?? null,
                 costPrice: toMinorUnits(data.costPrice),
                 createdById: context.session.user.id,
+                deletedAt: data.status === "ARCHIVED" ? new Date() : null,
                 description: data.description ?? null,
+                isActive: data.status === "ACTIVE",
                 dimensions: data.dimensions ?? null,
                 maximumStock: data.maximumStock ?? null,
                 minimumStock: data.minimumStock ?? 0,
@@ -43,6 +45,7 @@ export const createProduct = createServerFn({ method: "POST" })
                 reorderQuantity: data.reorderQuantity ?? null,
                 sellingPrice: toMinorUnits(data.sellingPrice),
                 sku: data.sku,
+                status: data.status,
                 taxRate: data.taxRate ?? null,
                 trackByBatch: data.trackByBatch,
                 trackByExpiry: data.trackByExpiry,
@@ -52,6 +55,16 @@ export const createProduct = createServerFn({ method: "POST" })
                 weightUnit: data.weightUnit ?? null,
             },
             include: { category: true },
+        });
+
+        await prisma.productPriceHistory.create({
+            data: {
+                changedById: context.session.user.id,
+                costPrice: product.costPrice,
+                productId: product.id,
+                reason: "Initial product pricing",
+                sellingPrice: product.sellingPrice,
+            },
         });
 
         await logActivity({

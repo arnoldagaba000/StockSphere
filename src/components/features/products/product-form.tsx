@@ -29,6 +29,7 @@ export interface ProductFormValues {
     reorderPoint: string;
     reorderQuantity: string;
     sellingPrice: string;
+    status: "ACTIVE" | "ARCHIVED" | "DISCONTINUED" | "DRAFT";
     sku: string;
     taxRate: string;
     trackByBatch: boolean;
@@ -51,6 +52,7 @@ export interface ProductSubmitData {
     reorderPoint: number | null;
     reorderQuantity: number | null;
     sellingPrice: number | null;
+    status: "ACTIVE" | "ARCHIVED" | "DISCONTINUED" | "DRAFT";
     sku: string;
     taxRate: number | null;
     trackByBatch: boolean;
@@ -111,6 +113,7 @@ const ProductForm = ({
                     reorderPoint: toNullableNumber(values.reorderPoint),
                     reorderQuantity: toNullableNumber(values.reorderQuantity),
                     sellingPrice: toNullableNumber(values.sellingPrice),
+                    status: values.status,
                     sku: values.sku.trim().toUpperCase(),
                     taxRate: toNullableNumber(values.taxRate),
                     trackByBatch: values.trackByBatch,
@@ -215,7 +218,7 @@ const ProductForm = ({
                             costPrice: event.target.value,
                         }))
                     }
-                    step="0.01"
+                    step={1}
                     type="number"
                     value={values.costPrice}
                 />
@@ -231,7 +234,7 @@ const ProductForm = ({
                             sellingPrice: event.target.value,
                         }))
                     }
-                    step="0.01"
+                    step={1}
                     type="number"
                     value={values.sellingPrice}
                 />
@@ -252,6 +255,35 @@ const ProductForm = ({
                     type="number"
                     value={values.taxRate}
                 />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="status">Lifecycle Status</Label>
+                <Select
+                    onValueChange={(nextValue) =>
+                        setValues((currentValues) => ({
+                            ...currentValues,
+                            status:
+                                nextValue === "DRAFT" ||
+                                nextValue === "DISCONTINUED" ||
+                                nextValue === "ARCHIVED"
+                                    ? nextValue
+                                    : "ACTIVE",
+                        }))
+                    }
+                    value={values.status}
+                >
+                    <SelectTrigger id="status">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="DRAFT">Draft</SelectItem>
+                        <SelectItem value="DISCONTINUED">
+                            Discontinued
+                        </SelectItem>
+                        <SelectItem value="ARCHIVED">Archived</SelectItem>
+                    </SelectContent>
+                </Select>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="unit">Unit</Label>

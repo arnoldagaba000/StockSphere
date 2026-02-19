@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+const RESERVED_SKU_PREFIXES = ["SYS-", "ROOT-", "ADMIN-"] as const;
+const PRODUCT_STATUSES = [
+    "ACTIVE",
+    "ARCHIVED",
+    "DISCONTINUED",
+    "DRAFT",
+] as const;
+
 const toNullableTrimmedString = (value: unknown): string | null | undefined => {
     if (value === null || value === undefined) {
         return value as null | undefined;
@@ -42,11 +50,23 @@ export const productSchema = z
             .min(1, "SKU is required")
             .max(50, "SKU must be 50 characters or less")
             .regex(/^[A-Za-z0-9._/-]+$/, "SKU contains invalid characters")
+            .refine(
+                (value) =>
+                    !RESERVED_SKU_PREFIXES.some((prefix) =>
+                        value.toUpperCase().startsWith(prefix)
+                    ),
+                "SKU uses a reserved prefix"
+            )
             .transform((value) => value.toUpperCase()),
 
         barcode: z.preprocess(
             toNullableTrimmedString,
-            z.string().max(50).nullable().optional()
+            z
+                .string()
+                .max(50)
+                .regex(/^[A-Za-z0-9-]+$/, "Barcode contains invalid characters")
+                .nullable()
+                .optional()
         ),
 
         name: z.string().trim().min(1, "Product name is required").max(200),
@@ -123,6 +143,7 @@ export const productSchema = z
         trackBySerialNumber: z.boolean().default(false),
         trackByBatch: z.boolean().default(false),
         trackByExpiry: z.boolean().default(false),
+        status: z.enum(PRODUCT_STATUSES).default("ACTIVE"),
     })
     .refine(
         (data) => {

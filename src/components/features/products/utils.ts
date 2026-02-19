@@ -77,8 +77,10 @@ export const formatCurrencyFromMinorUnits = (
         return "—";
     }
 
-    return new Intl.NumberFormat("en-US", {
-        currency: "USD",
+    return new Intl.NumberFormat("en-UG", {
+        currency: "UGX",
+        maximumFractionDigits: 0,
+        minimumFractionDigits: 0,
         style: "currency",
-    }).format(value / 100);
+    }).format(value);
 };

@@ -22,6 +22,7 @@ const DEFAULT_PRODUCT_FORM_VALUES: ProductFormValues = {
     reorderPoint: "0",
     reorderQuantity: "",
     sellingPrice: "",
+    status: "ACTIVE",
     sku: "",
     taxRate: "",
     trackByBatch: false,
