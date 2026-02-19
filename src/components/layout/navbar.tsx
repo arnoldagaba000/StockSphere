@@ -1,5 +1,5 @@
 import { Link, useLocation } from "@tanstack/react-router";
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import ThemeToggler from "@/components/layout/theme-toggler";
 import {
     Breadcrumb,
@@ -57,27 +57,28 @@ const Navbar = () => {
                                 const isLast = index === breadcrumbs.length - 1;
 
                                 return (
-                                    <BreadcrumbItem key={breadcrumb.href}>
-                                        {isLast ? (
-                                            <BreadcrumbPage>
-                                                {breadcrumb.label}
-                                            </BreadcrumbPage>
-                                        ) : (
-                                            <BreadcrumbLink
-                                                render={
-                                                    <Link
-                                                        to={breadcrumb.href}
-                                                    />
-                                                }
-                                            >
-                                                {breadcrumb.label}
-                                            </BreadcrumbLink>
-                                        )}
-
+                                    <Fragment key={breadcrumb.href}>
+                                        <BreadcrumbItem>
+                                            {isLast ? (
+                                                <BreadcrumbPage>
+                                                    {breadcrumb.label}
+                                                </BreadcrumbPage>
+                                            ) : (
+                                                <BreadcrumbLink
+                                                    render={
+                                                        <Link
+                                                            to={breadcrumb.href}
+                                                        />
+                                                    }
+                                                >
+                                                    {breadcrumb.label}
+                                                </BreadcrumbLink>
+                                            )}
+                                        </BreadcrumbItem>
                                         {isLast ? null : (
                                             <BreadcrumbSeparator />
                                         )}
-                                    </BreadcrumbItem>
+                                    </Fragment>
                                 );
                             })}
                         </BreadcrumbList>

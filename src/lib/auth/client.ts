@@ -4,8 +4,8 @@ import {
     lastLoginMethodClient,
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
+import { adminAccessControl, betterAuthAdminRoles } from "./admin-access";
 import type { auth } from "./config";
-import { adminAccessControl, betterAuthAdminRoles } from "./config";
 
 /**
  * Browser auth client used by auth forms and logout flows.

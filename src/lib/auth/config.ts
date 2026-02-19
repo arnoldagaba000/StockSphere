@@ -1,7 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { lastLoginMethod } from "better-auth/plugins";
-import { createAccessControl } from "better-auth/plugins/access";
 import { admin } from "better-auth/plugins/admin";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { prisma } from "@/db";
@@ -10,65 +9,9 @@ import {
     createChangeEmailVerificationTemplate,
     createResetPasswordEmailTemplate,
 } from "@/lib/email/templates";
+import { adminAccessControl, betterAuthAdminRoles } from "./admin-access";
 import { DEFAULT_USER_ROLE, isSuperAdminEmail } from "./roles";
 import { ensureSuperAdminRole } from "./super-admin";
-
-export const adminAccessControl = createAccessControl({
-    user: [
-        "create",
-        "list",
-        "set-role",
-        "ban",
-        "impersonate",
-        "delete",
-        "set-password",
-        "get",
-        "update",
-    ],
-    session: ["list", "revoke", "delete"],
-} as const);
-
-export const betterAuthAdminRoles = {
-    SUPER_ADMIN: adminAccessControl.newRole({
-        user: [
-            "create",
-            "list",
-            "set-role",
-            "ban",
-            "impersonate",
-            "delete",
-            "set-password",
-            "get",
-            "update",
-        ],
-        session: ["list", "revoke", "delete"],
-    }),
-    ADMIN: adminAccessControl.newRole({
-        user: [
-            "create",
-            "list",
-            "set-role",
-            "ban",
-            "delete",
-            "set-password",
-            "get",
-            "update",
-        ],
-        session: ["list", "revoke", "delete"],
-    }),
-    MANAGER: adminAccessControl.newRole({
-        user: ["list", "get"],
-        session: ["list"],
-    }),
-    STAFF: adminAccessControl.newRole({
-        user: [],
-        session: [],
-    }),
-    VIEWER: adminAccessControl.newRole({
-        user: [],
-        session: [],
-    }),
-} as const;
 
 /**
  * Application auth instance.

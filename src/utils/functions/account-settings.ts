@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
@@ -40,8 +39,13 @@ const PASSWORD_LOWERCASE_REGEX = /[a-z]/;
 const PASSWORD_NUMBER_REGEX = /\d/;
 const PASSWORD_SYMBOL_REGEX = /[^A-Za-z0-9]/;
 
-const hashEmailForAudit = (email: string): string =>
-    createHash("sha256").update(email).digest("hex");
+const hashEmailForAudit = async (email: string): Promise<string> => {
+    const bytes = new TextEncoder().encode(email);
+    const hashBuffer = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(hashBuffer))
+        .map((byte) => byte.toString(16).padStart(2, "0"))
+        .join("");
+};
 
 const assertPasswordStrength = (password: string): void => {
     const minLength = 10;
@@ -202,7 +206,7 @@ export const requestCurrentUserEmailChange = createServerFn({ method: "POST" })
             actorUserId: context.session.user.id,
             changes: {
                 hasNewEmail: true,
-                newEmailHash: hashEmailForAudit(nextEmail),
+                newEmailHash: await hashEmailForAudit(nextEmail),
             },
             entity: "User",
             entityId: context.session.user.id,
