@@ -47,11 +47,11 @@ function Slider({
                         data-slot="slider-range"
                     />
                 </SliderPrimitive.Track>
-                {Array.from({ length: _values.length }, (_, index) => (
+                {_values.map((thumbValue) => (
                     <SliderPrimitive.Thumb
                         className="relative block size-3 shrink-0 select-none rounded-full border border-ring bg-white ring-ring/50 transition-[color,box-shadow] after:absolute after:-inset-2 hover:ring-3 focus-visible:outline-hidden focus-visible:ring-3 active:ring-3 disabled:pointer-events-none disabled:opacity-50"
                         data-slot="slider-thumb"
-                        key={index}
+                        key={`thumb-${thumbValue}`}
                     />
                 ))}
             </SliderPrimitive.Control>

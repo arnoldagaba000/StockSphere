@@ -174,6 +174,7 @@ function CustomersPage() {
             } else {
                 if (form.code.trim().length === 0) {
                     toast.error("Customer code is required.");
+                    setIsSubmitting(false);
                     return;
                 }
 
@@ -200,14 +201,14 @@ function CustomersPage() {
 
             resetForm();
             await reload();
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to save customer."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -231,14 +232,14 @@ function CustomersPage() {
                     : "Customer activated."
             );
             await reload();
+            setIsRowBusyId(null);
         } catch (error) {
+            setIsRowBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to change customer status."
             );
-        } finally {
-            setIsRowBusyId(null);
         }
     };
 
@@ -257,14 +258,14 @@ function CustomersPage() {
                 resetForm();
             }
             await reload();
+            setIsRowBusyId(null);
         } catch (error) {
+            setIsRowBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to delete customer."
             );
-        } finally {
-            setIsRowBusyId(null);
         }
     };
 

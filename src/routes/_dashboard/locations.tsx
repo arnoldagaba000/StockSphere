@@ -70,14 +70,14 @@ function LocationsPage() {
                 data: { warehouseId: nextWarehouseId },
             });
             setLocations(result);
+            setIsLoadingLocations(false);
         } catch (error) {
+            setIsLoadingLocations(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to load locations."
             );
-        } finally {
-            setIsLoadingLocations(false);
         }
     }, []);
 
@@ -107,14 +107,14 @@ function LocationsPage() {
             toast.success("Location created.");
             resetForm();
             await loadLocations(warehouseId);
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to create location."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -299,16 +299,18 @@ function LocationsPage() {
                                                               await loadLocations(
                                                                   warehouseId
                                                               );
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
                                                           } catch (error) {
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
                                                               toast.error(
                                                                   error instanceof
                                                                       Error
                                                                       ? error.message
                                                                       : "Failed to update location."
-                                                              );
-                                                          } finally {
-                                                              setIsUpdatingId(
-                                                                  null
                                                               );
                                                           }
                                                       }}
@@ -347,16 +349,18 @@ function LocationsPage() {
                                                               await loadLocations(
                                                                   warehouseId
                                                               );
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
                                                           } catch (error) {
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
                                                               toast.error(
                                                                   error instanceof
                                                                       Error
                                                                       ? error.message
                                                                       : "Failed to update location type."
-                                                              );
-                                                          } finally {
-                                                              setIsUpdatingId(
-                                                                  null
                                                               );
                                                           }
                                                       }}
@@ -388,16 +392,18 @@ function LocationsPage() {
                                                               await loadLocations(
                                                                   warehouseId
                                                               );
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
                                                           } catch (error) {
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
                                                               toast.error(
                                                                   error instanceof
                                                                       Error
                                                                       ? error.message
                                                                       : "Failed to archive location."
-                                                              );
-                                                          } finally {
-                                                              setIsUpdatingId(
-                                                                  null
                                                               );
                                                           }
                                                       }}

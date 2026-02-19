@@ -84,14 +84,14 @@ function UserManagementSettingsPage() {
             if (options?.invalidate !== false) {
                 await router.invalidate();
             }
+            setBusyUserId(null);
         } catch (error) {
+            setBusyUserId(null);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to perform action.";
             toast.error(message);
-        } finally {
-            setBusyUserId(null);
         }
     };
 

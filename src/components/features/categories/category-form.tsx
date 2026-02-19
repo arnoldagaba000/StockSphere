@@ -33,11 +33,13 @@ export interface CategorySubmitData {
 interface CategoryFormProps {
     categories: CategoryOption[];
     excludeCategoryIds?: readonly string[];
-    initialValues: CategoryFormValues;
+    defaultValues: CategoryFormValues;
     isSubmitting: boolean;
     onSubmit: (data: CategorySubmitData) => Promise<void>;
     submitLabel: string;
 }
+
+const EMPTY_EXCLUDED_CATEGORY_IDS: readonly string[] = [];
 
 const toNullableString = (value: string): string | null => {
     const trimmedValue = value.trim();
@@ -46,13 +48,13 @@ const toNullableString = (value: string): string | null => {
 
 const CategoryForm = ({
     categories,
-    excludeCategoryIds = [],
-    initialValues,
+    excludeCategoryIds = EMPTY_EXCLUDED_CATEGORY_IDS,
+    defaultValues,
     isSubmitting,
     onSubmit,
     submitLabel,
 }: CategoryFormProps) => {
-    const [values, setValues] = useState(initialValues);
+    const [values, setValues] = useState(defaultValues);
     const parentCategoryOptions = useMemo(
         () => buildCategoryHierarchy(categories, excludeCategoryIds),
         [categories, excludeCategoryIds]
@@ -60,16 +62,14 @@ const CategoryForm = ({
 
     return (
         <form
-            className="space-y-4"
-            onSubmit={async (event) => {
-                event.preventDefault();
-
+            action={async () => {
                 await onSubmit({
                     description: toNullableString(values.description),
                     name: values.name.trim(),
                     parentId: toNullableString(values.parentId),
                 });
             }}
+            className="space-y-4"
         >
             <div className="space-y-2">
                 <Label htmlFor="category-name">Category Name</Label>

@@ -193,19 +193,20 @@ function EditProductPage() {
             if ("pendingApproval" in response && response.pendingApproval) {
                 toast.success("Critical change submitted for approval.");
                 await router.invalidate();
+                setIsSubmitting(false);
                 return;
             }
 
             toast.success("Product updated.");
             await navigate({ to: "/products" });
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to update product."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -218,7 +219,7 @@ function EditProductPage() {
                 <CardContent>
                     <ProductForm
                         categories={categoryOptions}
-                        initialValues={toFormValues(product)}
+                        defaultValues={toFormValues(product)}
                         isSubmitting={isSubmitting}
                         onSubmit={handleSubmit}
                         submitLabel="Save Changes"

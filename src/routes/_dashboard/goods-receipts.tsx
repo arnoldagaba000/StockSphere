@@ -185,14 +185,14 @@ function GoodsReceiptsPage() {
             });
             toast.success("Goods receipt posted.");
             await refresh();
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to receive goods."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -209,14 +209,14 @@ function GoodsReceiptsPage() {
             });
             toast.success("Goods receipt voided.");
             await refresh();
+            setIsVoidingId(null);
         } catch (error) {
+            setIsVoidingId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to void goods receipt."
             );
-        } finally {
-            setIsVoidingId(null);
         }
     };
 

@@ -62,10 +62,8 @@ const ForgotPasswordForm = () => {
 
             <CardContent>
                 <form
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        form.handleSubmit();
+                    action={async () => {
+                        await form.handleSubmit();
                     }}
                 >
                     <FieldGroup>

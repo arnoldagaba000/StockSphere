@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import {
     buildCategoryHierarchy,
@@ -135,10 +135,10 @@ const triggerBrowserDownload = (filename: string, content: string): void => {
 function ProductsPage() {
     const router = useRouter();
     const { analytics, categories, products } = Route.useLoaderData();
-    const [visibleProducts, setVisibleProducts] = useState(products);
-    useEffect(() => {
-        setVisibleProducts(products);
-    }, [products]);
+    const [filteredProducts, setFilteredProducts] = useState<
+        ProductListItem[] | null
+    >(null);
+    const visibleProducts = filteredProducts ?? products;
     const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
     const [searchValue, setSearchValue] = useState("");
     const [statusValue, setStatusValue] =
@@ -201,16 +201,16 @@ function ProductsPage() {
                         trackingFilterToBoolean(trackingSerialValue),
                 },
             });
-            setVisibleProducts(response.products);
+            setFilteredProducts(response.products);
             setSelectedProductIds([]);
+            setIsFiltering(false);
         } catch (error) {
+            setIsFiltering(false);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to fetch products.";
             toast.error(message);
-        } finally {
-            setIsFiltering(false);
         }
     };
 
@@ -225,14 +225,14 @@ function ProductsPage() {
             });
             toast.success("Product marked inactive.");
             await router.invalidate();
+            setDeletingProductId(null);
         } catch (error) {
+            setDeletingProductId(null);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to mark product inactive.";
             toast.error(message);
-        } finally {
-            setDeletingProductId(null);
         }
     };
 
@@ -253,11 +253,13 @@ function ProductsPage() {
                 });
                 triggerBrowserDownload(exportResult.filename, exportResult.csv);
                 toast.success("Product CSV exported.");
+                setIsBulkRunning(false);
                 return;
             }
 
             if (bulkAction === "assignCategory" && bulkCategoryId === "none") {
                 toast.error("Select a target category for assignment.");
+                setIsBulkRunning(false);
                 return;
             }
 
@@ -275,12 +277,12 @@ function ProductsPage() {
             toast.success(`Updated ${response.affectedCount} product(s).`);
             setSelectedProductIds([]);
             await router.invalidate();
+            setIsBulkRunning(false);
         } catch (error) {
+            setIsBulkRunning(false);
             const message =
                 error instanceof Error ? error.message : "Bulk action failed.";
             toast.error(message);
-        } finally {
-            setIsBulkRunning(false);
         }
     };
 

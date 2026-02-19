@@ -147,14 +147,14 @@ function PurchaseOrdersPage() {
                 data: { purchaseOrderId },
             });
             setSelectedOrderDetail(detail);
+            setIsLoadingDetail(false);
         } catch (error) {
+            setIsLoadingDetail(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to load purchase order detail."
             );
-        } finally {
-            setIsLoadingDetail(false);
         }
     };
 
@@ -196,14 +196,14 @@ function PurchaseOrdersPage() {
             setShippingCost("0");
             setItems([createLineItem(products[0]?.id ?? "")]);
             await refreshData();
+            setIsSaving(false);
         } catch (error) {
+            setIsSaving(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to create purchase order."
             );
-        } finally {
-            setIsSaving(false);
         }
     };
 
@@ -234,14 +234,14 @@ function PurchaseOrdersPage() {
             }
             toast.success("Purchase order updated.");
             await refreshData();
+            setIsTransitioningId(null);
         } catch (error) {
+            setIsTransitioningId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to update order."
             );
-        } finally {
-            setIsTransitioningId(null);
         }
     };
 

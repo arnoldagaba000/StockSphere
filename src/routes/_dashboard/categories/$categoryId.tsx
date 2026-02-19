@@ -44,12 +44,12 @@ function EditCategoryPage() {
             <CardContent>
                 <CategoryForm
                     categories={categories}
-                    excludeCategoryIds={[category.id]}
-                    initialValues={{
+                    defaultValues={{
                         description: category.description ?? "",
                         name: category.name,
                         parentId: category.parentId ?? "",
                     }}
+                    excludeCategoryIds={[category.id]}
                     isSubmitting={isSubmitting}
                     onSubmit={async (data) => {
                         try {
@@ -62,14 +62,14 @@ function EditCategoryPage() {
                             });
                             toast.success("Category updated.");
                             await navigate({ to: "/categories" });
+                            setIsSubmitting(false);
                         } catch (error) {
+                            setIsSubmitting(false);
                             const message =
                                 error instanceof Error
                                     ? error.message
                                     : "Failed to update category.";
                             toast.error(message);
-                        } finally {
-                            setIsSubmitting(false);
                         }
                     }}
                     submitLabel="Save Changes"

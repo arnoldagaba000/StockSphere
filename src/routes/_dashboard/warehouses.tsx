@@ -67,14 +67,14 @@ function WarehousesPage() {
             toast.success("Warehouse created.");
             resetForm();
             await router.invalidate();
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to create warehouse."
             );
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -239,15 +239,15 @@ function WarehousesPage() {
                                                             "Warehouse updated."
                                                         );
                                                         await router.invalidate();
+                                                        setIsUpdatingId(null);
                                                     } catch (error) {
+                                                        setIsUpdatingId(null);
                                                         toast.error(
                                                             error instanceof
                                                                 Error
                                                                 ? error.message
                                                                 : "Failed to update warehouse."
                                                         );
-                                                    } finally {
-                                                        setIsUpdatingId(null);
                                                     }
                                                 }}
                                                 size="sm"
@@ -276,15 +276,15 @@ function WarehousesPage() {
                                                             "Warehouse archived."
                                                         );
                                                         await router.invalidate();
+                                                        setIsUpdatingId(null);
                                                     } catch (error) {
+                                                        setIsUpdatingId(null);
                                                         toast.error(
                                                             error instanceof
                                                                 Error
                                                                 ? error.message
                                                                 : "Failed to archive warehouse."
                                                         );
-                                                    } finally {
-                                                        setIsUpdatingId(null);
                                                     }
                                                 }}
                                                 size="sm"

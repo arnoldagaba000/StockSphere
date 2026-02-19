@@ -65,7 +65,7 @@ export interface ProductSubmitData {
 
 interface ProductFormProps {
     categories: CategoryOption[];
-    initialValues: ProductFormValues;
+    defaultValues: ProductFormValues;
     isSubmitting: boolean;
     onSubmit: (data: ProductSubmitData) => Promise<void>;
     submitLabel: string;
@@ -88,19 +88,16 @@ const toNullableNumber = (value: string): number | null => {
 
 const ProductForm = ({
     categories,
-    initialValues,
+    defaultValues,
     isSubmitting,
     onSubmit,
     submitLabel,
 }: ProductFormProps) => {
-    const [values, setValues] = useState<ProductFormValues>(initialValues);
+    const [values, setValues] = useState<ProductFormValues>(defaultValues);
 
     return (
         <form
-            className="grid gap-4 md:grid-cols-2"
-            onSubmit={async (event) => {
-                event.preventDefault();
-
+            action={async () => {
                 await onSubmit({
                     barcode: toNullableString(values.barcode),
                     categoryId: toNullableString(values.categoryId),
@@ -124,6 +121,7 @@ const ProductForm = ({
                     weightUnit: toNullableString(values.weightUnit),
                 });
             }}
+            className="grid gap-4 md:grid-cols-2"
         >
             <div className="space-y-2">
                 <Label htmlFor="name">Product Name</Label>

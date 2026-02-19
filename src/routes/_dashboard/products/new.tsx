@@ -52,14 +52,14 @@ function NewProductPage() {
             });
             toast.success("Product created.");
             await navigate({ to: "/products" });
+            setIsSubmitting(false);
         } catch (error) {
+            setIsSubmitting(false);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to create product.";
             toast.error(message);
-        } finally {
-            setIsSubmitting(false);
         }
     };
 
@@ -71,7 +71,7 @@ function NewProductPage() {
             <CardContent>
                 <ProductForm
                     categories={categoryOptions}
-                    initialValues={DEFAULT_PRODUCT_FORM_VALUES}
+                    defaultValues={DEFAULT_PRODUCT_FORM_VALUES}
                     isSubmitting={isSubmitting}
                     onSubmit={handleSubmit}
                     submitLabel="Create Product"

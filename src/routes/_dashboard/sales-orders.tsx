@@ -244,14 +244,14 @@ function SalesOrdersPage() {
             if (detail.status === "DRAFT") {
                 setDraftFromDetail(detail);
             }
+            setIsLoadingDetail(false);
         } catch (error) {
+            setIsLoadingDetail(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to load sales order detail."
             );
-        } finally {
-            setIsLoadingDetail(false);
         }
     };
 
@@ -262,14 +262,14 @@ function SalesOrdersPage() {
                 buildSalesOrdersQuery(listFilters, page)
             );
             setSalesOrdersResponse(response);
+            setIsLoadingOrders(false);
         } catch (error) {
+            setIsLoadingOrders(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to load sales orders."
             );
-        } finally {
-            setIsLoadingOrders(false);
         }
     };
 
@@ -359,14 +359,14 @@ function SalesOrdersPage() {
             toast.success("Sales order created.");
             resetCreateForm();
             await refresh();
+            setIsCreating(false);
         } catch (error) {
+            setIsCreating(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to create sales order."
             );
-        } finally {
-            setIsCreating(false);
         }
     };
 
@@ -376,14 +376,14 @@ function SalesOrdersPage() {
             await confirmSalesOrder({ data: { salesOrderId: orderId } });
             toast.success("Sales order confirmed.");
             await refresh();
+            setIsActionBusyId(null);
         } catch (error) {
+            setIsActionBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to confirm sales order."
             );
-        } finally {
-            setIsActionBusyId(null);
         }
     };
 
@@ -404,14 +404,14 @@ function SalesOrdersPage() {
             toast.success("Sales order cancelled.");
             setCancelReason("");
             await refresh();
+            setIsActionBusyId(null);
         } catch (error) {
+            setIsActionBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to cancel sales order."
             );
-        } finally {
-            setIsActionBusyId(null);
         }
     };
 
@@ -425,14 +425,14 @@ function SalesOrdersPage() {
                 setSelectedOrderDetail(null);
             }
             await refresh();
+            setIsActionBusyId(null);
         } catch (error) {
+            setIsActionBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to delete draft sales order."
             );
-        } finally {
-            setIsActionBusyId(null);
         }
     };
 
@@ -442,14 +442,14 @@ function SalesOrdersPage() {
             await markSalesOrderDelivered({ data: { salesOrderId: orderId } });
             toast.success("Order marked delivered.");
             await refresh();
+            setIsActionBusyId(null);
         } catch (error) {
+            setIsActionBusyId(null);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to mark order delivered."
             );
-        } finally {
-            setIsActionBusyId(null);
         }
     };
 
@@ -503,14 +503,14 @@ function SalesOrdersPage() {
             setShipmentCarrier("");
             setShipmentTrackingNumber("");
             await refresh();
+            setIsShipping(false);
         } catch (error) {
+            setIsShipping(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to post shipment."
             );
-        } finally {
-            setIsShipping(false);
         }
     };
 
@@ -556,14 +556,14 @@ function SalesOrdersPage() {
             });
             toast.success("Draft updated.");
             await refresh();
+            setIsSavingDraft(false);
         } catch (error) {
+            setIsSavingDraft(false);
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to update draft."
             );
-        } finally {
-            setIsSavingDraft(false);
         }
     };
 
