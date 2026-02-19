@@ -12,7 +12,7 @@
     "db:studio": "dotenv -e .env.local -- prisma studio",
     "db:migrate": "dotenv -e .env.local -- prisma migrate dev",
     "db:seed": "dotenv -e .env.local -- prisma db seed",
-    "db:reset": "dotenv -e .env.local -- prisma db reset",
+    "db:reset": "dotenv -e .env.local -- prisma migrate reset",
     "check": "ultracite check",
     "fix": "ultracite fix"
   },
