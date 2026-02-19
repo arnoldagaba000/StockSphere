@@ -13,9 +13,12 @@ import { Route as DashboardRouteRouteImport } from './routes/_dashboard/route'
 import { Route as AuthRouteRouteImport } from './routes/_auth/route'
 import { Route as DashboardIndexRouteImport } from './routes/_dashboard/index'
 import { Route as DashboardWarehousesRouteImport } from './routes/_dashboard/warehouses'
+import { Route as DashboardSuppliersRouteImport } from './routes/_dashboard/suppliers'
 import { Route as DashboardStockRouteImport } from './routes/_dashboard/stock'
+import { Route as DashboardPurchaseOrdersRouteImport } from './routes/_dashboard/purchase-orders'
 import { Route as DashboardProfileRouteImport } from './routes/_dashboard/profile'
 import { Route as DashboardLocationsRouteImport } from './routes/_dashboard/locations'
+import { Route as DashboardGoodsReceiptsRouteImport } from './routes/_dashboard/goods-receipts'
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
 import { Route as AuthRegisterRouteImport } from './routes/_auth/register'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
@@ -53,9 +56,19 @@ const DashboardWarehousesRoute = DashboardWarehousesRouteImport.update({
   path: '/warehouses',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardSuppliersRoute = DashboardSuppliersRouteImport.update({
+  id: '/suppliers',
+  path: '/suppliers',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardStockRoute = DashboardStockRouteImport.update({
   id: '/stock',
   path: '/stock',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardPurchaseOrdersRoute = DashboardPurchaseOrdersRouteImport.update({
+  id: '/purchase-orders',
+  path: '/purchase-orders',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const DashboardProfileRoute = DashboardProfileRouteImport.update({
@@ -66,6 +79,11 @@ const DashboardProfileRoute = DashboardProfileRouteImport.update({
 const DashboardLocationsRoute = DashboardLocationsRouteImport.update({
   id: '/locations',
   path: '/locations',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardGoodsReceiptsRoute = DashboardGoodsReceiptsRouteImport.update({
+  id: '/goods-receipts',
+  path: '/goods-receipts',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
@@ -175,9 +193,12 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
+  '/purchase-orders': typeof DashboardPurchaseOrdersRoute
   '/stock': typeof DashboardStockRoute
+  '/suppliers': typeof DashboardSuppliersRoute
   '/warehouses': typeof DashboardWarehousesRoute
   '/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
   '/categories/new': typeof DashboardCategoriesNewRoute
@@ -197,9 +218,12 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
+  '/purchase-orders': typeof DashboardPurchaseOrdersRoute
   '/stock': typeof DashboardStockRoute
+  '/suppliers': typeof DashboardSuppliersRoute
   '/warehouses': typeof DashboardWarehousesRoute
   '/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
   '/categories/new': typeof DashboardCategoriesNewRoute
@@ -224,9 +248,12 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
+  '/_dashboard/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/_dashboard/locations': typeof DashboardLocationsRoute
   '/_dashboard/profile': typeof DashboardProfileRoute
+  '/_dashboard/purchase-orders': typeof DashboardPurchaseOrdersRoute
   '/_dashboard/stock': typeof DashboardStockRoute
+  '/_dashboard/suppliers': typeof DashboardSuppliersRoute
   '/_dashboard/warehouses': typeof DashboardWarehousesRoute
   '/_dashboard/': typeof DashboardIndexRoute
   '/_dashboard/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
@@ -252,9 +279,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/goods-receipts'
     | '/locations'
     | '/profile'
+    | '/purchase-orders'
     | '/stock'
+    | '/suppliers'
     | '/warehouses'
     | '/categories/$categoryId'
     | '/categories/new'
@@ -274,9 +304,12 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/goods-receipts'
     | '/locations'
     | '/profile'
+    | '/purchase-orders'
     | '/stock'
+    | '/suppliers'
     | '/warehouses'
     | '/categories/$categoryId'
     | '/categories/new'
@@ -300,9 +333,12 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/register'
     | '/_auth/reset-password'
+    | '/_dashboard/goods-receipts'
     | '/_dashboard/locations'
     | '/_dashboard/profile'
+    | '/_dashboard/purchase-orders'
     | '/_dashboard/stock'
+    | '/_dashboard/suppliers'
     | '/_dashboard/warehouses'
     | '/_dashboard/'
     | '/_dashboard/categories/$categoryId'
@@ -354,11 +390,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardWarehousesRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/_dashboard/suppliers': {
+      id: '/_dashboard/suppliers'
+      path: '/suppliers'
+      fullPath: '/suppliers'
+      preLoaderRoute: typeof DashboardSuppliersRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/_dashboard/stock': {
       id: '/_dashboard/stock'
       path: '/stock'
       fullPath: '/stock'
       preLoaderRoute: typeof DashboardStockRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/_dashboard/purchase-orders': {
+      id: '/_dashboard/purchase-orders'
+      path: '/purchase-orders'
+      fullPath: '/purchase-orders'
+      preLoaderRoute: typeof DashboardPurchaseOrdersRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/_dashboard/profile': {
@@ -373,6 +423,13 @@ declare module '@tanstack/react-router' {
       path: '/locations'
       fullPath: '/locations'
       preLoaderRoute: typeof DashboardLocationsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/_dashboard/goods-receipts': {
+      id: '/_dashboard/goods-receipts'
+      path: '/goods-receipts'
+      fullPath: '/goods-receipts'
+      preLoaderRoute: typeof DashboardGoodsReceiptsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/_auth/reset-password': {
@@ -582,9 +639,12 @@ interface DashboardRouteRouteChildren {
   DashboardCategoriesRouteRoute: typeof DashboardCategoriesRouteRouteWithChildren
   DashboardProductsRouteRoute: typeof DashboardProductsRouteRouteWithChildren
   DashboardSettingsRouteRoute: typeof DashboardSettingsRouteRouteWithChildren
+  DashboardGoodsReceiptsRoute: typeof DashboardGoodsReceiptsRoute
   DashboardLocationsRoute: typeof DashboardLocationsRoute
   DashboardProfileRoute: typeof DashboardProfileRoute
+  DashboardPurchaseOrdersRoute: typeof DashboardPurchaseOrdersRoute
   DashboardStockRoute: typeof DashboardStockRoute
+  DashboardSuppliersRoute: typeof DashboardSuppliersRoute
   DashboardWarehousesRoute: typeof DashboardWarehousesRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
 }
@@ -593,9 +653,12 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardCategoriesRouteRoute: DashboardCategoriesRouteRouteWithChildren,
   DashboardProductsRouteRoute: DashboardProductsRouteRouteWithChildren,
   DashboardSettingsRouteRoute: DashboardSettingsRouteRouteWithChildren,
+  DashboardGoodsReceiptsRoute: DashboardGoodsReceiptsRoute,
   DashboardLocationsRoute: DashboardLocationsRoute,
   DashboardProfileRoute: DashboardProfileRoute,
+  DashboardPurchaseOrdersRoute: DashboardPurchaseOrdersRoute,
   DashboardStockRoute: DashboardStockRoute,
+  DashboardSuppliersRoute: DashboardSuppliersRoute,
   DashboardWarehousesRoute: DashboardWarehousesRoute,
   DashboardIndexRoute: DashboardIndexRoute,
 }
