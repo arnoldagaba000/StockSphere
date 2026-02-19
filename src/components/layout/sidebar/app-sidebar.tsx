@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { GalleryVerticalEndIcon } from "lucide-react";
-import type { User } from "@/lib/auth";
+import type { AuthUser as User } from "@/lib/auth/config";
 import { navData } from "@/utils/data/nav";
 import {
     Sidebar,

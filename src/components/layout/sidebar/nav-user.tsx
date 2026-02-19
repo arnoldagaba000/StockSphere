@@ -16,8 +16,8 @@ import {
     SidebarMenuItem,
     useSidebar,
 } from "@/components/ui/sidebar";
-import type { User } from "@/lib/auth";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/client";
+import type { AuthUser as User } from "@/lib/auth/config";
 import UserAvatar from "../user-avatar";
 import UserDetails from "../user-details";
 
@@ -76,16 +76,22 @@ const NavUser = ({ user }: { user: User }) => {
 
                             <DropdownMenuGroup>
                                 <DropdownMenuItem
-                                    onClick={() => navigate({ to: "/profile" })}
+                                    onClick={() => {
+                                        toast.error(
+                                            "Profile page coming soon."
+                                        );
+                                    }}
                                 >
                                     <UserCircle />
                                     Profile
                                 </DropdownMenuItem>
 
                                 <DropdownMenuItem
-                                    onClick={() =>
-                                        navigate({ to: "/settings" })
-                                    }
+                                    onClick={() => {
+                                        toast.error(
+                                            "Settings page coming soon."
+                                        );
+                                    }}
                                 >
                                     <Settings />
                                     Settings

@@ -1,6 +1,6 @@
 import { UserIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import type { User } from "@/lib/auth";
+import type { AuthUser as User } from "@/lib/auth/config";
 import { cn } from "@/lib/utils";
 
 interface UserAvatarProps {

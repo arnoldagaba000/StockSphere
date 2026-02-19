@@ -1,4 +1,4 @@
-import type { User } from "@/lib/auth";
+import type { AuthUser as User } from "@/lib/auth/config";
 
 const UserDetails = ({ user }: { user: User }) => (
     <div className="grid flex-1 text-left text-sm leading-tight">
