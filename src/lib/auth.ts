@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { lastLoginMethod } from "better-auth/plugins";
+import { haveIBeenPwned, lastLoginMethod } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { prisma } from "@/db";
 import { sendEmail } from "@/lib/email";
@@ -40,7 +40,7 @@ export const auth = betterAuth({
         },
     },
     plugins: [
-        // haveIBeenPwned(),
+        haveIBeenPwned(),
         lastLoginMethod(),
         tanstackStartCookies(),
     ],
