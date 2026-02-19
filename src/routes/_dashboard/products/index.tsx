@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import {
     buildCategoryHierarchy,
@@ -46,6 +46,40 @@ interface ProductsLoaderData {
     categories: CategoryListItem[];
     products: ProductListItem[];
 }
+
+interface ProductsPageState {
+    bulkAction: BulkAction;
+    bulkCategoryId: string;
+    categoryValue: string;
+    deletingProductId: string | null;
+    filteredProducts: ProductListItem[] | null;
+    includeDescendants: boolean;
+    isBulkRunning: boolean;
+    isFiltering: boolean;
+    maxPriceValue: string;
+    minPriceValue: string;
+    searchValue: string;
+    selectedProductIds: string[];
+    statusValue: ProductStatusFilter;
+    trackingBatchValue: TrackingFilter;
+    trackingExpiryValue: TrackingFilter;
+    trackingSerialValue: TrackingFilter;
+}
+
+type ProductsPageAction =
+    | Partial<ProductsPageState>
+    | ((state: ProductsPageState) => Partial<ProductsPageState>);
+
+const productsPageReducer = (
+    state: ProductsPageState,
+    action: ProductsPageAction
+): ProductsPageState => {
+    const patch = typeof action === "function" ? action(state) : action;
+    return {
+        ...state,
+        ...patch,
+    };
+};
 
 const trackingFilterToBoolean = (
     filter: TrackingFilter
@@ -135,31 +169,43 @@ const triggerBrowserDownload = (filename: string, content: string): void => {
 function ProductsPage() {
     const router = useRouter();
     const { analytics, categories, products } = Route.useLoaderData();
-    const [filteredProducts, setFilteredProducts] = useState<
-        ProductListItem[] | null
-    >(null);
+    const [state, setState] = useReducer(productsPageReducer, {
+        bulkAction: "markInactive" as BulkAction,
+        bulkCategoryId: "none",
+        categoryValue: "all",
+        deletingProductId: null,
+        filteredProducts: null,
+        includeDescendants: true,
+        isBulkRunning: false,
+        isFiltering: false,
+        maxPriceValue: "",
+        minPriceValue: "",
+        searchValue: "",
+        selectedProductIds: [],
+        statusValue: "active" as ProductStatusFilter,
+        trackingBatchValue: "all" as TrackingFilter,
+        trackingExpiryValue: "all" as TrackingFilter,
+        trackingSerialValue: "all" as TrackingFilter,
+    });
+    const {
+        bulkAction,
+        bulkCategoryId,
+        categoryValue,
+        deletingProductId,
+        filteredProducts,
+        includeDescendants,
+        isBulkRunning,
+        isFiltering,
+        maxPriceValue,
+        minPriceValue,
+        searchValue,
+        selectedProductIds,
+        statusValue,
+        trackingBatchValue,
+        trackingExpiryValue,
+        trackingSerialValue,
+    } = state;
     const visibleProducts = filteredProducts ?? products;
-    const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
-    const [searchValue, setSearchValue] = useState("");
-    const [statusValue, setStatusValue] =
-        useState<ProductStatusFilter>("active");
-    const [categoryValue, setCategoryValue] = useState<string>("all");
-    const [includeDescendants, setIncludeDescendants] = useState(true);
-    const [minPriceValue, setMinPriceValue] = useState("");
-    const [maxPriceValue, setMaxPriceValue] = useState("");
-    const [trackingBatchValue, setTrackingBatchValue] =
-        useState<TrackingFilter>("all");
-    const [trackingSerialValue, setTrackingSerialValue] =
-        useState<TrackingFilter>("all");
-    const [trackingExpiryValue, setTrackingExpiryValue] =
-        useState<TrackingFilter>("all");
-    const [bulkAction, setBulkAction] = useState<BulkAction>("markInactive");
-    const [bulkCategoryId, setBulkCategoryId] = useState("none");
-    const [isFiltering, setIsFiltering] = useState(false);
-    const [isBulkRunning, setIsBulkRunning] = useState(false);
-    const [deletingProductId, setDeletingProductId] = useState<string | null>(
-        null
-    );
     const categoryOptions = buildCategoryHierarchy(categories);
     const categoryNameById = useMemo(
         () =>
@@ -185,7 +231,7 @@ function ProductsPage() {
             minPriceValue.trim().length > 0 ? Number(minPriceValue) : undefined;
 
         try {
-            setIsFiltering(true);
+            setState({ isFiltering: true });
             const response = await getProducts({
                 data: {
                     categoryId: categoryIdValue,
@@ -200,11 +246,13 @@ function ProductsPage() {
                         trackingFilterToBoolean(trackingSerialValue),
                 },
             });
-            setFilteredProducts(response.products);
-            setSelectedProductIds([]);
-            setIsFiltering(false);
+            setState({
+                filteredProducts: response.products,
+                isFiltering: false,
+                selectedProductIds: [],
+            });
         } catch (error) {
-            setIsFiltering(false);
+            setState({ isFiltering: false });
             const message =
                 error instanceof Error
                     ? error.message
@@ -215,7 +263,7 @@ function ProductsPage() {
 
     const handleSoftDelete = async (productId: string) => {
         try {
-            setDeletingProductId(productId);
+            setState({ deletingProductId: productId });
             await deleteProduct({
                 data: {
                     hardDelete: false,
@@ -224,9 +272,9 @@ function ProductsPage() {
             });
             toast.success("Product marked inactive.");
             await router.invalidate();
-            setDeletingProductId(null);
+            setState({ deletingProductId: null });
         } catch (error) {
-            setDeletingProductId(null);
+            setState({ deletingProductId: null });
             const message =
                 error instanceof Error
                     ? error.message
@@ -248,7 +296,7 @@ function ProductsPage() {
             bulkAction === "assignCategory" && bulkCategoryId === "none";
 
         try {
-            setIsBulkRunning(true);
+            setState({ isBulkRunning: true });
 
             if (bulkAction === "exportCsv") {
                 const exportResult = await exportProductsCsv({
@@ -258,13 +306,13 @@ function ProductsPage() {
                 });
                 triggerBrowserDownload(exportResult.filename, exportResult.csv);
                 toast.success("Product CSV exported.");
-                setIsBulkRunning(false);
+                setState({ isBulkRunning: false });
                 return;
             }
 
             if (needsCategorySelection) {
                 toast.error("Select a target category for assignment.");
-                setIsBulkRunning(false);
+                setState({ isBulkRunning: false });
                 return;
             }
 
@@ -276,11 +324,11 @@ function ProductsPage() {
                 },
             });
             toast.success(`Updated ${response.affectedCount} product(s).`);
-            setSelectedProductIds([]);
+            setState({ selectedProductIds: [] });
             await router.invalidate();
-            setIsBulkRunning(false);
+            setState({ isBulkRunning: false });
         } catch (error) {
-            setIsBulkRunning(false);
+            setState({ isBulkRunning: false });
             const message =
                 error instanceof Error ? error.message : "Bulk action failed.";
             toast.error(message);
@@ -342,7 +390,9 @@ function ProductsPage() {
                     <Label htmlFor="product-search">Search</Label>
                     <Input
                         id="product-search"
-                        onChange={(event) => setSearchValue(event.target.value)}
+                        onChange={(event) =>
+                            setState({ searchValue: event.target.value })
+                        }
                         placeholder="Search by SKU, name, or barcode"
                         value={searchValue}
                     />
@@ -351,7 +401,9 @@ function ProductsPage() {
                     <Label>Status</Label>
                     <Select
                         onValueChange={(value) =>
-                            setStatusValue(toStatusFilter(value))
+                            setState({
+                                statusValue: toStatusFilter(value),
+                            })
                         }
                         value={statusValue}
                     >
@@ -369,7 +421,7 @@ function ProductsPage() {
                     <Label>Category</Label>
                     <Select
                         onValueChange={(nextValue) =>
-                            setCategoryValue(nextValue ?? "all")
+                            setState({ categoryValue: nextValue ?? "all" })
                         }
                         value={categoryValue}
                     >
@@ -394,7 +446,7 @@ function ProductsPage() {
                     <Input
                         min={0}
                         onChange={(event) =>
-                            setMinPriceValue(event.target.value)
+                            setState({ minPriceValue: event.target.value })
                         }
                         step={1}
                         type="number"
@@ -406,7 +458,7 @@ function ProductsPage() {
                     <Input
                         min={0}
                         onChange={(event) =>
-                            setMaxPriceValue(event.target.value)
+                            setState({ maxPriceValue: event.target.value })
                         }
                         step={1}
                         type="number"
@@ -417,7 +469,9 @@ function ProductsPage() {
                     <Label>Track By Batch</Label>
                     <Select
                         onValueChange={(value) =>
-                            setTrackingBatchValue(toTrackingFilter(value))
+                            setState({
+                                trackingBatchValue: toTrackingFilter(value),
+                            })
                         }
                         value={trackingBatchValue}
                     >
@@ -435,7 +489,9 @@ function ProductsPage() {
                     <Label>Track By Serial</Label>
                     <Select
                         onValueChange={(value) =>
-                            setTrackingSerialValue(toTrackingFilter(value))
+                            setState({
+                                trackingSerialValue: toTrackingFilter(value),
+                            })
                         }
                         value={trackingSerialValue}
                     >
@@ -453,7 +509,9 @@ function ProductsPage() {
                     <Label>Track By Expiry</Label>
                     <Select
                         onValueChange={(value) =>
-                            setTrackingExpiryValue(toTrackingFilter(value))
+                            setState({
+                                trackingExpiryValue: toTrackingFilter(value),
+                            })
                         }
                         value={trackingExpiryValue}
                     >
@@ -473,7 +531,9 @@ function ProductsPage() {
                         <Checkbox
                             checked={includeDescendants}
                             onCheckedChange={(checked) =>
-                                setIncludeDescendants(Boolean(checked))
+                                setState({
+                                    includeDescendants: Boolean(checked),
+                                })
                             }
                         />
                         <span className="text-sm">
@@ -493,7 +553,7 @@ function ProductsPage() {
                     <Label>Bulk Action</Label>
                     <Select
                         onValueChange={(value) =>
-                            setBulkAction(toBulkAction(value))
+                            setState({ bulkAction: toBulkAction(value) })
                         }
                         value={bulkAction}
                     >
@@ -518,7 +578,7 @@ function ProductsPage() {
                     <Label>Target Category (assign only)</Label>
                     <Select
                         onValueChange={(value) =>
-                            setBulkCategoryId(value ?? "none")
+                            setState({ bulkCategoryId: value ?? "none" })
                         }
                         value={bulkCategoryId}
                     >
@@ -563,13 +623,13 @@ function ProductsPage() {
                                 <Checkbox
                                     checked={allVisibleSelected}
                                     onCheckedChange={(checked) =>
-                                        setSelectedProductIds(
-                                            checked
+                                        setState({
+                                            selectedProductIds: checked
                                                 ? visibleProducts.map(
                                                       (product) => product.id
                                                   )
-                                                : []
-                                        )
+                                                : [],
+                                        })
                                     }
                                 />
                             </TableHead>
@@ -599,19 +659,18 @@ function ProductsPage() {
                                                 product.id
                                             )}
                                             onCheckedChange={(checked) =>
-                                                setSelectedProductIds(
-                                                    (currentIds) =>
-                                                        checked
-                                                            ? [
-                                                                  ...currentIds,
-                                                                  product.id,
-                                                              ]
-                                                            : currentIds.filter(
-                                                                  (id) =>
-                                                                      id !==
-                                                                      product.id
-                                                              )
-                                                )
+                                                setState((currentState) => ({
+                                                    selectedProductIds: checked
+                                                        ? [
+                                                              ...currentState.selectedProductIds,
+                                                              product.id,
+                                                          ]
+                                                        : currentState.selectedProductIds.filter(
+                                                              (id) =>
+                                                                  id !==
+                                                                  product.id
+                                                          ),
+                                                }))
                                             }
                                         />
                                     </TableCell>
