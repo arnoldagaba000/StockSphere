@@ -35,7 +35,7 @@ const NavMain = ({ mainItems }: NavMainProps) => {
         <SidebarGroup>
             <SidebarGroupLabel>Navigation</SidebarGroupLabel>
 
-            <SidebarMenu>
+            <SidebarMenu className="space-y-2">
                 {mainItems.map((nav) => {
                     const hasNestedItems =
                         Array.isArray(nav.items) && nav.items.length > 0;
