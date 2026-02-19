@@ -12,7 +12,6 @@ import {
     useId,
     useMemo,
 } from "react";
-import type { LegendPayload, TooltipContentProps } from "recharts";
 
 import { cn } from "@/lib/utils";
 
@@ -143,7 +142,7 @@ function ChartTooltipContent({
     color,
     nameKey,
     labelKey,
-}: TooltipContentProps<TooltipValue, TooltipName> &
+}: import("recharts").TooltipContentProps<TooltipValue, TooltipName> &
     ComponentProps<"div"> & {
         hideLabel?: boolean;
         hideIndicator?: boolean;
@@ -312,7 +311,7 @@ function ChartLegendContent({
     verticalAlign = "bottom",
     nameKey,
 }: ComponentProps<"div"> & {
-    payload?: readonly LegendPayload[];
+    payload?: readonly import("recharts").LegendPayload[];
     verticalAlign?: "top" | "bottom" | "middle";
     hideIcon?: boolean;
     nameKey?: string;

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useReducer } from "react";
 import { buildCategoryHierarchy } from "@/components/features/categories/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -46,6 +46,14 @@ const toNullableString = (value: string): string | null => {
     return trimmedValue.length > 0 ? trimmedValue : null;
 };
 
+const updateCategoryFormValues = (
+    values: CategoryFormValues,
+    patch: Partial<CategoryFormValues>
+): CategoryFormValues => ({
+    ...values,
+    ...patch,
+});
+
 const CategoryForm = ({
     categories,
     excludeCategoryIds = EMPTY_EXCLUDED_CATEGORY_IDS,
@@ -54,8 +62,10 @@ const CategoryForm = ({
     onSubmit,
     submitLabel,
 }: CategoryFormProps) => {
-    const initialValuesRef = useRef(defaultValues);
-    const [values, setValues] = useState(initialValuesRef.current);
+    const [values, setValues] = useReducer(
+        updateCategoryFormValues,
+        defaultValues
+    );
     const parentCategoryOptions = useMemo(
         () => buildCategoryHierarchy(categories, excludeCategoryIds),
         [categories, excludeCategoryIds]
@@ -77,10 +87,9 @@ const CategoryForm = ({
                 <Input
                     id="category-name"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             name: event.target.value,
-                        }))
+                        })
                     }
                     required
                     value={values.name}
@@ -91,13 +100,12 @@ const CategoryForm = ({
                 <Label htmlFor="category-parent">Parent Category</Label>
                 <Select
                     onValueChange={(nextValue) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             parentId:
                                 nextValue && nextValue !== "none"
                                     ? nextValue
                                     : "",
-                        }))
+                        })
                     }
                     value={values.parentId || "none"}
                 >
@@ -120,10 +128,9 @@ const CategoryForm = ({
                 <Textarea
                     id="category-description"
                     onChange={(event) =>
-                        setValues((currentValues) => ({
-                            ...currentValues,
+                        setValues({
                             description: event.target.value,
-                        }))
+                        })
                     }
                     rows={4}
                     value={values.description}
