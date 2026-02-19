@@ -1,4 +1,4 @@
-import { useRouter } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { ChevronsUpDown, LogOut, Settings, UserCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -23,14 +23,18 @@ import UserDetails from "../user-details";
 
 const NavUser = ({ user }: { user: User }) => {
     const { isMobile } = useSidebar();
-    const router = useRouter();
+    const navigate = useNavigate();
 
     const handleLogout = async () => {
         await authClient.signOut({
             fetchOptions: {
                 onSuccess: () => {
                     toast.success("Logged out successfully");
-                    router.navigate({ to: "/login", replace: true });
+                    navigate({
+                        to: "/login",
+                        replace: true,
+                        reloadDocument: true,
+                    });
                 },
             },
         });
@@ -72,9 +76,7 @@ const NavUser = ({ user }: { user: User }) => {
 
                             <DropdownMenuGroup>
                                 <DropdownMenuItem
-                                    onClick={() =>
-                                        router.navigate({ to: "/profile" })
-                                    }
+                                    onClick={() => navigate({ to: "/profile" })}
                                 >
                                     <UserCircle />
                                     Profile
@@ -82,7 +84,7 @@ const NavUser = ({ user }: { user: User }) => {
 
                                 <DropdownMenuItem
                                     onClick={() =>
-                                        router.navigate({ to: "/settings" })
+                                        navigate({ to: "/settings" })
                                     }
                                 >
                                     <Settings />
