@@ -52,6 +52,11 @@ export const getNavData = (
                     to: "/products",
                     activeOptions: { exact: false },
                 },
+                {
+                    title: "Categories",
+                    to: "/categories",
+                    activeOptions: { exact: false },
+                },
             ],
         },
         {
