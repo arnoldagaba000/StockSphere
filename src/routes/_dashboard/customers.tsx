@@ -215,6 +215,9 @@ function CustomersPage() {
         if (!customer) {
             return;
         }
+        const successMessage = customer.isActive
+            ? "Customer deactivated."
+            : "Customer activated.";
 
         try {
             setIsRowBusyId(customer.id);
@@ -224,11 +227,7 @@ function CustomersPage() {
                     isActive: !customer.isActive,
                 },
             });
-            toast.success(
-                customer.isActive
-                    ? "Customer deactivated."
-                    : "Customer activated."
-            );
+            toast.success(successMessage);
             await reload();
             setIsRowBusyId(null);
         } catch (error) {

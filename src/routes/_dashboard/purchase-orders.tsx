@@ -172,6 +172,7 @@ function PurchaseOrdersPage() {
             return;
         }
         const expectedDateValue = expectedDate ? new Date(expectedDate) : null;
+        const firstProductId = products[0]?.id ?? "";
         const shippingCostValue = Number(shippingCost) || 0;
         const taxAmountValue = Number(taxAmount) || 0;
 
@@ -197,7 +198,7 @@ function PurchaseOrdersPage() {
             setExpectedDate("");
             setTaxAmount("0");
             setShippingCost("0");
-            setItems([createLineItem(products[0]?.id ?? "")]);
+            setItems([createLineItem(firstProductId)]);
             await refreshData();
             setIsSaving(false);
         } catch (error) {

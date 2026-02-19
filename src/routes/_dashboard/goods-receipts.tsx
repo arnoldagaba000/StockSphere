@@ -98,7 +98,6 @@ function GoodsReceiptsPage() {
             return;
         }
 
-        setIsLoadingOrder(true);
         getPurchaseOrderDetail({
             data: { purchaseOrderId },
         })

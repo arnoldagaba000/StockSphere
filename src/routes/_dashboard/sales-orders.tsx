@@ -490,17 +490,19 @@ function SalesOrdersPage() {
             toast.error("Select at least one shipment line with quantity.");
             return;
         }
+        const carrierValue = shipmentCarrier.trim() || null;
+        const trackingNumberValue = shipmentTrackingNumber.trim() || null;
 
         try {
             setIsShipping(true);
             await shipOrder({
                 data: {
-                    carrier: shipmentCarrier.trim() || null,
+                    carrier: carrierValue,
                     items: payloadItems,
                     notes: null,
                     salesOrderId: selectedOrderDetail.id,
                     shippedDate: new Date(),
-                    trackingNumber: shipmentTrackingNumber.trim() || null,
+                    trackingNumber: trackingNumberValue,
                 },
             });
             toast.success("Shipment posted.");
