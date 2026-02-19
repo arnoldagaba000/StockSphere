@@ -47,11 +47,15 @@ const NavUser = ({ user }: { user: User }) => {
                     <DropdownMenuTrigger
                         render={
                             <SidebarMenuButton
-                                className="border border-sidebar-border data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
+                                className="h-auto gap-3 border border-sidebar-border px-2 py-2 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                                 size="lg"
                             >
                                 <UserAvatar user={user} />
-                                <UserDetails user={user} />
+                                <UserDetails
+                                    compact
+                                    showRole={false}
+                                    user={user}
+                                />
 
                                 <ChevronsUpDown className="ml-auto size-4" />
                             </SidebarMenuButton>
@@ -60,14 +64,14 @@ const NavUser = ({ user }: { user: User }) => {
 
                     <DropdownMenuContent
                         align="end"
-                        className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+                        className="w-(--radix-dropdown-menu-trigger-width) min-w-64 rounded-lg"
                         side={isMobile ? "bottom" : "right"}
                         sideOffset={4}
                     >
                         <DropdownMenuGroup>
-                            <DropdownMenuLabel className="p-0 font-normal">
-                                <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                                    <UserAvatar user={user} />
+                            <DropdownMenuLabel className="p-2 font-normal">
+                                <div className="flex items-start gap-3 rounded-md border border-sidebar-border bg-sidebar-accent/30 p-3 text-left text-sm">
+                                    <UserAvatar size="md" user={user} />
                                     <UserDetails user={user} />
                                 </div>
                             </DropdownMenuLabel>
