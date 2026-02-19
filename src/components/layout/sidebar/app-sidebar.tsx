@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { GalleryVerticalEndIcon } from "lucide-react";
 import type { AuthUser as User } from "@/lib/auth/config";
-import { navData } from "@/utils/data/nav";
+import { getNavData } from "@/utils/data/nav";
 import {
     Sidebar,
     SidebarContent,
@@ -16,10 +16,13 @@ import NavMain from "./nav-main";
 import NavUser from "./nav-user";
 
 interface AppSidebarProps {
+    isImpersonating: boolean;
     user: User;
 }
 
-const AppSidebar = ({ user }: AppSidebarProps) => {
+const AppSidebar = ({ user, isImpersonating }: AppSidebarProps) => {
+    const navData = getNavData(user.role);
+
     return (
         <Sidebar collapsible="icon">
             <SidebarHeader>
@@ -57,7 +60,7 @@ const AppSidebar = ({ user }: AppSidebarProps) => {
             </SidebarContent>
 
             <SidebarFooter>
-                <NavUser user={user} />
+                <NavUser isImpersonating={isImpersonating} user={user} />
             </SidebarFooter>
             <SidebarRail />
         </Sidebar>

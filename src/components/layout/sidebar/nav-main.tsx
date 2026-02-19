@@ -43,6 +43,7 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                                 render={
                                     <SidebarMenuButton tooltip={nav.title}>
                                         {nav.icon && <nav.icon />}
+                                        <span>{nav.title}</span>
                                         <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
                                     </SidebarMenuButton>
                                 }

@@ -3,7 +3,7 @@ import type { AuthUser as User } from "@/lib/auth/config";
 
 const formatRole = (role: string | null | undefined): string => {
     if (!role) {
-        return "Staff";
+        return "Viewer";
     }
 
     return role

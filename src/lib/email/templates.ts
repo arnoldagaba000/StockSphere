@@ -12,6 +12,15 @@ interface EmailTemplateContent {
     text: string;
 }
 
+interface ChangeEmailTemplateInput {
+    appName?: string;
+    currentEmail?: string;
+    newEmail: string;
+    recipientName?: string | null;
+    supportEmail?: string;
+    verificationUrl: string;
+}
+
 const escapeHtml = (value: string) =>
     value
         .replaceAll("&", "&amp;")
@@ -31,13 +40,14 @@ export const createResetPasswordEmailTemplate = ({
     const safeSupportEmail = escapeHtml(supportEmail);
     const safeRecipientName = recipientName ? escapeHtml(recipientName) : null;
     const safeResetUrl = escapeHtml(resetUrl);
-    const greeting = safeRecipientName
+    const htmlGreeting = safeRecipientName
         ? `Hi ${safeRecipientName},`
         : "Hi there,";
+    const textGreeting = recipientName ? `Hi ${recipientName},` : "Hi there,";
     const subject = `${appName}: Reset your password`;
 
     const text = [
-        `${greeting}`,
+        textGreeting,
         "",
         `We received a request to reset your ${appName} password.`,
         `Use the link below within ${expiresInMinutes} minutes:`,
@@ -71,7 +81,7 @@ export const createResetPasswordEmailTemplate = ({
             <tr>
               <td style="padding:28px;">
                 <h1 style="margin:0 0 12px;font-size:22px;line-height:1.3;color:#111827;">Reset your password</h1>
-                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">${greeting}</p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">${htmlGreeting}</p>
                 <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#374151;">We received a request to reset your password. For security, this link expires in <strong>${expiresInMinutes} minutes</strong>.</p>
                 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
                   <tr>
@@ -85,6 +95,96 @@ export const createResetPasswordEmailTemplate = ({
                 <p style="margin:0 0 20px;font-size:14px;line-height:1.6;color:#6b7280;">If you did not request a password reset, you can ignore this email.</p>
                 <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;" />
                 <p style="margin:0;font-size:13px;line-height:1.6;color:#6b7280;">Need help? Contact <a href="mailto:${safeSupportEmail}" style="color:#0f62fe;text-decoration:underline;">${safeSupportEmail}</a>.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
+`;
+
+    return {
+        html,
+        subject,
+        text,
+    };
+};
+
+export const createChangeEmailVerificationTemplate = ({
+    appName = "Stock Sphere",
+    currentEmail,
+    newEmail,
+    recipientName,
+    supportEmail = "support@stocksphere.com",
+    verificationUrl,
+}: ChangeEmailTemplateInput): EmailTemplateContent => {
+    const safeAppName = escapeHtml(appName);
+    const safeCurrentEmail = currentEmail ? escapeHtml(currentEmail) : null;
+    const safeNewEmail = escapeHtml(newEmail);
+    const safeRecipientName = recipientName ? escapeHtml(recipientName) : null;
+    const safeSupportEmail = escapeHtml(supportEmail);
+    const safeVerificationUrl = escapeHtml(verificationUrl);
+    const htmlGreeting = safeRecipientName
+        ? `Hi ${safeRecipientName},`
+        : "Hi there,";
+    const textGreeting = recipientName ? `Hi ${recipientName},` : "Hi there,";
+    const subject = `${appName}: Confirm your email change`;
+
+    const text = [
+        textGreeting,
+        "",
+        `We received a request to change your ${appName} email address.`,
+        currentEmail
+            ? `Current email: ${currentEmail}`
+            : "Current email: not available",
+        `New email: ${newEmail}`,
+        "",
+        "Please confirm this change using the link below:",
+        verificationUrl,
+        "",
+        "If you did not request this change, ignore this email and secure your account.",
+        `Need help? Contact ${supportEmail}.`,
+    ].join("\n");
+
+    const html = `
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${safeAppName} Email Change</title>
+  </head>
+  <body style="margin:0;padding:0;background-color:#f4f6fb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1f2937;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f6fb;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;">
+            <tr>
+              <td style="padding:24px 28px;background-color:#111827;">
+                <p style="margin:0;color:#ffffff;font-size:20px;font-weight:700;">${safeAppName}</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:28px;">
+                <h1 style="margin:0 0 12px;font-size:22px;color:#111827;">Confirm your email change</h1>
+                <p style="margin:0 0 16px;font-size:15px;color:#374151;">${htmlGreeting}</p>
+                <p style="margin:0 0 16px;font-size:15px;color:#374151;">We received a request to update your email address.</p>
+                <p style="margin:0 0 6px;font-size:14px;color:#6b7280;">Current email: <strong>${safeCurrentEmail ?? "not available"}</strong></p>
+                <p style="margin:0 0 20px;font-size:14px;color:#6b7280;">New email: <strong>${safeNewEmail}</strong></p>
+                <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
+                  <tr>
+                    <td style="border-radius:8px;background-color:#0f62fe;">
+                      <a href="${safeVerificationUrl}" style="display:inline-block;padding:12px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;">Confirm Email Change</a>
+                    </td>
+                  </tr>
+                </table>
+                <p style="margin:0 0 8px;font-size:14px;color:#6b7280;">If the button does not work, paste this URL into your browser:</p>
+                <p style="margin:0 0 20px;font-size:14px;word-break:break-all;"><a href="${safeVerificationUrl}" style="color:#0f62fe;text-decoration:underline;">${safeVerificationUrl}</a></p>
+                <p style="margin:0 0 20px;font-size:14px;color:#6b7280;">If this wasn't you, ignore this email and change your password immediately.</p>
+                <hr style="border:none;border-top:1px solid #e5e7eb;margin:0 0 16px;" />
+                <p style="margin:0;font-size:13px;color:#6b7280;">Need help? Contact <a href="mailto:${safeSupportEmail}" style="color:#0f62fe;text-decoration:underline;">${safeSupportEmail}</a>.</p>
               </td>
             </tr>
           </table>

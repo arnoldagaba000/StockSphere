@@ -15,7 +15,7 @@ export type AppUserRole = (typeof USER_ROLES)[number];
 /**
  * Default role for non-privileged users.
  */
-export const DEFAULT_USER_ROLE: AppUserRole = "STAFF";
+export const DEFAULT_USER_ROLE: AppUserRole = "VIEWER";
 
 /**
  * Resolve the configured developer email that should always be SUPER_ADMIN.
