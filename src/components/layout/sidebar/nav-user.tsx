@@ -107,9 +107,9 @@ const NavUser = ({ user, isImpersonating }: NavUserProps) => {
                             <DropdownMenuGroup>
                                 <DropdownMenuItem
                                     onClick={() => {
-                                        toast.error(
-                                            "Profile page coming soon."
-                                        );
+                                        navigate({
+                                            to: "/profile",
+                                        });
                                     }}
                                 >
                                     <UserCircle />
@@ -118,9 +118,9 @@ const NavUser = ({ user, isImpersonating }: NavUserProps) => {
 
                                 <DropdownMenuItem
                                     onClick={() => {
-                                        toast.error(
-                                            "Settings page coming soon."
-                                        );
+                                        navigate({
+                                            to: "/settings/profile",
+                                        });
                                     }}
                                 >
                                     <Settings />

@@ -1,4 +1,10 @@
-import { Boxes, Settings } from "lucide-react";
+import {
+    Boxes,
+    FolderTree,
+    LayoutDashboard,
+    Settings,
+    UserCircle2,
+} from "lucide-react";
 import type { NavMainProps } from "@/components/layout/sidebar/nav-main";
 
 const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"] as const;
@@ -32,22 +38,28 @@ export const getNavData = (
 
     return [
         {
-            title: "Workspace",
+            title: "Dashboard",
             to: "/",
+            icon: LayoutDashboard,
+            activeOptions: { exact: true },
+        },
+        {
+            title: "Profile",
+            to: "/profile",
+            icon: UserCircle2,
+            activeOptions: { exact: true },
+        },
+        {
+            title: "Products",
+            to: "/products",
             icon: Boxes,
             activeOptions: { exact: false },
-            items: [
-                {
-                    title: "Dashboard",
-                    to: "/",
-                    activeOptions: { exact: true },
-                },
-                {
-                    title: "Profile",
-                    to: "/profile",
-                    activeOptions: { exact: true },
-                },
-            ],
+        },
+        {
+            title: "Categories",
+            to: "/categories",
+            icon: FolderTree,
+            activeOptions: { exact: false },
         },
         {
             title: "Settings",

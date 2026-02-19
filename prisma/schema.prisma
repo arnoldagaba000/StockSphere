@@ -31,7 +31,11 @@ model User {
   accounts Account[]
 
   createdProducts       Product[]              @relation("ProductCreator")
+  approvedProductChangeRequests  ProductChangeRequest[] @relation("ProductChangeRequestApprover")
+  createdProductPriceHistory     ProductPriceHistory[]  @relation("ProductPriceHistoryActor")
+  createdProductPriceSchedules   ProductPriceSchedule[] @relation("ProductPriceScheduleCreator")
   createdPurchaseOrders PurchaseOrder[]        @relation("POCreator")
+  requestedProductChangeRequests ProductChangeRequest[] @relation("ProductChangeRequestRequester")
   createdSalesOrders    SalesOrder[]           @relation("SOCreator")
   stockMovements        StockMovement[]        @relation("MovementCreator")
   inventoryAdjustments  InventoryAdjustment[]
@@ -208,8 +212,9 @@ model Product {
   maximumStock    Int?
 
   // Status
-  isActive  Boolean   @default(true)
-  isKit     Boolean   @default(false) // Can be assembled from components
+  status    ProductStatus @default(ACTIVE)
+  isActive  Boolean       @default(true)
+  isKit     Boolean       @default(false) // Can be assembled from components
   deletedAt DateTime?
 
   // Metadata
@@ -220,7 +225,12 @@ model Product {
   // Relations
   category           Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   createdBy          User                @relation("ProductCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  changeRequests     ProductChangeRequest[]
+  media              ProductMedia[]
+  priceHistory       ProductPriceHistory[]
+  priceSchedules     ProductPriceSchedule[]
   suppliers          ProductSupplier[]
+  variants           ProductVariant[]
   stockItems         StockItem[]
   purchaseOrderItems PurchaseOrderItem[]
   salesOrderItems    SalesOrderItem[]
@@ -232,6 +242,131 @@ model Product {
   inventoryAdjustments InventoryAdjustment[]
 
   @@map("products")
+}
+
+enum ProductStatus {
+  DRAFT
+  ACTIVE
+  DISCONTINUED
+  ARCHIVED
+}
+
+enum ProductChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ProductChangeType {
+  PRICE
+  TRACKING
+  STATUS
+}
+
+enum ProductPriceScheduleStatus {
+  PENDING
+  APPLIED
+  CANCELED
+}
+
+model ProductVariant {
+  id           String  @id @default(cuid())
+  productId    String
+  sku          String  @unique
+  barcode      String? @unique
+  name         String
+  attributes   Json
+  costPrice    Int?
+  sellingPrice Int?
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model ProductMedia {
+  id        String @id @default(cuid())
+  productId String
+  url       String
+  altText   String?
+  sortOrder Int    @default(0)
+  isPrimary Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("product_media")
+}
+
+model ProductPriceHistory {
+  id           String   @id @default(cuid())
+  productId    String
+  costPrice    Int?
+  sellingPrice Int?
+  reason       String?
+  effectiveAt  DateTime @default(now())
+  changedById  String
+
+  createdAt DateTime @default(now())
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  changedBy User    @relation("ProductPriceHistoryActor", fields: [changedById], references: [id], onDelete: Restrict)
+
+  @@index([productId, effectiveAt])
+  @@map("product_price_history")
+}
+
+model ProductPriceSchedule {
+  id           String                     @id @default(cuid())
+  productId    String
+  costPrice    Int?
+  sellingPrice Int?
+  effectiveAt  DateTime
+  reason       String?
+  status       ProductPriceScheduleStatus @default(PENDING)
+  createdById  String
+  appliedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy User    @relation("ProductPriceScheduleCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([status, effectiveAt])
+  @@index([productId])
+  @@map("product_price_schedules")
+}
+
+model ProductChangeRequest {
+  id            String                     @id @default(cuid())
+  productId     String
+  changeType    ProductChangeType
+  payload       Json
+  status        ProductChangeRequestStatus @default(PENDING)
+  reason        String?
+  requestedById String
+  approvedById  String?
+  resolvedAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  requestedBy User    @relation("ProductChangeRequestRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  approvedBy  User?   @relation("ProductChangeRequestApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+
+  @@index([productId, status])
+  @@index([status, createdAt])
+  @@map("product_change_requests")
 }
 
 model KitComponent {
