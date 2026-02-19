@@ -1,8 +1,10 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { haveIBeenPwned, lastLoginMethod } from "better-auth/plugins";
+import { lastLoginMethod } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { prisma } from "@/db";
+import { sendEmail } from "@/lib/email";
+import { createResetPasswordEmailTemplate } from "@/lib/email-templates";
 
 export const auth = betterAuth({
     database: prismaAdapter(prisma, {
@@ -16,6 +18,19 @@ export const auth = betterAuth({
     },
     emailAndPassword: {
         enabled: true,
+        sendResetPassword: async ({ user, url }) => {
+            const template = createResetPasswordEmailTemplate({
+                recipientName: user.name,
+                resetUrl: url,
+            });
+
+            await sendEmail({
+                to: user.email,
+                subject: template.subject,
+                text: template.text,
+                html: template.html,
+            });
+        },
     },
     socialProviders: {
         google: {
@@ -25,7 +40,7 @@ export const auth = betterAuth({
         },
     },
     plugins: [
-        haveIBeenPwned(),
+        // haveIBeenPwned(),
         lastLoginMethod(),
         tanstackStartCookies(),
     ],
