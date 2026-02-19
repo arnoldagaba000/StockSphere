@@ -6,7 +6,10 @@ import { admin } from "better-auth/plugins/admin";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { prisma } from "@/db";
 import { sendEmail } from "@/lib/email/sender";
-import { createResetPasswordEmailTemplate } from "@/lib/email/templates";
+import {
+    createChangeEmailVerificationTemplate,
+    createResetPasswordEmailTemplate,
+} from "@/lib/email/templates";
 import { DEFAULT_USER_ROLE, isSuperAdminEmail } from "./roles";
 import { ensureSuperAdminRole } from "./super-admin";
 
@@ -88,6 +91,25 @@ export const auth = betterAuth({
                 required: false,
                 defaultValue: DEFAULT_USER_ROLE,
             },
+        },
+        changeEmail: {
+            enabled: true,
+            sendChangeEmailVerification: async ({ newEmail, url, user }) => {
+                const template = createChangeEmailVerificationTemplate({
+                    currentEmail: user.email,
+                    newEmail,
+                    recipientName: user.name,
+                    verificationUrl: url,
+                });
+
+                await sendEmail({
+                    to: user.email,
+                    subject: template.subject,
+                    text: template.text,
+                    html: template.html,
+                });
+            },
+            updateEmailWithoutVerification: false,
         },
     },
     databaseHooks: {
