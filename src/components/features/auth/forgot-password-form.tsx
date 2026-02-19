@@ -20,6 +20,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { requestResetSchema } from "@/schemas/auth-schema";
+import AccountLinkingNote from "./account-linking-note";
 
 const ForgotPasswordForm = () => {
     const [isPending, startTransition] = useTransition();
@@ -34,7 +35,9 @@ const ForgotPasswordForm = () => {
                 });
 
                 if (error) {
-                    toast.error(error?.message || "An error occurred. Please try again.");
+                    toast.error(
+                        error?.message || "An error occurred. Please try again."
+                    );
                     return;
                 }
 
@@ -66,6 +69,7 @@ const ForgotPasswordForm = () => {
                     }}
                 >
                     <FieldGroup>
+                        <AccountLinkingNote />
                         <form.Field name="email">
                             {(field) => {
                                 const isInvalid =

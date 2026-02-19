@@ -23,6 +23,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { loginSchema } from "@/schemas/auth-schema";
+import AccountLinkingNote from "./account-linking-note";
 import GoogleLogo from "./google-logo";
 
 const LoginForm = () => {
@@ -84,7 +85,7 @@ const LoginForm = () => {
             <CardHeader className="text-center">
                 <CardTitle className="text-xl">Welcome back</CardTitle>
                 <CardDescription>
-                    Login with your Apple or Google account
+                    Login with your Google account
                 </CardDescription>
             </CardHeader>
 
@@ -97,6 +98,7 @@ const LoginForm = () => {
                     }}
                 >
                     <FieldGroup>
+                        <AccountLinkingNote />
                         <Field>
                             <Button
                                 className="relative"

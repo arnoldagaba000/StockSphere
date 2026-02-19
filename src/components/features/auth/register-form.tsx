@@ -21,6 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { authClient } from "@/lib/auth-client";
 import { registerSchema } from "@/schemas/auth-schema";
+import AccountLinkingNote from "./account-linking-note";
 import GoogleLogo from "./google-logo";
 
 const RegisterForm = () => {
@@ -40,8 +41,7 @@ const RegisterForm = () => {
                     {
                         onSuccess: (ctx) => {
                             const displayName =
-                                ctx.data.user?.name ??
-                                ctx.data.user?.email;
+                                ctx.data.user?.name ?? ctx.data.user?.email;
                             toast.success(`Welcome, ${displayName}`);
                             navigate({ to: "/", replace: true });
                         },
@@ -94,6 +94,7 @@ const RegisterForm = () => {
                     }}
                 >
                     <FieldGroup>
+                        <AccountLinkingNote />
                         <form.Field name="name">
                             {(field) => {
                                 const isInvalid =
