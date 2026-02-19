@@ -12,6 +12,9 @@ const globalAuthMiddleware = createMiddleware({ type: "request" }).server(
         if (
             pathname.startsWith("/login") ||
             pathname.startsWith("/register") ||
+            pathname.startsWith("/forgot-password") ||
+            pathname.startsWith("/reset-password") ||
+            pathname.startsWith("/_serverFn/") ||
             pathname.startsWith("/api/auth")
         ) {
             return next();
