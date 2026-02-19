@@ -157,7 +157,10 @@ function CategoriesPage() {
                         Organize product grouping and hierarchy.
                     </p>
                 </div>
-                <Button render={<Link to="/categories/new" />}>
+                <Button
+                    nativeButton={false}
+                    render={<Link to="/categories/new" />}
+                >
                     New Category
                 </Button>
             </div>

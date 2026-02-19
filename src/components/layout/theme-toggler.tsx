@@ -1,5 +1,6 @@
 import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
     DropdownMenu,
@@ -10,8 +11,30 @@ import {
 
 export default function ThemeToggler() {
     const { theme, setTheme, resolvedTheme } = useTheme();
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const displayTheme = theme === "system" ? resolvedTheme : theme;
+    const renderThemeIcon = () => {
+        if (displayTheme === "light") {
+            return <SunIcon aria-hidden="true" size={16} />;
+        }
+        if (displayTheme === "dark") {
+            return <MoonIcon aria-hidden="true" size={16} />;
+        }
+        return <MonitorIcon aria-hidden="true" size={16} />;
+    };
+
+    if (!mounted) {
+        return (
+            <Button aria-label="Select theme" size="icon" variant="outline">
+                <MonitorIcon aria-hidden="true" size={16} />
+            </Button>
+        );
+    }
 
     return (
         <div>
@@ -23,12 +46,7 @@ export default function ThemeToggler() {
                             size="icon"
                             variant="outline"
                         >
-                            {displayTheme === "light" && (
-                                <SunIcon aria-hidden="true" size={16} />
-                            )}
-                            {displayTheme === "dark" && (
-                                <MoonIcon aria-hidden="true" size={16} />
-                            )}
+                            {renderThemeIcon()}
                         </Button>
                     }
                 />

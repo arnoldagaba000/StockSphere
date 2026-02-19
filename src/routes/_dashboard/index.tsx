@@ -13,10 +13,17 @@ function HomePage() {
                 Welcome to your IMS dashboard.
             </p>
             <div className="flex gap-2">
-                <Button render={<Link to="/profile" />} variant="outline">
+                <Button
+                    nativeButton={false}
+                    render={<Link to="/profile" />}
+                    variant="outline"
+                >
                     My Profile
                 </Button>
-                <Button render={<Link to="/settings/profile" />}>
+                <Button
+                    nativeButton={false}
+                    render={<Link to="/settings/profile" />}
+                >
                     Open Settings
                 </Button>
             </div>

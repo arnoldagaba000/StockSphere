@@ -46,12 +46,14 @@ function ProfilePage() {
 
             <div className="flex flex-wrap gap-2">
                 <Button
+                    nativeButton={false}
                     render={<Link to="/settings/profile" />}
                     variant="outline"
                 >
                     Edit Profile Settings
                 </Button>
                 <Button
+                    nativeButton={false}
                     render={<Link to="/settings/security" />}
                     variant="outline"
                 >

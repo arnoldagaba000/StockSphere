@@ -74,6 +74,11 @@ interface ProductEditLoaderData {
     variants: Awaited<ReturnType<typeof listProductVariants>>;
 }
 
+const formatUtcDateTime = (value: Date | string): string => {
+    const date = value instanceof Date ? value : new Date(value);
+    return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+};
+
 const toFormValues = (
     product: ProductEditLoaderData["product"]
 ): ProductFormValues => ({
@@ -651,7 +656,9 @@ function EditProductPage() {
                             {priceSchedules.map((schedule) => (
                                 <TableRow key={schedule.id}>
                                     <TableCell>
-                                        {schedule.effectiveAt.toLocaleString()}
+                                        {formatUtcDateTime(
+                                            schedule.effectiveAt
+                                        )}
                                     </TableCell>
                                     <TableCell>
                                         {formatCurrencyFromMinorUnits(
@@ -710,7 +717,7 @@ function EditProductPage() {
                                     <TableCell>{request.changeType}</TableCell>
                                     <TableCell>{request.status}</TableCell>
                                     <TableCell>
-                                        {request.createdAt.toLocaleString()}
+                                        {formatUtcDateTime(request.createdAt)}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         <div className="flex justify-end gap-2">
@@ -782,7 +789,7 @@ function EditProductPage() {
                             {priceHistory.map((entry) => (
                                 <TableRow key={entry.createdAt.toISOString()}>
                                     <TableCell>
-                                        {entry.effectiveAt.toLocaleString()}
+                                        {formatUtcDateTime(entry.effectiveAt)}
                                     </TableCell>
                                     <TableCell>
                                         {formatCurrencyFromMinorUnits(

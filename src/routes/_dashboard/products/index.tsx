@@ -326,7 +326,10 @@ function ProductsPage() {
                         Manage your catalog and inventory metadata.
                     </p>
                 </div>
-                <Button render={<Link to="/products/new" />}>
+                <Button
+                    nativeButton={false}
+                    render={<Link to="/products/new" />}
+                >
                     New Product
                 </Button>
             </div>

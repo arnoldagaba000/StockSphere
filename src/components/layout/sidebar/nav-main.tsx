@@ -51,15 +51,14 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                                                 className:
                                                     "bg-primary text-primary-foreground",
                                             }}
-                                            className="rounded-md border"
+                                            className="rounded-md"
                                             to={nav.to}
-                                        >
-                                            {nav.icon && <nav.icon />}
-                                            <span>{nav.title}</span>
-                                        </Link>
+                                        />
                                     }
-                                    tooltip={nav.title}
-                                />
+                                >
+                                    {nav.icon && <nav.icon />}
+                                    <span>{nav.title}</span>
+                                </SidebarMenuButton>
                             </SidebarMenuItem>
                         );
                     }
@@ -97,15 +96,13 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                                                                 className:
                                                                     "bg-primary text-primary-foreground",
                                                             }}
-                                                            className="rounded-md border"
+                                                            className="rounded-md"
                                                             to={item.to}
-                                                        >
-                                                            <span>
-                                                                {item.title}
-                                                            </span>
-                                                        </Link>
+                                                        />
                                                     }
-                                                />
+                                                >
+                                                    <span>{item.title}</span>
+                                                </SidebarMenuSubButton>
                                             </SidebarMenuSubItem>
                                         ))}
                                     </SidebarMenuSub>
