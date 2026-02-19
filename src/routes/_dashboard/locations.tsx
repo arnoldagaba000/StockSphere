@@ -60,11 +60,11 @@ function LocationsPage() {
 
     const loadLocations = useCallback(async (nextWarehouseId: string) => {
         if (!nextWarehouseId) {
-            setLocations([]);
             return;
         }
 
         try {
+            await Promise.resolve();
             setIsLoadingLocations(true);
             const result = await getLocations({
                 data: { warehouseId: nextWarehouseId },
@@ -82,6 +82,10 @@ function LocationsPage() {
     }, []);
 
     useEffect(() => {
+        if (!warehouseId) {
+            return;
+        }
+
         loadLocations(warehouseId).catch(() => undefined);
     }, [warehouseId, loadLocations]);
 
@@ -327,6 +331,12 @@ function LocationsPage() {
                                                           location.id
                                                       }
                                                       onClick={async () => {
+                                                          const nextType =
+                                                              location.type ===
+                                                              "QUARANTINE"
+                                                                  ? "STANDARD"
+                                                                  : "QUARANTINE";
+
                                                           try {
                                                               setIsUpdatingId(
                                                                   location.id
@@ -335,11 +345,7 @@ function LocationsPage() {
                                                                   {
                                                                       data: {
                                                                           id: location.id,
-                                                                          type:
-                                                                              location.type ===
-                                                                              "QUARANTINE"
-                                                                                  ? "STANDARD"
-                                                                                  : "QUARANTINE",
+                                                                          type: nextType,
                                                                       },
                                                                   }
                                                               );

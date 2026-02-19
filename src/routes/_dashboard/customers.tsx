@@ -151,6 +151,10 @@ function CustomersPage() {
 
         try {
             setIsSubmitting(true);
+            const creditLimitValue =
+                form.creditLimit.trim().length > 0
+                    ? Number(form.creditLimit)
+                    : null;
 
             if (editingCustomerId) {
                 await updateCustomer({
@@ -158,10 +162,7 @@ function CustomersPage() {
                         address: null,
                         city: null,
                         country: null,
-                        creditLimit:
-                            form.creditLimit.trim().length > 0
-                                ? Number(form.creditLimit)
-                                : null,
+                        creditLimit: creditLimitValue,
                         customerId: editingCustomerId,
                         email: toOptional(form.email),
                         name: form.name.trim(),
@@ -184,10 +185,7 @@ function CustomersPage() {
                         city: null,
                         code: form.code.trim().toUpperCase(),
                         country: null,
-                        creditLimit:
-                            form.creditLimit.trim().length > 0
-                                ? Number(form.creditLimit)
-                                : null,
+                        creditLimit: creditLimitValue,
                         email: toOptional(form.email),
                         isActive: true,
                         name: form.name.trim(),

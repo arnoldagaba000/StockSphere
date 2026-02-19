@@ -95,15 +95,17 @@ function GoodsReceiptsPage() {
 
     useEffect(() => {
         if (!purchaseOrderId) {
-            setSelectedOrderDetail(null);
-            setLineInputs({});
             return;
         }
 
-        setIsLoadingOrder(true);
-        getPurchaseOrderDetail({ data: { purchaseOrderId } })
-            .then((detail) => {
-                setSelectedOrderDetail(detail);
+        (async () => {
+            await Promise.resolve();
+            setIsLoadingOrder(true);
+
+            try {
+                const detail = await getPurchaseOrderDetail({
+                    data: { purchaseOrderId },
+                });
                 const nextInputs: ReceiptLineInputMap = {};
                 for (const item of detail.items) {
                     const outstandingQuantity = Math.max(
@@ -115,9 +117,10 @@ function GoodsReceiptsPage() {
                         outstandingQuantity
                     );
                 }
+                setSelectedOrderDetail(detail);
                 setLineInputs(nextInputs);
-            })
-            .catch((error) => {
+                setIsLoadingOrder(false);
+            } catch (error) {
                 toast.error(
                     error instanceof Error
                         ? error.message
@@ -125,8 +128,9 @@ function GoodsReceiptsPage() {
                 );
                 setSelectedOrderDetail(null);
                 setLineInputs({});
-            })
-            .finally(() => setIsLoadingOrder(false));
+                setIsLoadingOrder(false);
+            }
+        })().catch(() => undefined);
     }, [purchaseOrderId]);
 
     const updateLineInput = (
@@ -239,9 +243,14 @@ function GoodsReceiptsPage() {
                         <div className="space-y-2">
                             <Label>Purchase Order</Label>
                             <Select
-                                onValueChange={(value) =>
-                                    setPurchaseOrderId(value ?? "")
-                                }
+                                onValueChange={(value) => {
+                                    const nextPurchaseOrderId = value ?? "";
+                                    setPurchaseOrderId(nextPurchaseOrderId);
+                                    if (!nextPurchaseOrderId) {
+                                        setSelectedOrderDetail(null);
+                                        setLineInputs({});
+                                    }
+                                }}
                                 value={purchaseOrderId}
                             >
                                 <SelectTrigger>

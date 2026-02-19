@@ -74,14 +74,17 @@ function UserManagementSettingsPage() {
             onSuccess?: () => Promise<void>;
         }
     ): Promise<void> => {
+        const onSuccess = options?.onSuccess;
+        const shouldInvalidate = options?.invalidate !== false;
+
         try {
             setBusyUserId(userId);
             await action();
             toast.success(successMessage);
-            if (options?.onSuccess) {
-                await options.onSuccess();
+            if (onSuccess) {
+                await onSuccess();
             }
-            if (options?.invalidate !== false) {
+            if (shouldInvalidate) {
                 await router.invalidate();
             }
             setBusyUserId(null);

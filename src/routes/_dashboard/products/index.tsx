@@ -175,25 +175,24 @@ function ProductsPage() {
         );
 
     const applyFilters = async () => {
+        const categoryIdValue =
+            categoryValue === "all" ? undefined : categoryValue;
+        const isActiveValue =
+            statusValue === "all" ? undefined : statusValue === "active";
+        const maxSellingPriceValue =
+            maxPriceValue.trim().length > 0 ? Number(maxPriceValue) : undefined;
+        const minSellingPriceValue =
+            minPriceValue.trim().length > 0 ? Number(minPriceValue) : undefined;
+
         try {
             setIsFiltering(true);
             const response = await getProducts({
                 data: {
-                    categoryId:
-                        categoryValue === "all" ? undefined : categoryValue,
+                    categoryId: categoryIdValue,
                     includeDescendantCategories: includeDescendants,
-                    isActive:
-                        statusValue === "all"
-                            ? undefined
-                            : statusValue === "active",
-                    maxSellingPrice:
-                        maxPriceValue.trim().length > 0
-                            ? Number(maxPriceValue)
-                            : undefined,
-                    minSellingPrice:
-                        minPriceValue.trim().length > 0
-                            ? Number(minPriceValue)
-                            : undefined,
+                    isActive: isActiveValue,
+                    maxSellingPrice: maxSellingPriceValue,
+                    minSellingPrice: minSellingPriceValue,
                     search: searchValue,
                     trackByBatch: trackingFilterToBoolean(trackingBatchValue),
                     trackByExpiry: trackingFilterToBoolean(trackingExpiryValue),

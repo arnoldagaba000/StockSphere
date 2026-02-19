@@ -95,14 +95,14 @@ function CategoriesPage() {
     );
 
     const applyFilters = async () => {
+        const isActiveFilter =
+            statusValue === "all" ? undefined : statusValue === "active";
+
         try {
             setIsFiltering(true);
             const response = await listCategories({
                 data: {
-                    isActive:
-                        statusValue === "all"
-                            ? undefined
-                            : statusValue === "active",
+                    isActive: isActiveFilter,
                     search: searchValue,
                 },
             });

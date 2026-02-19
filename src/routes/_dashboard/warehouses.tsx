@@ -50,18 +50,23 @@ function WarehousesPage() {
     };
 
     const handleCreateWarehouse = async () => {
+        const trimmedAddress = address.trim();
+        const trimmedCountry = country.trim();
+        const trimmedDistrict = district.trim();
+        const trimmedPostalCode = postalCode.trim();
+
         try {
             setIsSubmitting(true);
             await createWarehouse({
                 data: {
-                    address: address.trim().length > 0 ? address : null,
+                    address: trimmedAddress.length > 0 ? address : null,
                     code: code.trim(),
-                    country: country.trim().length > 0 ? country : "Uganda",
-                    district: district.trim().length > 0 ? district : null,
+                    country: trimmedCountry.length > 0 ? country : "Uganda",
+                    district: trimmedDistrict.length > 0 ? district : null,
                     isActive,
                     name: name.trim(),
                     postalCode:
-                        postalCode.trim().length > 0 ? postalCode : null,
+                        trimmedPostalCode.length > 0 ? postalCode : null,
                 },
             });
             toast.success("Warehouse created.");

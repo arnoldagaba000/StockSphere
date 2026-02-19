@@ -335,6 +335,7 @@ function SalesOrdersPage() {
             toast.error("Add at least one valid order line.");
             return;
         }
+        const requiredDateValue = requiredDate ? new Date(requiredDate) : null;
 
         try {
             setIsCreating(true);
@@ -350,7 +351,7 @@ function SalesOrdersPage() {
                         unitPrice: item.unitPrice,
                     })),
                     notes: null,
-                    requiredDate: requiredDate ? new Date(requiredDate) : null,
+                    requiredDate: requiredDateValue,
                     shippingAddress: shippingAddress.trim() || null,
                     shippingCost: Number(shippingCost) || 0,
                     taxAmount: Number(taxAmount) || 0,

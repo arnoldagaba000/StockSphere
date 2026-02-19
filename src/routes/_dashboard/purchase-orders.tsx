@@ -171,12 +171,13 @@ function PurchaseOrdersPage() {
             toast.error("Add at least one valid line item.");
             return;
         }
+        const expectedDateValue = expectedDate ? new Date(expectedDate) : null;
 
         try {
             setIsSaving(true);
             await createPurchaseOrder({
                 data: {
-                    expectedDate: expectedDate ? new Date(expectedDate) : null,
+                    expectedDate: expectedDateValue,
                     items: normalizedItems.map((item) => ({
                         notes: null,
                         productId: item.productId,

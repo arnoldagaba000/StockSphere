@@ -155,6 +155,10 @@ function SuppliersPage() {
     };
 
     const handleToggleSupplierActive = async (supplier: SupplierRecord) => {
+        const successMessage = supplier.isActive
+            ? "Supplier deactivated."
+            : "Supplier activated.";
+
         try {
             setIsRowBusyId(supplier.id);
             await setSupplierActive({
@@ -163,11 +167,7 @@ function SuppliersPage() {
                     supplierId: supplier.id,
                 },
             });
-            toast.success(
-                supplier.isActive
-                    ? "Supplier deactivated."
-                    : "Supplier activated."
-            );
+            toast.success(successMessage);
             await refresh();
             setIsRowBusyId(null);
         } catch (error) {

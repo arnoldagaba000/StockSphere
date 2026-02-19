@@ -74,6 +74,18 @@ interface ProductEditLoaderData {
     variants: Awaited<ReturnType<typeof listProductVariants>>;
 }
 
+const hasPendingApprovalResponse = (response: unknown): boolean => {
+    if (typeof response !== "object" || response === null) {
+        return false;
+    }
+
+    if (!("pendingApproval" in response)) {
+        return false;
+    }
+
+    return Boolean(response.pendingApproval);
+};
+
 const formatUtcDateTime = (value: Date | string): string => {
     const date = value instanceof Date ? value : new Date(value);
     return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
@@ -189,8 +201,9 @@ function EditProductPage() {
                     id: product.id,
                 },
             });
+            const hasPendingApproval = hasPendingApprovalResponse(response);
 
-            if ("pendingApproval" in response && response.pendingApproval) {
+            if (hasPendingApproval) {
                 toast.success("Critical change submitted for approval.");
                 await router.invalidate();
                 setIsSubmitting(false);
