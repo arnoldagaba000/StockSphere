@@ -1,10 +1,14 @@
 import { redirect } from "@tanstack/react-router";
 import { createMiddleware, createStart } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { auth } from "./lib/auth";
+import { auth } from "./lib/auth/config";
+import { ensureSuperAdminRole } from "./lib/auth/super-admin";
 
 const globalAuthMiddleware = createMiddleware({ type: "request" }).server(
     async ({ next, request }) => {
+        // Seed developer role once per process, then noop.
+        await ensureSuperAdminRole();
+
         const url = new URL(request.url);
         const pathname = url.pathname;
 
