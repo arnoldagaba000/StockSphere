@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useReducer } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,26 @@ const LOCATION_TYPES: LocationType[] = [
     "STAGING",
 ];
 
+interface LocationsPageState {
+    code: string;
+    isActive: boolean;
+    isLoadingLocations: boolean;
+    isSubmitting: boolean;
+    isUpdatingId: string | null;
+    locations: Awaited<ReturnType<typeof getLocations>>;
+    name: string;
+    type: LocationType;
+    warehouseId: string;
+}
+
+const locationsPageReducer = (
+    state: LocationsPageState,
+    patch: Partial<LocationsPageState>
+): LocationsPageState => ({
+    ...state,
+    ...patch,
+});
+
 export const Route = createFileRoute("/_dashboard/locations")({
     component: LocationsPage,
     loader: () => getWarehouses({ data: {} }),
@@ -46,33 +66,47 @@ export const Route = createFileRoute("/_dashboard/locations")({
 function LocationsPage() {
     const warehouses = Route.useLoaderData();
     const initialWarehouseId = warehouses[0]?.id ?? "";
-    const [warehouseId, setWarehouseId] = useState(initialWarehouseId);
-    const [locations, setLocations] = useState<
-        Awaited<ReturnType<typeof getLocations>>
-    >([]);
-    const [isLoadingLocations, setIsLoadingLocations] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isUpdatingId, setIsUpdatingId] = useState<string | null>(null);
-    const [code, setCode] = useState("");
-    const [name, setName] = useState("");
-    const [type, setType] = useState<LocationType>("STANDARD");
-    const [isActive, setIsActive] = useState(true);
+    const [state, patchState] = useReducer(locationsPageReducer, {
+        code: "",
+        isActive: true,
+        isLoadingLocations: false,
+        isSubmitting: false,
+        isUpdatingId: null,
+        locations: [],
+        name: "",
+        type: "STANDARD",
+        warehouseId: initialWarehouseId,
+    });
+    const {
+        code,
+        isActive,
+        isLoadingLocations,
+        isSubmitting,
+        isUpdatingId,
+        locations,
+        name,
+        type,
+        warehouseId,
+    } = state;
 
     const loadLocations = useCallback(async (nextWarehouseId: string) => {
         if (!nextWarehouseId) {
+            patchState({ locations: [] });
             return;
         }
 
         try {
             await Promise.resolve();
-            setIsLoadingLocations(true);
+            patchState({ isLoadingLocations: true });
             const result = await getLocations({
                 data: { warehouseId: nextWarehouseId },
             });
-            setLocations(result);
-            setIsLoadingLocations(false);
+            patchState({
+                isLoadingLocations: false,
+                locations: result,
+            });
         } catch (error) {
-            setIsLoadingLocations(false);
+            patchState({ isLoadingLocations: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -96,15 +130,17 @@ function LocationsPage() {
     }, [warehouseId, loadLocations]);
 
     const resetForm = () => {
-        setCode("");
-        setName("");
-        setType("STANDARD");
-        setIsActive(true);
+        patchState({
+            code: "",
+            isActive: true,
+            name: "",
+            type: "STANDARD",
+        });
     };
 
     const handleCreateLocation = async () => {
         try {
-            setIsSubmitting(true);
+            patchState({ isSubmitting: true });
             await createLocation({
                 data: {
                     code: code.trim().toUpperCase(),
@@ -117,9 +153,9 @@ function LocationsPage() {
             toast.success("Location created.");
             resetForm();
             await loadLocations(warehouseId);
-            setIsSubmitting(false);
+            patchState({ isSubmitting: false });
         } catch (error) {
-            setIsSubmitting(false);
+            patchState({ isSubmitting: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -147,7 +183,9 @@ function LocationsPage() {
                             <Label>Warehouse</Label>
                             <Select
                                 onValueChange={(value) =>
-                                    setWarehouseId(value ?? "")
+                                    patchState({
+                                        warehouseId: value ?? "",
+                                    })
                                 }
                                 value={warehouseId}
                             >
@@ -171,7 +209,9 @@ function LocationsPage() {
                             <Input
                                 id="location-code"
                                 onChange={(event) =>
-                                    setCode(event.target.value.toUpperCase())
+                                    patchState({
+                                        code: event.target.value.toUpperCase(),
+                                    })
                                 }
                                 placeholder="A-01-BIN-02"
                                 value={code}
@@ -182,7 +222,9 @@ function LocationsPage() {
                             <Input
                                 id="location-name"
                                 onChange={(event) =>
-                                    setName(event.target.value)
+                                    patchState({
+                                        name: event.target.value,
+                                    })
                                 }
                                 placeholder="Aisle A, Bin 02"
                                 value={name}
@@ -192,9 +234,11 @@ function LocationsPage() {
                             <Label>Type</Label>
                             <Select
                                 onValueChange={(value) =>
-                                    setType(
-                                        (value as LocationType) ?? "STANDARD"
-                                    )
+                                    patchState({
+                                        type:
+                                            (value as LocationType) ??
+                                            "STANDARD",
+                                    })
                                 }
                                 value={type}
                             >
@@ -214,7 +258,11 @@ function LocationsPage() {
                             <Switch
                                 checked={isActive}
                                 id="location-active"
-                                onCheckedChange={setIsActive}
+                                onCheckedChange={(checked) =>
+                                    patchState({
+                                        isActive: checked,
+                                    })
+                                }
                             />
                             <Label htmlFor="location-active">Active</Label>
                         </div>
@@ -291,9 +339,10 @@ function LocationsPage() {
                                                       }
                                                       onClick={async () => {
                                                           try {
-                                                              setIsUpdatingId(
-                                                                  location.id
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      location.id,
+                                                              });
                                                               await updateLocation(
                                                                   {
                                                                       data: {
@@ -309,13 +358,15 @@ function LocationsPage() {
                                                               await loadLocations(
                                                                   warehouseId
                                                               );
-                                                              setIsUpdatingId(
-                                                                  null
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      null,
+                                                              });
                                                           } catch (error) {
-                                                              setIsUpdatingId(
-                                                                  null
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      null,
+                                                              });
                                                               toast.error(
                                                                   error instanceof
                                                                       Error
@@ -344,9 +395,10 @@ function LocationsPage() {
                                                                   : "QUARANTINE";
 
                                                           try {
-                                                              setIsUpdatingId(
-                                                                  location.id
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      location.id,
+                                                              });
                                                               await updateLocation(
                                                                   {
                                                                       data: {
@@ -361,13 +413,15 @@ function LocationsPage() {
                                                               await loadLocations(
                                                                   warehouseId
                                                               );
-                                                              setIsUpdatingId(
-                                                                  null
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      null,
+                                                              });
                                                           } catch (error) {
-                                                              setIsUpdatingId(
-                                                                  null
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      null,
+                                                              });
                                                               toast.error(
                                                                   error instanceof
                                                                       Error
@@ -388,9 +442,10 @@ function LocationsPage() {
                                                       }
                                                       onClick={async () => {
                                                           try {
-                                                              setIsUpdatingId(
-                                                                  location.id
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      location.id,
+                                                              });
                                                               await archiveLocation(
                                                                   {
                                                                       data: {
@@ -404,13 +459,15 @@ function LocationsPage() {
                                                               await loadLocations(
                                                                   warehouseId
                                                               );
-                                                              setIsUpdatingId(
-                                                                  null
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      null,
+                                                              });
                                                           } catch (error) {
-                                                              setIsUpdatingId(
-                                                                  null
-                                                              );
+                                                              patchState({
+                                                                  isUpdatingId:
+                                                                      null,
+                                                              });
                                                               toast.error(
                                                                   error instanceof
                                                                       Error
