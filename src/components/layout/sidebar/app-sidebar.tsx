@@ -39,7 +39,7 @@ const AppSidebar = ({ user }: AppSidebarProps) => {
                                         <span className="font-medium">
                                             Stock Sphere
                                         </span>
-                                        
+
                                         <span className="text-muted-foreground text-xs">
                                             Your stock management space
                                         </span>
