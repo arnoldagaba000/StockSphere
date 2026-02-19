@@ -240,6 +240,12 @@ function ProductsPage() {
             toast.error("Select at least one product.");
             return;
         }
+        const categoryIdValue =
+            bulkAction === "assignCategory" && bulkCategoryId !== "none"
+                ? bulkCategoryId
+                : undefined;
+        const needsCategorySelection =
+            bulkAction === "assignCategory" && bulkCategoryId === "none";
 
         try {
             setIsBulkRunning(true);
@@ -256,7 +262,7 @@ function ProductsPage() {
                 return;
             }
 
-            if (bulkAction === "assignCategory" && bulkCategoryId === "none") {
+            if (needsCategorySelection) {
                 toast.error("Select a target category for assignment.");
                 setIsBulkRunning(false);
                 return;
@@ -265,11 +271,7 @@ function ProductsPage() {
             const response = await bulkUpdateProducts({
                 data: {
                     action: bulkAction,
-                    categoryId:
-                        bulkAction === "assignCategory" &&
-                        bulkCategoryId !== "none"
-                            ? bulkCategoryId
-                            : undefined,
+                    categoryId: categoryIdValue,
                     productIds: selectedProductIds,
                 },
             });

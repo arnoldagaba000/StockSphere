@@ -98,14 +98,11 @@ function GoodsReceiptsPage() {
             return;
         }
 
-        (async () => {
-            await Promise.resolve();
-            setIsLoadingOrder(true);
-
-            try {
-                const detail = await getPurchaseOrderDetail({
-                    data: { purchaseOrderId },
-                });
+        setIsLoadingOrder(true);
+        getPurchaseOrderDetail({
+            data: { purchaseOrderId },
+        })
+            .then((detail) => {
                 const nextInputs: ReceiptLineInputMap = {};
                 for (const item of detail.items) {
                     const outstandingQuantity = Math.max(
@@ -117,10 +114,12 @@ function GoodsReceiptsPage() {
                         outstandingQuantity
                     );
                 }
+
                 setSelectedOrderDetail(detail);
                 setLineInputs(nextInputs);
                 setIsLoadingOrder(false);
-            } catch (error) {
+            })
+            .catch((error) => {
                 toast.error(
                     error instanceof Error
                         ? error.message
@@ -129,8 +128,7 @@ function GoodsReceiptsPage() {
                 setSelectedOrderDetail(null);
                 setLineInputs({});
                 setIsLoadingOrder(false);
-            }
-        })().catch(() => undefined);
+            });
     }, [purchaseOrderId]);
 
     const updateLineInput = (

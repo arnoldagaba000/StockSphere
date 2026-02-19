@@ -172,6 +172,8 @@ function PurchaseOrdersPage() {
             return;
         }
         const expectedDateValue = expectedDate ? new Date(expectedDate) : null;
+        const shippingCostValue = Number(shippingCost) || 0;
+        const taxAmountValue = Number(taxAmount) || 0;
 
         try {
             setIsSaving(true);
@@ -186,9 +188,9 @@ function PurchaseOrdersPage() {
                         unitPrice: item.unitPrice,
                     })),
                     notes: null,
-                    shippingCost: Number(shippingCost) || 0,
+                    shippingCost: shippingCostValue,
                     supplierId,
-                    taxAmount: Number(taxAmount) || 0,
+                    taxAmount: taxAmountValue,
                 },
             });
             toast.success("Purchase order created.");

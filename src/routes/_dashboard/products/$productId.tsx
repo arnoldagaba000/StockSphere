@@ -86,6 +86,20 @@ const hasPendingApprovalResponse = (response: unknown): boolean => {
     return Boolean(response.pendingApproval);
 };
 
+const parseVariantAttributes = (
+    value: string
+): Record<string, string> | null => {
+    if (!value) {
+        return {};
+    }
+
+    try {
+        return JSON.parse(value) as Record<string, string>;
+    } catch {
+        return null;
+    }
+};
+
 const formatUtcDateTime = (value: Date | string): string => {
     const date = value instanceof Date ? value : new Date(value);
     return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
@@ -383,14 +397,9 @@ function EditProductPage() {
                         />
                         <Button
                             onClick={async () => {
-                                let attributes: Record<string, string> = {};
-                                try {
-                                    attributes = variantAttributes
-                                        ? (JSON.parse(
-                                              variantAttributes
-                                          ) as Record<string, string>)
-                                        : {};
-                                } catch {
+                                const attributes =
+                                    parseVariantAttributes(variantAttributes);
+                                if (!attributes) {
                                     toast.error(
                                         "Invalid variant attributes JSON."
                                     );

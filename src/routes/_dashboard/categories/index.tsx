@@ -119,19 +119,18 @@ function CategoriesPage() {
     };
 
     const handleDeleteCategory = async (categoryId: string) => {
+        const reassignChildCategoriesToValue =
+            reassignChildrenTo === "none" ? null : reassignChildrenTo;
+        const reassignProductsToValue =
+            reassignProductsTo === "none" ? null : reassignProductsTo;
+
         try {
             setDeletingCategoryId(categoryId);
             await deleteCategory({
                 data: {
                     id: categoryId,
-                    reassignChildCategoriesTo:
-                        reassignChildrenTo === "none"
-                            ? null
-                            : reassignChildrenTo,
-                    reassignProductsTo:
-                        reassignProductsTo === "none"
-                            ? null
-                            : reassignProductsTo,
+                    reassignChildCategoriesTo: reassignChildCategoriesToValue,
+                    reassignProductsTo: reassignProductsToValue,
                 },
             });
             toast.success("Category archived.");

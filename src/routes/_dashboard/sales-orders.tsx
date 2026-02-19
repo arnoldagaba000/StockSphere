@@ -336,6 +336,9 @@ function SalesOrdersPage() {
             return;
         }
         const requiredDateValue = requiredDate ? new Date(requiredDate) : null;
+        const shippingAddressValue = shippingAddress.trim() || null;
+        const shippingCostValue = Number(shippingCost) || 0;
+        const taxAmountValue = Number(taxAmount) || 0;
 
         try {
             setIsCreating(true);
@@ -352,9 +355,9 @@ function SalesOrdersPage() {
                     })),
                     notes: null,
                     requiredDate: requiredDateValue,
-                    shippingAddress: shippingAddress.trim() || null,
-                    shippingCost: Number(shippingCost) || 0,
-                    taxAmount: Number(taxAmount) || 0,
+                    shippingAddress: shippingAddressValue,
+                    shippingCost: shippingCostValue,
+                    taxAmount: taxAmountValue,
                 },
             });
             toast.success("Sales order created.");

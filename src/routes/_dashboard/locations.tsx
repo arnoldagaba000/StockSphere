@@ -86,7 +86,13 @@ function LocationsPage() {
             return;
         }
 
-        loadLocations(warehouseId).catch(() => undefined);
+        const timeoutId = window.setTimeout(() => {
+            loadLocations(warehouseId).catch(() => undefined);
+        }, 0);
+
+        return () => {
+            window.clearTimeout(timeoutId);
+        };
     }, [warehouseId, loadLocations]);
 
     const resetForm = () => {

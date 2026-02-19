@@ -51,22 +51,26 @@ function WarehousesPage() {
 
     const handleCreateWarehouse = async () => {
         const trimmedAddress = address.trim();
+        const addressValue = trimmedAddress.length > 0 ? address : null;
         const trimmedCountry = country.trim();
+        const countryValue = trimmedCountry.length > 0 ? country : "Uganda";
         const trimmedDistrict = district.trim();
+        const districtValue = trimmedDistrict.length > 0 ? district : null;
         const trimmedPostalCode = postalCode.trim();
+        const postalCodeValue =
+            trimmedPostalCode.length > 0 ? postalCode : null;
 
         try {
             setIsSubmitting(true);
             await createWarehouse({
                 data: {
-                    address: trimmedAddress.length > 0 ? address : null,
+                    address: addressValue,
                     code: code.trim(),
-                    country: trimmedCountry.length > 0 ? country : "Uganda",
-                    district: trimmedDistrict.length > 0 ? district : null,
+                    country: countryValue,
+                    district: districtValue,
                     isActive,
                     name: name.trim(),
-                    postalCode:
-                        trimmedPostalCode.length > 0 ? postalCode : null,
+                    postalCode: postalCodeValue,
                 },
             });
             toast.success("Warehouse created.");

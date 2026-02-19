@@ -148,13 +148,13 @@ function CustomersPage() {
             toast.error("Customer name is required.");
             return;
         }
+        const creditLimitValue =
+            form.creditLimit.trim().length > 0
+                ? Number(form.creditLimit)
+                : null;
 
         try {
             setIsSubmitting(true);
-            const creditLimitValue =
-                form.creditLimit.trim().length > 0
-                    ? Number(form.creditLimit)
-                    : null;
 
             if (editingCustomerId) {
                 await updateCustomer({
