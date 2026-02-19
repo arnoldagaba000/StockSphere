@@ -18,6 +18,7 @@ const receiptItemSchema = z.object({
 });
 
 export const goodsReceiptSchema = z.object({
+    idempotencyKey: z.string().trim().min(1).max(64).optional(),
     purchaseOrderId: z.string().min(1, "Purchase order is required"),
     receivedDate: z.date().default(() => new Date()),
     items: z.array(receiptItemSchema).min(1, "Must receive at least one item"),

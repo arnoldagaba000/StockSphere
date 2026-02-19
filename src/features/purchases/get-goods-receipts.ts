@@ -74,6 +74,7 @@ export const getGoodsReceipts = createServerFn({ method: "GET" })
 
         return receipts.map((receipt) => ({
             ...receipt,
+            isVoided: Boolean(receipt.notes?.includes("[VOIDED]")),
             items: receipt.items.map((item) => ({
                 ...item,
                 quantity: Number(item.quantity),

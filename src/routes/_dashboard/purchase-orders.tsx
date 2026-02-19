@@ -2,6 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,9 +24,13 @@ import {
 } from "@/components/ui/table";
 import { getProducts } from "@/features/products/get-products";
 import { approvePurchaseOrder } from "@/features/purchases/approve-purchase-order";
+import { cancelPurchaseOrder } from "@/features/purchases/cancel-purchase-order";
 import { createPurchaseOrder } from "@/features/purchases/create-purchase-order";
+import { getPurchaseOrderDetail } from "@/features/purchases/get-purchase-order-detail";
 import { getPurchaseOrders } from "@/features/purchases/get-purchase-orders";
+import { getPurchasingReport } from "@/features/purchases/get-purchasing-report";
 import { getSuppliers } from "@/features/purchases/get-suppliers";
+import { markPurchaseOrderOrdered } from "@/features/purchases/mark-purchase-order-ordered";
 import { rejectPurchaseOrder } from "@/features/purchases/reject-purchase-order";
 import { submitPurchaseOrder } from "@/features/purchases/submit-purchase-order";
 
@@ -43,20 +48,28 @@ const createLineItem = (productId: string): PurchaseOrderFormItem => ({
     unitPrice: "",
 });
 
+type TransitionAction =
+    | "approve"
+    | "cancel"
+    | "markOrdered"
+    | "reject"
+    | "submit";
+
 export const Route = createFileRoute("/_dashboard/purchase-orders")({
     component: PurchaseOrdersPage,
     loader: async () => {
-        const [suppliers, productsResponse, purchaseOrders] = await Promise.all(
-            [
+        const [suppliers, productsResponse, purchaseOrders, report] =
+            await Promise.all([
                 getSuppliers({ data: {} }),
                 getProducts({ data: { pageSize: 200 } }),
                 getPurchaseOrders({ data: {} }),
-            ]
-        );
+                getPurchasingReport({ data: { days: 30 } }),
+            ]);
 
         return {
             products: productsResponse.products,
             purchaseOrders,
+            report,
             suppliers,
         };
     },
@@ -64,7 +77,8 @@ export const Route = createFileRoute("/_dashboard/purchase-orders")({
 
 function PurchaseOrdersPage() {
     const router = useRouter();
-    const { products, purchaseOrders, suppliers } = Route.useLoaderData();
+    const { products, purchaseOrders, report, suppliers } =
+        Route.useLoaderData();
 
     const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
     const [expectedDate, setExpectedDate] = useState("");
@@ -73,10 +87,16 @@ function PurchaseOrdersPage() {
     const [items, setItems] = useState<PurchaseOrderFormItem[]>([
         createLineItem(products[0]?.id ?? ""),
     ]);
+    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+    const [selectedOrderDetail, setSelectedOrderDetail] = useState<Awaited<
+        ReturnType<typeof getPurchaseOrderDetail>
+    > | null>(null);
+    const [cancelReason, setCancelReason] = useState("");
     const [isSaving, setIsSaving] = useState(false);
     const [isTransitioningId, setIsTransitioningId] = useState<string | null>(
         null
     );
+    const [isLoadingDetail, setIsLoadingDetail] = useState(false);
 
     const subtotal = useMemo(
         () =>
@@ -114,6 +134,28 @@ function PurchaseOrdersPage() {
 
     const refreshData = async (): Promise<void> => {
         await router.invalidate();
+        if (selectedOrderId) {
+            await loadPurchaseOrderDetail(selectedOrderId);
+        }
+    };
+
+    const loadPurchaseOrderDetail = async (purchaseOrderId: string) => {
+        try {
+            setIsLoadingDetail(true);
+            setSelectedOrderId(purchaseOrderId);
+            const detail = await getPurchaseOrderDetail({
+                data: { purchaseOrderId },
+            });
+            setSelectedOrderDetail(detail);
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load purchase order detail."
+            );
+        } finally {
+            setIsLoadingDetail(false);
+        }
     };
 
     const handleCreatePurchaseOrder = async () => {
@@ -167,7 +209,7 @@ function PurchaseOrdersPage() {
 
     const transitionOrder = async (
         purchaseOrderId: string,
-        action: "submit" | "approve" | "reject"
+        action: TransitionAction
     ) => {
         try {
             setIsTransitioningId(purchaseOrderId);
@@ -175,10 +217,22 @@ function PurchaseOrdersPage() {
                 await submitPurchaseOrder({ data: { purchaseOrderId } });
             } else if (action === "approve") {
                 await approvePurchaseOrder({ data: { purchaseOrderId } });
-            } else {
+            } else if (action === "reject") {
                 await rejectPurchaseOrder({ data: { purchaseOrderId } });
+            } else if (action === "markOrdered") {
+                await markPurchaseOrderOrdered({ data: { purchaseOrderId } });
+            } else {
+                await cancelPurchaseOrder({
+                    data: {
+                        purchaseOrderId,
+                        reason:
+                            cancelReason.trim().length > 0
+                                ? cancelReason.trim()
+                                : undefined,
+                    },
+                });
             }
-            toast.success(`Purchase order ${action}ed.`);
+            toast.success("Purchase order updated.");
             await refreshData();
         } catch (error) {
             toast.error(
@@ -196,9 +250,83 @@ function PurchaseOrdersPage() {
             <div>
                 <h1 className="font-semibold text-2xl">Purchase Orders</h1>
                 <p className="text-muted-foreground text-sm">
-                    Create and progress purchase orders from draft to approval.
+                    Purchase lifecycle with supplier analytics and detailed line
+                    tracking.
                 </p>
             </div>
+
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                    label="30-Day Spend"
+                    value={formatCurrencyFromMinorUnits(report.recentSpend)}
+                />
+                <MetricCard
+                    label="30-Day Orders"
+                    value={String(report.recentOrderCount)}
+                />
+                <MetricCard
+                    label="Open POs"
+                    value={String(
+                        report.statusBreakdown
+                            .filter((entry) =>
+                                ["DRAFT", "SUBMITTED", "APPROVED"].includes(
+                                    entry.status
+                                )
+                            )
+                            .reduce((sum, entry) => sum + entry.count, 0)
+                    )}
+                />
+                <MetricCard
+                    label="Received POs"
+                    value={String(
+                        report.statusBreakdown
+                            .filter((entry) =>
+                                ["PARTIALLY_RECEIVED", "RECEIVED"].includes(
+                                    entry.status
+                                )
+                            )
+                            .reduce((sum, entry) => sum + entry.count, 0)
+                    )}
+                />
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Top Supplier Performance (30 Days)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Supplier</TableHead>
+                                <TableHead>Orders</TableHead>
+                                <TableHead>Received</TableHead>
+                                <TableHead>Open</TableHead>
+                                <TableHead className="text-right">
+                                    Spend
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {report.supplierPerformance.map((supplier) => (
+                                <TableRow key={supplier.id}>
+                                    <TableCell>{supplier.name}</TableCell>
+                                    <TableCell>{supplier.orderCount}</TableCell>
+                                    <TableCell>
+                                        {supplier.receivedOrders}
+                                    </TableCell>
+                                    <TableCell>{supplier.openOrders}</TableCell>
+                                    <TableCell className="text-right">
+                                        {formatCurrencyFromMinorUnits(
+                                            supplier.totalSpend
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
 
             <Card>
                 <CardHeader>
@@ -253,7 +381,7 @@ function PurchaseOrdersPage() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="shipping-cost">
-                                Shipping (UGX)
+                                Shipping Cost (UGX)
                             </Label>
                             <Input
                                 id="shipping-cost"
@@ -354,13 +482,25 @@ function PurchaseOrdersPage() {
                     <CardTitle>Purchase Order List</CardTitle>
                 </CardHeader>
                 <CardContent>
+                    <div className="mb-3 grid gap-2 md:max-w-md">
+                        <Label htmlFor="po-cancel-reason">
+                            Cancel Reason (optional)
+                        </Label>
+                        <Input
+                            id="po-cancel-reason"
+                            onChange={(event) =>
+                                setCancelReason(event.target.value)
+                            }
+                            placeholder="Reason included in audit trail"
+                            value={cancelReason}
+                        />
+                    </div>
                     <Table>
                         <TableHeader>
                             <TableRow>
                                 <TableHead>Order #</TableHead>
                                 <TableHead>Supplier</TableHead>
                                 <TableHead>Status</TableHead>
-                                <TableHead>Items</TableHead>
                                 <TableHead>Total</TableHead>
                                 <TableHead className="text-right">
                                     Actions
@@ -368,29 +508,33 @@ function PurchaseOrdersPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {purchaseOrders.length === 0 ? (
-                                <TableRow>
-                                    <TableCell
-                                        className="text-muted-foreground"
-                                        colSpan={6}
-                                    >
-                                        No purchase orders found.
-                                    </TableCell>
-                                </TableRow>
-                            ) : null}
                             {purchaseOrders.map((order) => (
                                 <TableRow key={order.id}>
                                     <TableCell>{order.orderNumber}</TableCell>
                                     <TableCell>{order.supplier.name}</TableCell>
-                                    <TableCell>{order.status}</TableCell>
-                                    <TableCell>{order.items.length}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="secondary">
+                                            {order.status}
+                                        </Badge>
+                                    </TableCell>
                                     <TableCell>
                                         {formatCurrencyFromMinorUnits(
                                             order.totalAmount
                                         )}
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
+                                        <div className="flex flex-wrap justify-end gap-2">
+                                            <Button
+                                                onClick={() =>
+                                                    loadPurchaseOrderDetail(
+                                                        order.id
+                                                    )
+                                                }
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                View
+                                            </Button>
                                             {order.status === "DRAFT" ? (
                                                 <Button
                                                     disabled={
@@ -444,6 +588,48 @@ function PurchaseOrdersPage() {
                                                     </Button>
                                                 </>
                                             ) : null}
+                                            {(order.status === "APPROVED" ||
+                                                order.status ===
+                                                    "PARTIALLY_RECEIVED") && (
+                                                <Button
+                                                    disabled={
+                                                        isTransitioningId ===
+                                                        order.id
+                                                    }
+                                                    onClick={() =>
+                                                        transitionOrder(
+                                                            order.id,
+                                                            "markOrdered"
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    Mark Ordered
+                                                </Button>
+                                            )}
+                                            {[
+                                                "DRAFT",
+                                                "SUBMITTED",
+                                                "APPROVED",
+                                            ].includes(order.status) ? (
+                                                <Button
+                                                    disabled={
+                                                        isTransitioningId ===
+                                                        order.id
+                                                    }
+                                                    onClick={() =>
+                                                        transitionOrder(
+                                                            order.id,
+                                                            "cancel"
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="destructive"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            ) : null}
                                         </div>
                                     </TableCell>
                                 </TableRow>
@@ -452,6 +638,123 @@ function PurchaseOrdersPage() {
                     </Table>
                 </CardContent>
             </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Purchase Order Detail</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {isLoadingDetail ? (
+                        <p className="text-muted-foreground text-sm">
+                            Loading detail...
+                        </p>
+                    ) : null}
+                    {selectedOrderDetail || isLoadingDetail ? null : (
+                        <p className="text-muted-foreground text-sm">
+                            Select an order from the list to inspect item-level
+                            progress and receipts.
+                        </p>
+                    )}
+                    {selectedOrderDetail ? (
+                        <>
+                            <div className="grid gap-2 md:grid-cols-3">
+                                <p className="text-sm">
+                                    <span className="text-muted-foreground">
+                                        Order:
+                                    </span>{" "}
+                                    {selectedOrderDetail.orderNumber}
+                                </p>
+                                <p className="text-sm">
+                                    <span className="text-muted-foreground">
+                                        Supplier:
+                                    </span>{" "}
+                                    {selectedOrderDetail.supplier.name}
+                                </p>
+                                <p className="text-sm">
+                                    <span className="text-muted-foreground">
+                                        Status:
+                                    </span>{" "}
+                                    {selectedOrderDetail.status}
+                                </p>
+                            </div>
+
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>SKU</TableHead>
+                                        <TableHead>Product</TableHead>
+                                        <TableHead>Ordered</TableHead>
+                                        <TableHead>Received</TableHead>
+                                        <TableHead>Outstanding</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {selectedOrderDetail.items.map((item) => (
+                                        <TableRow key={item.id}>
+                                            <TableCell>
+                                                {item.product.sku}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.product.name}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.quantity}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.receivedQuantity}
+                                            </TableCell>
+                                            <TableCell>
+                                                {Math.max(
+                                                    0,
+                                                    item.quantity -
+                                                        item.receivedQuantity
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+
+                            <div className="space-y-1">
+                                <p className="font-medium text-sm">Receipts</p>
+                                {selectedOrderDetail.receipts.length === 0 ? (
+                                    <p className="text-muted-foreground text-sm">
+                                        No receipts posted yet.
+                                    </p>
+                                ) : (
+                                    selectedOrderDetail.receipts.map(
+                                        (receipt) => (
+                                            <p
+                                                className="text-sm"
+                                                key={receipt.id}
+                                            >
+                                                {receipt.receiptNumber} •{" "}
+                                                {new Date(
+                                                    receipt.receivedDate
+                                                ).toLocaleDateString()}{" "}
+                                                • {receipt.items.length} lines
+                                            </p>
+                                        )
+                                    )
+                                )}
+                            </div>
+                        </>
+                    ) : null}
+                </CardContent>
+            </Card>
         </section>
+    );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="font-medium text-sm">{label}</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <p className="font-semibold text-xl">{value}</p>
+            </CardContent>
+        </Card>
     );
 }

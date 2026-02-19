@@ -40,6 +40,17 @@ export const getPurchaseOrders = createServerFn({ method: "GET" })
                 items: {
                     select: {
                         id: true,
+                        notes: true,
+                        product: {
+                            select: {
+                                id: true,
+                                name: true,
+                                sku: true,
+                                trackByBatch: true,
+                                trackByExpiry: true,
+                                trackBySerialNumber: true,
+                            },
+                        },
                         productId: true,
                         quantity: true,
                         receivedQuantity: true,

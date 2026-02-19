@@ -5,6 +5,7 @@ import {
     generateGoodsReceiptNumber,
     generateInventoryTransactionNumber,
     generateStockMovementNumber,
+    retryOnUniqueConstraint,
 } from "@/features/purchases/purchase-helpers";
 import type { Prisma } from "@/generated/prisma/client";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
@@ -152,6 +153,12 @@ const createOrUpdateStockBucket = async ({
     });
 };
 
+const isUniqueConstraintError = (error: unknown): boolean =>
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: string }).code === "P2002";
+
 export const receiveGoods = createServerFn({ method: "POST" })
     .inputValidator(goodsReceiptSchema)
     .middleware([authMiddleware])
@@ -229,103 +236,120 @@ export const receiveGoods = createServerFn({ method: "POST" })
             validateReceiptItemAgainstOrder({ item, order: purchaseOrder });
         }
 
-        const result = await prisma.$transaction(async (tx) => {
-            const [receiptNumber, transactionNumber] = await Promise.all([
-                generateGoodsReceiptNumber(tx),
-                generateInventoryTransactionNumber(tx),
-            ]);
+        const receiptNumber = generateGoodsReceiptNumber(data.idempotencyKey);
 
-            const goodsReceipt = await tx.goodsReceipt.create({
-                data: {
-                    notes: data.notes ?? null,
-                    purchaseOrderId: data.purchaseOrderId,
-                    receiptNumber,
-                    receivedBy: context.session.user.id,
-                    receivedDate: data.receivedDate,
-                },
-            });
+        const result = await retryOnUniqueConstraint(async () =>
+            prisma.$transaction(async (tx) => {
+                const transactionNumber = generateInventoryTransactionNumber();
 
-            const inventoryTransaction = await tx.inventoryTransaction.create({
-                data: {
-                    createdById: context.session.user.id,
-                    notes: `Goods receipt ${receiptNumber}`,
-                    referenceId: goodsReceipt.id,
-                    referenceType: "GoodsReceipt",
-                    transactionNumber,
-                    type: "PURCHASE_RECEIPT",
-                },
-            });
-
-            let itemLine = 1;
-            for (const item of data.items) {
-                const orderItem = validateReceiptItemAgainstOrder({
-                    item,
-                    order: purchaseOrder,
-                });
-
-                await tx.goodsReceiptItem.create({
+                const goodsReceipt = await tx.goodsReceipt.create({
                     data: {
-                        batchNumber: item.batchNumber ?? null,
-                        expiryDate: item.expiryDate ?? null,
-                        locationId: item.locationId ?? null,
-                        productId: item.productId,
-                        quantity: item.quantity,
-                        receiptId: goodsReceipt.id,
-                        warehouseId: item.warehouseId,
+                        notes: data.notes ?? null,
+                        purchaseOrderId: data.purchaseOrderId,
+                        receiptNumber,
+                        receivedBy: context.session.user.id,
+                        receivedDate: data.receivedDate,
                     },
                 });
 
-                await tx.stockMovement.create({
-                    data: {
-                        batchNumber: item.batchNumber ?? null,
-                        createdById: context.session.user.id,
-                        inventoryTransactionId: inventoryTransaction.id,
-                        movementNumber: generateStockMovementNumber(
+                const inventoryTransaction =
+                    await tx.inventoryTransaction.create({
+                        data: {
+                            createdById: context.session.user.id,
+                            notes: `Goods receipt ${receiptNumber}`,
+                            referenceId: goodsReceipt.id,
+                            referenceType: "GoodsReceipt",
                             transactionNumber,
-                            itemLine
-                        ),
-                        productId: item.productId,
-                        quantity: item.quantity,
-                        reason: data.notes ?? "Purchase order receipt",
-                        referenceNumber: purchaseOrder.orderNumber,
-                        serialNumber: item.serialNumber ?? null,
-                        toWarehouseId: item.warehouseId,
-                        type: "PURCHASE_RECEIPT",
-                    },
-                });
-
-                await createOrUpdateStockBucket({ item, orderItem, tx });
-
-                await tx.purchaseOrderItem.update({
-                    data: {
-                        receivedQuantity: {
-                            increment: item.quantity,
+                            type: "PURCHASE_RECEIPT",
                         },
-                    },
-                    where: { id: orderItem.id },
+                    });
+
+                let itemLine = 1;
+                for (const item of data.items) {
+                    const orderItem = validateReceiptItemAgainstOrder({
+                        item,
+                        order: purchaseOrder,
+                    });
+
+                    await tx.goodsReceiptItem.create({
+                        data: {
+                            batchNumber: item.batchNumber ?? null,
+                            expiryDate: item.expiryDate ?? null,
+                            locationId: item.locationId ?? null,
+                            productId: item.productId,
+                            quantity: item.quantity,
+                            receiptId: goodsReceipt.id,
+                            warehouseId: item.warehouseId,
+                        },
+                    });
+
+                    await tx.stockMovement.create({
+                        data: {
+                            batchNumber: item.batchNumber ?? null,
+                            createdById: context.session.user.id,
+                            inventoryTransactionId: inventoryTransaction.id,
+                            movementNumber: generateStockMovementNumber(
+                                transactionNumber,
+                                itemLine
+                            ),
+                            productId: item.productId,
+                            quantity: item.quantity,
+                            reason: data.notes ?? "Purchase order receipt",
+                            referenceNumber: purchaseOrder.orderNumber,
+                            serialNumber: item.serialNumber ?? null,
+                            toWarehouseId: item.warehouseId,
+                            type: "PURCHASE_RECEIPT",
+                        },
+                    });
+
+                    await createOrUpdateStockBucket({ item, orderItem, tx });
+
+                    await tx.purchaseOrderItem.update({
+                        data: {
+                            receivedQuantity: {
+                                increment: item.quantity,
+                            },
+                        },
+                        where: { id: orderItem.id },
+                    });
+                    itemLine += 1;
+                }
+
+                const updatedOrderItems = await tx.purchaseOrderItem.findMany({
+                    where: { purchaseOrderId: purchaseOrder.id },
                 });
-                itemLine += 1;
+                const hasOutstandingItems = updatedOrderItems.some(
+                    (item) =>
+                        Number(item.receivedQuantity) < Number(item.quantity)
+                );
+                await tx.purchaseOrder.update({
+                    data: {
+                        receivedDate: hasOutstandingItems
+                            ? null
+                            : data.receivedDate,
+                        status: hasOutstandingItems
+                            ? "PARTIALLY_RECEIVED"
+                            : "RECEIVED",
+                    },
+                    where: { id: purchaseOrder.id },
+                });
+
+                return goodsReceipt;
+            })
+        ).catch(async (error) => {
+            if (!(isUniqueConstraintError(error) && data.idempotencyKey)) {
+                throw error;
             }
 
-            const updatedOrderItems = await tx.purchaseOrderItem.findMany({
-                where: { purchaseOrderId: purchaseOrder.id },
+            const existingReceipt = await prisma.goodsReceipt.findUnique({
+                where: { receiptNumber },
             });
-            const hasOutstandingItems = updatedOrderItems.some(
-                (item) => Number(item.receivedQuantity) < Number(item.quantity)
-            );
-            await tx.purchaseOrder.update({
-                data: {
-                    receivedDate: hasOutstandingItems
-                        ? null
-                        : data.receivedDate,
-                    status: hasOutstandingItems
-                        ? "PARTIALLY_RECEIVED"
-                        : "RECEIVED",
-                },
-                where: { id: purchaseOrder.id },
-            });
-
-            return goodsReceipt;
+            if (!existingReceipt) {
+                throw new Error(
+                    "Could not complete goods receipt. Please retry once."
+                );
+            }
+            return existingReceipt;
         });
 
         await logActivity({

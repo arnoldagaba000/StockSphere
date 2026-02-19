@@ -1,8 +1,9 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
     Select,
@@ -21,8 +22,31 @@ import {
 } from "@/components/ui/table";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
 import { getGoodsReceipts } from "@/features/purchases/get-goods-receipts";
+import { getPurchaseOrderDetail } from "@/features/purchases/get-purchase-order-detail";
 import { getPurchaseOrders } from "@/features/purchases/get-purchase-orders";
 import { receiveGoods } from "@/features/purchases/receive-goods";
+import { voidGoodsReceipt } from "@/features/purchases/void-goods-receipt";
+
+interface ReceiptLineInput {
+    batchNumber: string;
+    expiryDate: string;
+    productId: string;
+    quantity: string;
+    serialNumber: string;
+}
+
+type ReceiptLineInputMap = Record<string, ReceiptLineInput>;
+
+const createEmptyLineInput = (
+    productId: string,
+    quantity: number
+): ReceiptLineInput => ({
+    batchNumber: "",
+    expiryDate: "",
+    productId,
+    quantity: quantity > 0 ? String(quantity) : "",
+    serialNumber: "",
+});
 
 export const Route = createFileRoute("/_dashboard/goods-receipts")({
     component: GoodsReceiptsPage,
@@ -55,27 +79,96 @@ function GoodsReceiptsPage() {
         receivableOrders[0]?.id ?? ""
     );
     const [warehouseId, setWarehouseId] = useState(warehouses[0]?.id ?? "");
+    const [lineInputs, setLineInputs] = useState<ReceiptLineInputMap>({});
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isVoidingId, setIsVoidingId] = useState<string | null>(null);
+    const [voidReason, setVoidReason] = useState("");
 
-    const selectedOrder = receivableOrders.find(
-        (order) => order.id === purchaseOrderId
-    );
+    const [selectedOrderDetail, setSelectedOrderDetail] = useState<Awaited<
+        ReturnType<typeof getPurchaseOrderDetail>
+    > | null>(null);
+    const [isLoadingOrder, setIsLoadingOrder] = useState(false);
 
-    const handleReceiveOutstanding = async () => {
-        if (!(selectedOrder && warehouseId)) {
-            toast.error("Select a purchase order and destination warehouse.");
+    const refresh = async (): Promise<void> => {
+        await router.invalidate();
+    };
+
+    useEffect(() => {
+        if (!purchaseOrderId) {
+            setSelectedOrderDetail(null);
+            setLineInputs({});
             return;
         }
 
-        const outstandingItems = selectedOrder.items
-            .map((item) => ({
-                productId: item.productId,
-                quantity: item.quantity - item.receivedQuantity,
-            }))
+        setIsLoadingOrder(true);
+        getPurchaseOrderDetail({ data: { purchaseOrderId } })
+            .then((detail) => {
+                setSelectedOrderDetail(detail);
+                const nextInputs: ReceiptLineInputMap = {};
+                for (const item of detail.items) {
+                    const outstandingQuantity = Math.max(
+                        0,
+                        item.quantity - item.receivedQuantity
+                    );
+                    nextInputs[item.productId] = createEmptyLineInput(
+                        item.productId,
+                        outstandingQuantity
+                    );
+                }
+                setLineInputs(nextInputs);
+            })
+            .catch((error) => {
+                toast.error(
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to load purchase order details."
+                );
+                setSelectedOrderDetail(null);
+                setLineInputs({});
+            })
+            .finally(() => setIsLoadingOrder(false));
+    }, [purchaseOrderId]);
+
+    const updateLineInput = (
+        productId: string,
+        patch: Partial<ReceiptLineInput>
+    ): void => {
+        setLineInputs((currentInputs) => ({
+            ...currentInputs,
+            [productId]: {
+                ...(currentInputs[productId] ??
+                    createEmptyLineInput(productId, 0)),
+                ...patch,
+            },
+        }));
+    };
+
+    const handleReceive = async () => {
+        if (!selectedOrderDetail) {
+            toast.error("Select a purchase order first.");
+            return;
+        }
+
+        const receiptItems = selectedOrderDetail.items
+            .map((orderItem) => {
+                const input = lineInputs[orderItem.productId];
+                const quantity = Number(input?.quantity ?? 0);
+                return {
+                    batchNumber: input?.batchNumber?.trim() || null,
+                    expiryDate: input?.expiryDate
+                        ? new Date(input.expiryDate)
+                        : null,
+                    locationId: null,
+                    productId: orderItem.productId,
+                    quantity,
+                    serialNumber: input?.serialNumber?.trim() || null,
+                    warehouseId,
+                };
+            })
             .filter((item) => item.quantity > 0);
 
-        if (outstandingItems.length === 0) {
-            toast.error("No outstanding quantities remaining on this order.");
+        if (receiptItems.length === 0) {
+            toast.error("Enter at least one line quantity greater than zero.");
             return;
         }
 
@@ -83,22 +176,15 @@ function GoodsReceiptsPage() {
             setIsSubmitting(true);
             await receiveGoods({
                 data: {
-                    items: outstandingItems.map((item) => ({
-                        batchNumber: null,
-                        expiryDate: null,
-                        locationId: null,
-                        productId: item.productId,
-                        quantity: item.quantity,
-                        serialNumber: null,
-                        warehouseId,
-                    })),
+                    idempotencyKey: crypto.randomUUID(),
+                    items: receiptItems,
                     notes: null,
-                    purchaseOrderId: selectedOrder.id,
+                    purchaseOrderId: selectedOrderDetail.id,
                     receivedDate: new Date(),
                 },
             });
             toast.success("Goods receipt posted.");
-            await router.invalidate();
+            await refresh();
         } catch (error) {
             toast.error(
                 error instanceof Error
@@ -110,12 +196,37 @@ function GoodsReceiptsPage() {
         }
     };
 
+    const handleVoidReceipt = async (receiptId: string) => {
+        if (voidReason.trim().length < 3) {
+            toast.error("Please provide a reason with at least 3 characters.");
+            return;
+        }
+
+        try {
+            setIsVoidingId(receiptId);
+            await voidGoodsReceipt({
+                data: { goodsReceiptId: receiptId, reason: voidReason.trim() },
+            });
+            toast.success("Goods receipt voided.");
+            await refresh();
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to void goods receipt."
+            );
+        } finally {
+            setIsVoidingId(null);
+        }
+    };
+
     return (
         <section className="w-full space-y-4">
             <div>
                 <h1 className="font-semibold text-2xl">Goods Receipts</h1>
                 <p className="text-muted-foreground text-sm">
-                    Receive approved purchase orders into warehouse stock.
+                    Receive at partial line level and reverse posted receipts if
+                    required.
                 </p>
             </div>
 
@@ -123,68 +234,171 @@ function GoodsReceiptsPage() {
                 <CardHeader>
                     <CardTitle>Post Goods Receipt</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-3">
-                    <div className="space-y-2 md:col-span-2">
-                        <Label>Purchase Order</Label>
-                        <Select
-                            onValueChange={(value) =>
-                                setPurchaseOrderId(value ?? "")
-                            }
-                            value={purchaseOrderId}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select order" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {receivableOrders.map((order) => (
-                                    <SelectItem key={order.id} value={order.id}>
-                                        {order.orderNumber} -{" "}
-                                        {order.supplier.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                <CardContent className="space-y-3">
+                    <div className="grid gap-3 md:grid-cols-2">
+                        <div className="space-y-2">
+                            <Label>Purchase Order</Label>
+                            <Select
+                                onValueChange={(value) =>
+                                    setPurchaseOrderId(value ?? "")
+                                }
+                                value={purchaseOrderId}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select order" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {receivableOrders.map((order) => (
+                                        <SelectItem
+                                            key={order.id}
+                                            value={order.id}
+                                        >
+                                            {order.orderNumber} -{" "}
+                                            {order.supplier.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label>Warehouse</Label>
+                            <Select
+                                onValueChange={(value) =>
+                                    setWarehouseId(value ?? "")
+                                }
+                                value={warehouseId}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Select warehouse" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {warehouses.map((warehouse) => (
+                                        <SelectItem
+                                            key={warehouse.id}
+                                            value={warehouse.id}
+                                        >
+                                            {warehouse.code} - {warehouse.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
-                    <div className="space-y-2">
-                        <Label>Warehouse</Label>
-                        <Select
-                            onValueChange={(value) =>
-                                setWarehouseId(value ?? "")
-                            }
-                            value={warehouseId}
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select warehouse" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {warehouses.map((warehouse) => (
-                                    <SelectItem
-                                        key={warehouse.id}
-                                        value={warehouse.id}
-                                    >
-                                        {warehouse.code} - {warehouse.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="md:col-span-3">
-                        <Button
-                            disabled={
-                                isSubmitting ||
-                                !selectedOrder ||
-                                selectedOrder.items.every(
-                                    (item) =>
-                                        item.quantity <= item.receivedQuantity
-                                )
-                            }
-                            onClick={handleReceiveOutstanding}
-                        >
-                            {isSubmitting
-                                ? "Posting..."
-                                : "Receive Outstanding Qty"}
-                        </Button>
-                    </div>
+
+                    {isLoadingOrder ? (
+                        <p className="text-muted-foreground text-sm">
+                            Loading order lines...
+                        </p>
+                    ) : null}
+
+                    {selectedOrderDetail ? (
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>SKU</TableHead>
+                                    <TableHead>Outstanding</TableHead>
+                                    <TableHead>Receive Qty</TableHead>
+                                    <TableHead>Batch</TableHead>
+                                    <TableHead>Serial</TableHead>
+                                    <TableHead>Expiry</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {selectedOrderDetail.items.map((item) => {
+                                    const outstanding = Math.max(
+                                        0,
+                                        item.quantity - item.receivedQuantity
+                                    );
+                                    const input =
+                                        lineInputs[item.productId] ??
+                                        createEmptyLineInput(
+                                            item.productId,
+                                            outstanding
+                                        );
+
+                                    return (
+                                        <TableRow key={item.id}>
+                                            <TableCell>
+                                                {item.product.sku}
+                                            </TableCell>
+                                            <TableCell>{outstanding}</TableCell>
+                                            <TableCell>
+                                                <Input
+                                                    onChange={(event) =>
+                                                        updateLineInput(
+                                                            item.productId,
+                                                            {
+                                                                quantity:
+                                                                    event.target
+                                                                        .value,
+                                                            }
+                                                        )
+                                                    }
+                                                    type="number"
+                                                    value={input.quantity}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Input
+                                                    onChange={(event) =>
+                                                        updateLineInput(
+                                                            item.productId,
+                                                            {
+                                                                batchNumber:
+                                                                    event.target
+                                                                        .value,
+                                                            }
+                                                        )
+                                                    }
+                                                    value={input.batchNumber}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Input
+                                                    onChange={(event) =>
+                                                        updateLineInput(
+                                                            item.productId,
+                                                            {
+                                                                serialNumber:
+                                                                    event.target
+                                                                        .value,
+                                                            }
+                                                        )
+                                                    }
+                                                    value={input.serialNumber}
+                                                />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Input
+                                                    onChange={(event) =>
+                                                        updateLineInput(
+                                                            item.productId,
+                                                            {
+                                                                expiryDate:
+                                                                    event.target
+                                                                        .value,
+                                                            }
+                                                        )
+                                                    }
+                                                    type="date"
+                                                    value={input.expiryDate}
+                                                />
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    ) : null}
+
+                    <Button
+                        disabled={
+                            isSubmitting || !selectedOrderDetail || !warehouseId
+                        }
+                        onClick={handleReceive}
+                    >
+                        {isSubmitting ? "Posting..." : "Post Receipt"}
+                    </Button>
                 </CardContent>
             </Card>
 
@@ -193,6 +407,17 @@ function GoodsReceiptsPage() {
                     <CardTitle>Receipt History</CardTitle>
                 </CardHeader>
                 <CardContent>
+                    <div className="mb-3 grid gap-2 md:max-w-md">
+                        <Label htmlFor="void-reason">Void Reason</Label>
+                        <Input
+                            id="void-reason"
+                            onChange={(event) =>
+                                setVoidReason(event.target.value)
+                            }
+                            placeholder="Reason required to reverse a receipt"
+                            value={voidReason}
+                        />
+                    </div>
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -200,20 +425,13 @@ function GoodsReceiptsPage() {
                                 <TableHead>Purchase Order</TableHead>
                                 <TableHead>Supplier</TableHead>
                                 <TableHead>Lines</TableHead>
-                                <TableHead>Received Date</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {receipts.length === 0 ? (
-                                <TableRow>
-                                    <TableCell
-                                        className="text-muted-foreground"
-                                        colSpan={5}
-                                    >
-                                        No goods receipts posted yet.
-                                    </TableCell>
-                                </TableRow>
-                            ) : null}
                             {receipts.map((receipt) => (
                                 <TableRow key={receipt.id}>
                                     <TableCell>
@@ -231,9 +449,25 @@ function GoodsReceiptsPage() {
                                         {receipt.items.length}
                                     </TableCell>
                                     <TableCell>
-                                        {new Date(
-                                            receipt.receivedDate
-                                        ).toLocaleDateString()}
+                                        {receipt.isVoided ? "Voided" : "Posted"}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {receipt.isVoided ? null : (
+                                            <Button
+                                                disabled={
+                                                    isVoidingId === receipt.id
+                                                }
+                                                onClick={() =>
+                                                    handleVoidReceipt(
+                                                        receipt.id
+                                                    )
+                                                }
+                                                size="sm"
+                                                variant="destructive"
+                                            >
+                                                Void
+                                            </Button>
+                                        )}
                                     </TableCell>
                                 </TableRow>
                             ))}
