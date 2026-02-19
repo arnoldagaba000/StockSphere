@@ -25,7 +25,7 @@ function ProfilePage() {
     const { user } = Route.useLoaderData();
 
     return (
-        <section className="w-full max-w-3xl space-y-4 rounded-lg border p-6">
+        <section className="w-full max-w-3xl space-y-4 p-6">
             <div className="flex items-center gap-4">
                 <UserAvatar size="lg" user={user} />
                 <div className="space-y-1">

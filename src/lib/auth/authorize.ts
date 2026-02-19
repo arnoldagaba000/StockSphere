@@ -21,7 +21,9 @@ export const canUser = (
     user: AuthorizationUser,
     permission: AppPermission
 ): boolean => {
-    if (!user.isActive) {
+    // Treat only explicit false as inactive to avoid rejecting users when
+    // auth session payload omits `isActive`.
+    if (user.isActive === false) {
         return false;
     }
 

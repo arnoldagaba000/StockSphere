@@ -37,7 +37,7 @@ const parseListProductsInput = (
     return {
         categoryId:
             categoryId && categoryId.length > 0 ? categoryId : undefined,
-        isActive: input.isActive,
+        isActive: input.isActive ?? true,
         page,
         pageSize,
         search: search && search.length > 0 ? search : undefined,

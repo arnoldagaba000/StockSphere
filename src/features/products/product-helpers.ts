@@ -35,7 +35,7 @@ export const toSerializableProduct = <TProduct extends ProductWithWeight>(
 
 export const toProductAuditSnapshot = (
     product: ProductAuditShape
-): ProductAuditShape => ({
+): Record<string, string | null> => ({
     barcode: product.barcode,
     categoryId: product.categoryId,
     id: product.id,

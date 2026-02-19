@@ -47,6 +47,11 @@ export const getNavData = (
                     to: "/profile",
                     activeOptions: { exact: true },
                 },
+                {
+                    title: "Products",
+                    to: "/products",
+                    activeOptions: { exact: false },
+                },
             ],
         },
         {
