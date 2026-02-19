@@ -5,6 +5,7 @@ import {
     MapPinned,
     PackageSearch,
     Settings,
+    ShoppingCart,
     UserCircle2,
     Warehouse,
 } from "lucide-react";
@@ -81,6 +82,29 @@ export const getNavData = (
             to: "/stock",
             icon: PackageSearch,
             activeOptions: { exact: false },
+        },
+        {
+            title: "Purchasing",
+            to: "/purchase-orders",
+            icon: ShoppingCart,
+            activeOptions: { exact: false },
+            items: [
+                {
+                    title: "Suppliers",
+                    to: "/suppliers",
+                    activeOptions: { exact: false },
+                },
+                {
+                    title: "Purchase Orders",
+                    to: "/purchase-orders",
+                    activeOptions: { exact: false },
+                },
+                {
+                    title: "Goods Receipts",
+                    to: "/goods-receipts",
+                    activeOptions: { exact: false },
+                },
+            ],
         },
         {
             title: "Settings",
