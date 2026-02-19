@@ -16,6 +16,10 @@ import {
 } from "@/components/ui/table";
 import { createWarehouse } from "@/features/inventory/create-warehouse";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
+import {
+    archiveWarehouse,
+    updateWarehouse,
+} from "@/features/inventory/update-warehouse";
 
 export const Route = createFileRoute("/_dashboard/warehouses")({
     component: WarehousesPage,
@@ -26,6 +30,7 @@ function WarehousesPage() {
     const router = useRouter();
     const warehouses = Route.useLoaderData();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUpdatingId, setIsUpdatingId] = useState<string | null>(null);
     const [code, setCode] = useState("");
     const [name, setName] = useState("");
     const [address, setAddress] = useState("");
@@ -189,6 +194,9 @@ function WarehousesPage() {
                                 <TableHead>Country</TableHead>
                                 <TableHead>Locations</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -207,6 +215,84 @@ function WarehousesPage() {
                                         {warehouse.isActive
                                             ? "Active"
                                             : "Inactive"}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                disabled={
+                                                    isUpdatingId ===
+                                                    warehouse.id
+                                                }
+                                                onClick={async () => {
+                                                    try {
+                                                        setIsUpdatingId(
+                                                            warehouse.id
+                                                        );
+                                                        await updateWarehouse({
+                                                            data: {
+                                                                id: warehouse.id,
+                                                                isActive:
+                                                                    !warehouse.isActive,
+                                                            },
+                                                        });
+                                                        toast.success(
+                                                            "Warehouse updated."
+                                                        );
+                                                        await router.invalidate();
+                                                    } catch (error) {
+                                                        toast.error(
+                                                            error instanceof
+                                                                Error
+                                                                ? error.message
+                                                                : "Failed to update warehouse."
+                                                        );
+                                                    } finally {
+                                                        setIsUpdatingId(null);
+                                                    }
+                                                }}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                {warehouse.isActive
+                                                    ? "Deactivate"
+                                                    : "Activate"}
+                                            </Button>
+                                            <Button
+                                                disabled={
+                                                    isUpdatingId ===
+                                                    warehouse.id
+                                                }
+                                                onClick={async () => {
+                                                    try {
+                                                        setIsUpdatingId(
+                                                            warehouse.id
+                                                        );
+                                                        await archiveWarehouse({
+                                                            data: {
+                                                                id: warehouse.id,
+                                                            },
+                                                        });
+                                                        toast.success(
+                                                            "Warehouse archived."
+                                                        );
+                                                        await router.invalidate();
+                                                    } catch (error) {
+                                                        toast.error(
+                                                            error instanceof
+                                                                Error
+                                                                ? error.message
+                                                                : "Failed to archive warehouse."
+                                                        );
+                                                    } finally {
+                                                        setIsUpdatingId(null);
+                                                    }
+                                                }}
+                                                size="sm"
+                                                variant="destructive"
+                                            >
+                                                Archive
+                                            </Button>
+                                        </div>
                                     </TableCell>
                                 </TableRow>
                             ))}

@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Button } from "@/components/ui/button";
@@ -21,256 +21,255 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { adjustStock } from "@/features/inventory/adjust-stock";
 import { createInitialStock } from "@/features/inventory/create-initial-stock";
+import { submitCycleCount } from "@/features/inventory/cycle-count";
+import {
+    getInventoryKpis,
+    getInventoryValuationReport,
+} from "@/features/inventory/get-inventory-reports";
+import { getPutawaySuggestions } from "@/features/inventory/get-putaway-suggestions";
 import { getStock } from "@/features/inventory/get-stock";
+import { getTrackingHistory } from "@/features/inventory/get-tracking-history";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
-import { getLocations } from "@/features/location/get-locations";
+import {
+    getExpiryAlerts,
+    updateStockExpiryStatus,
+} from "@/features/inventory/manage-expiry";
+import { receiveGoods } from "@/features/inventory/receive-goods";
+import {
+    releaseReservedStock,
+    reserveStock,
+} from "@/features/inventory/reserve-stock";
+import { transferStock } from "@/features/inventory/transfer-stock";
 import { getProducts } from "@/features/products/get-products";
+
+const TRAILING_ZEROES_REGEX = /\.?0+$/;
+const formatQuantity = (value: number): string =>
+    Number.isInteger(value)
+        ? String(value)
+        : value.toFixed(3).replace(TRAILING_ZEROES_REGEX, "");
 
 export const Route = createFileRoute("/_dashboard/stock")({
     component: StockPage,
     loader: async () => {
-        const [warehouses, productsResult, initialStock] = await Promise.all([
-            getWarehouses({ data: {} }),
-            getProducts({ data: { pageSize: 100 } }),
-            getStock({ data: { pageSize: 100 } }),
-        ]);
+        const [warehouses, productsResult, initialStock, kpis, valuation] =
+            await Promise.all([
+                getWarehouses({ data: {} }),
+                getProducts({ data: { pageSize: 200 } }),
+                getStock({ data: { pageSize: 150 } }),
+                getInventoryKpis({ data: { withinDays: 30 } }),
+                getInventoryValuationReport({ data: {} }),
+            ]);
 
         return {
             initialStock,
+            initialValuation: valuation,
+            kpis,
             products: productsResult.products,
             warehouses,
         };
     },
 });
 
-const formatQuantity = (value: number): string =>
-    Number.isInteger(value)
-        ? String(value)
-        : value.toFixed(3).replace(TRAILING_ZEROES_REGEX, "");
-
-const TRAILING_ZEROES_REGEX = /\.?0+$/;
-
 function StockPage() {
-    const { initialStock, products, warehouses } = Route.useLoaderData();
-    const [stockData, setStockData] = useState(initialStock);
-    const [isLoadingStock, setIsLoadingStock] = useState(false);
-    const [warehouseFilter, setWarehouseFilter] = useState("all");
-    const [productFilter, setProductFilter] = useState("all");
-    const [belowReorder, setBelowReorder] = useState(false);
+    const { initialStock, initialValuation, kpis, products, warehouses } =
+        Route.useLoaderData();
 
-    const defaultWarehouseId = warehouses[0]?.id ?? "";
-    const defaultProductId = products[0]?.id ?? "";
-    const [entryWarehouseId, setEntryWarehouseId] =
-        useState(defaultWarehouseId);
-    const [entryProductId, setEntryProductId] = useState(defaultProductId);
-    const [entryLocationId, setEntryLocationId] = useState("none");
-    const [entryLocations, setEntryLocations] = useState<
-        Awaited<ReturnType<typeof getLocations>>
-    >([]);
+    const [stockData, setStockData] = useState(initialStock);
+    const [valuation, setValuation] = useState(initialValuation);
+
+    const [selectedStockItemId, setSelectedStockItemId] = useState("");
+    const [entryProductId, setEntryProductId] = useState(products[0]?.id ?? "");
+    const [entryWarehouseId, setEntryWarehouseId] = useState(
+        warehouses[0]?.id ?? ""
+    );
     const [entryQuantity, setEntryQuantity] = useState("");
     const [entryUnitCost, setEntryUnitCost] = useState("");
-    const [entryBatchNumber, setEntryBatchNumber] = useState("");
-    const [entrySerialNumber, setEntrySerialNumber] = useState("");
-    const [entryExpiryDate, setEntryExpiryDate] = useState("");
-    const [entryNotes, setEntryNotes] = useState("");
-    const [isSubmittingEntry, setIsSubmittingEntry] = useState(false);
 
-    const productById = useMemo(
-        () => new Map(products.map((product) => [product.id, product])),
-        [products]
+    const [transferWarehouseId, setTransferWarehouseId] = useState(
+        warehouses[0]?.id ?? ""
     );
+    const [transferQuantity, setTransferQuantity] = useState("");
+    const [adjustQuantity, setAdjustQuantity] = useState("");
+    const [reserveQuantity, setReserveQuantity] = useState("");
+    const [releaseQuantity, setReleaseQuantity] = useState("");
+    const [cycleQuantity, setCycleQuantity] = useState("");
 
-    const selectedEntryProduct = entryProductId
-        ? productById.get(entryProductId)
-        : null;
+    const [trackingSerial, setTrackingSerial] = useState("");
+    const [trackingBatch, setTrackingBatch] = useState("");
 
-    const loadEntryLocations = useCallback(async (warehouseId: string) => {
-        if (!warehouseId) {
-            setEntryLocations([]);
-            setEntryLocationId("none");
-            return;
-        }
+    const refreshAll = async () => {
+        const [nextStock, nextValuation] = await Promise.all([
+            getStock({ data: { pageSize: 150 } }),
+            getInventoryValuationReport({ data: {} }),
+        ]);
+        setStockData(nextStock);
+        setValuation(nextValuation);
+    };
 
+    const runAction = async (
+        work: () => Promise<unknown>,
+        successMessage: string
+    ) => {
         try {
-            const locations = await getLocations({ data: { warehouseId } });
-            setEntryLocations(locations);
-            setEntryLocationId("none");
+            await work();
+            toast.success(successMessage);
+            await refreshAll();
         } catch (error) {
             toast.error(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to load locations."
+                error instanceof Error ? error.message : "Action failed."
             );
-        }
-    }, []);
-
-    useEffect(() => {
-        loadEntryLocations(entryWarehouseId).catch(() => undefined);
-    }, [entryWarehouseId, loadEntryLocations]);
-
-    const loadStock = async () => {
-        try {
-            setIsLoadingStock(true);
-            const response = await getStock({
-                data: {
-                    belowReorder,
-                    pageSize: 100,
-                    productId:
-                        productFilter === "all" ? undefined : productFilter,
-                    warehouseId:
-                        warehouseFilter === "all" ? undefined : warehouseFilter,
-                },
-            });
-            setStockData(response);
-        } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Failed to load stock."
-            );
-        } finally {
-            setIsLoadingStock(false);
         }
     };
 
-    const resetEntryForm = () => {
-        setEntryQuantity("");
-        setEntryUnitCost("");
-        setEntryBatchNumber("");
-        setEntrySerialNumber("");
-        setEntryExpiryDate("");
-        setEntryNotes("");
-        setEntryLocationId("none");
-    };
-
-    const handleCreateEntry = async () => {
-        try {
-            setIsSubmittingEntry(true);
-            await createInitialStock({
-                data: {
-                    batchNumber:
-                        entryBatchNumber.trim().length > 0
-                            ? entryBatchNumber.trim()
-                            : null,
-                    expiryDate: entryExpiryDate
-                        ? new Date(entryExpiryDate)
-                        : null,
-                    locationId:
-                        entryLocationId === "none" ? null : entryLocationId,
-                    notes:
-                        entryNotes.trim().length > 0 ? entryNotes.trim() : null,
-                    productId: entryProductId,
-                    quantity: Number(entryQuantity),
-                    serialNumber:
-                        entrySerialNumber.trim().length > 0
-                            ? entrySerialNumber.trim()
-                            : null,
-                    unitCost:
-                        entryUnitCost.trim().length > 0
-                            ? Number(entryUnitCost)
-                            : null,
-                    warehouseId: entryWarehouseId,
-                },
-            });
-            toast.success("Initial stock entry created.");
-            resetEntryForm();
-            await loadStock();
-        } catch (error) {
-            toast.error(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to create stock entry."
-            );
-        } finally {
-            setIsSubmittingEntry(false);
-        }
-    };
+    const selectedItem = stockData.stockItems.find(
+        (item) => item.id === selectedStockItemId
+    );
 
     return (
         <section className="w-full space-y-4">
             <div>
-                <h1 className="font-semibold text-2xl">Stock Overview</h1>
+                <h1 className="font-semibold text-2xl">Stock Management</h1>
                 <p className="text-muted-foreground text-sm">
-                    View stock balances and create opening stock entries.
+                    End-to-end inventory controls: transfer, adjust, reserve,
+                    tracking, expiry, cycle count, receiving, putaway, and
+                    valuation.
                 </p>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
+                <MetricCard
+                    label="On Hand"
+                    value={formatQuantity(kpis.totalOnHand)}
+                />
+                <MetricCard
+                    label="Reserved"
+                    value={formatQuantity(kpis.totalReserved)}
+                />
+                <MetricCard
+                    label="Available"
+                    value={formatQuantity(kpis.totalAvailable)}
+                />
+                <MetricCard
+                    label="Low Stock"
+                    value={String(kpis.lowStockBuckets)}
+                />
+                <MetricCard
+                    label="Expiring Soon"
+                    value={String(kpis.expiringSoonBuckets)}
+                />
+                <MetricCard
+                    label="Stock Value"
+                    value={formatCurrencyFromMinorUnits(kpis.totalValue)}
+                />
             </div>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Filters</CardTitle>
+                    <CardTitle>Initial Stock + Receiving</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-4">
-                    <div className="space-y-2">
-                        <Label>Warehouse</Label>
-                        <Select
-                            onValueChange={(value) =>
-                                setWarehouseFilter(value ?? "all")
+                <CardContent className="grid gap-3 md:grid-cols-3">
+                    <FieldSelect
+                        label="Warehouse"
+                        onValueChange={setEntryWarehouseId}
+                        options={warehouses.map((warehouse) => ({
+                            label: `${warehouse.code} - ${warehouse.name}`,
+                            value: warehouse.id,
+                        }))}
+                        value={entryWarehouseId}
+                    />
+                    <FieldSelect
+                        label="Product"
+                        onValueChange={setEntryProductId}
+                        options={products.map((product) => ({
+                            label: `${product.sku} - ${product.name}`,
+                            value: product.id,
+                        }))}
+                        value={entryProductId}
+                    />
+                    <FieldInput
+                        label="Quantity"
+                        onChange={setEntryQuantity}
+                        type="number"
+                        value={entryQuantity}
+                    />
+                    <FieldInput
+                        label="Unit Cost (UGX)"
+                        onChange={setEntryUnitCost}
+                        type="number"
+                        value={entryUnitCost}
+                    />
+                    <div className="flex flex-wrap gap-2 md:col-span-2">
+                        <Button
+                            disabled={
+                                !(
+                                    entryProductId &&
+                                    entryWarehouseId &&
+                                    entryQuantity
+                                )
                             }
-                            value={warehouseFilter}
-                        >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">
-                                    All warehouses
-                                </SelectItem>
-                                {warehouses.map((warehouse) => (
-                                    <SelectItem
-                                        key={warehouse.id}
-                                        value={warehouse.id}
-                                    >
-                                        {warehouse.code} - {warehouse.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Product</Label>
-                        <Select
-                            onValueChange={(value) =>
-                                setProductFilter(value ?? "all")
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        createInitialStock({
+                                            data: {
+                                                batchNumber: null,
+                                                expiryDate: null,
+                                                locationId: null,
+                                                notes: null,
+                                                productId: entryProductId,
+                                                quantity: Number(entryQuantity),
+                                                serialNumber: null,
+                                                unitCost: entryUnitCost
+                                                    ? Number(entryUnitCost)
+                                                    : null,
+                                                warehouseId: entryWarehouseId,
+                                            },
+                                        }),
+                                    "Initial stock created."
+                                )
                             }
-                            value={productFilter}
                         >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">
-                                    All products
-                                </SelectItem>
-                                {products.map((product) => (
-                                    <SelectItem
-                                        key={product.id}
-                                        value={product.id}
-                                    >
-                                        {product.sku} - {product.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-2">
-                        <Label>Below Reorder</Label>
-                        <Select
-                            onValueChange={(value) =>
-                                setBelowReorder(value === "yes")
+                            Create Initial Stock
+                        </Button>
+                        <Button
+                            disabled={
+                                !(
+                                    entryProductId &&
+                                    entryWarehouseId &&
+                                    entryQuantity
+                                )
                             }
-                            value={belowReorder ? "yes" : "no"}
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        receiveGoods({
+                                            data: {
+                                                items: [
+                                                    {
+                                                        productId:
+                                                            entryProductId,
+                                                        quantity:
+                                                            Number(
+                                                                entryQuantity
+                                                            ),
+                                                        unitCost: entryUnitCost
+                                                            ? Number(
+                                                                  entryUnitCost
+                                                              )
+                                                            : null,
+                                                    },
+                                                ],
+                                                warehouseId: entryWarehouseId,
+                                            },
+                                        }),
+                                    "Goods received."
+                                )
+                            }
+                            variant="outline"
                         >
-                            <SelectTrigger>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="no">No</SelectItem>
-                                <SelectItem value="yes">Yes</SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="flex items-end">
-                        <Button disabled={isLoadingStock} onClick={loadStock}>
-                            {isLoadingStock ? "Loading..." : "Apply Filters"}
+                            Receive Goods
                         </Button>
                     </div>
                 </CardContent>
@@ -278,184 +277,294 @@ function StockPage() {
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Create Initial Stock Entry</CardTitle>
+                    <CardTitle>Stock Operations</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-3">
-                        <div className="space-y-2">
-                            <Label>Warehouse</Label>
-                            <Select
-                                onValueChange={(value) =>
-                                    setEntryWarehouseId(value ?? "")
-                                }
-                                value={entryWarehouseId}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select warehouse" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {warehouses.map((warehouse) => (
-                                        <SelectItem
-                                            key={warehouse.id}
-                                            value={warehouse.id}
-                                        >
-                                            {warehouse.code} - {warehouse.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Product</Label>
-                            <Select
-                                onValueChange={(value) =>
-                                    setEntryProductId(value ?? "")
-                                }
-                                value={entryProductId}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select product" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {products.map((product) => (
-                                        <SelectItem
-                                            key={product.id}
-                                            value={product.id}
-                                        >
-                                            {product.sku} - {product.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Location</Label>
-                            <Select
-                                onValueChange={(value) =>
-                                    setEntryLocationId(value ?? "none")
-                                }
-                                value={entryLocationId}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">
-                                        No location
-                                    </SelectItem>
-                                    {entryLocations.map((location) => (
-                                        <SelectItem
-                                            key={location.id}
-                                            value={location.id}
-                                        >
-                                            {location.code} - {location.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="entry-quantity">Quantity</Label>
-                            <Input
-                                id="entry-quantity"
-                                onChange={(event) =>
-                                    setEntryQuantity(event.target.value)
-                                }
-                                placeholder="0"
-                                step="0.001"
-                                type="number"
-                                value={entryQuantity}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="entry-unit-cost">
-                                Unit Cost (UGX)
-                            </Label>
-                            <Input
-                                id="entry-unit-cost"
-                                onChange={(event) =>
-                                    setEntryUnitCost(event.target.value)
-                                }
-                                placeholder="0"
-                                step="1"
-                                type="number"
-                                value={entryUnitCost}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="entry-batch">Batch Number</Label>
-                            <Input
-                                id="entry-batch"
-                                onChange={(event) =>
-                                    setEntryBatchNumber(event.target.value)
-                                }
-                                value={entryBatchNumber}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="entry-serial">Serial Number</Label>
-                            <Input
-                                id="entry-serial"
-                                onChange={(event) =>
-                                    setEntrySerialNumber(event.target.value)
-                                }
-                                value={entrySerialNumber}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="entry-expiry">Expiry Date</Label>
-                            <Input
-                                id="entry-expiry"
-                                onChange={(event) =>
-                                    setEntryExpiryDate(event.target.value)
-                                }
-                                type="date"
-                                value={entryExpiryDate}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="entry-notes">Notes</Label>
-                            <Input
-                                id="entry-notes"
-                                onChange={(event) =>
-                                    setEntryNotes(event.target.value)
-                                }
-                                value={entryNotes}
-                            />
-                        </div>
+                <CardContent className="grid gap-3 md:grid-cols-4">
+                    <FieldSelect
+                        label="Stock Item"
+                        onValueChange={setSelectedStockItemId}
+                        options={stockData.stockItems.map((item) => ({
+                            label: `${item.product.sku} - ${item.warehouse.code} - ${item.location?.code ?? "NO-LOC"}`,
+                            value: item.id,
+                        }))}
+                        value={selectedStockItemId}
+                    />
+                    <FieldInput
+                        label="Transfer Qty"
+                        onChange={setTransferQuantity}
+                        type="number"
+                        value={transferQuantity}
+                    />
+                    <FieldSelect
+                        label="To Warehouse"
+                        onValueChange={setTransferWarehouseId}
+                        options={warehouses.map((warehouse) => ({
+                            label: `${warehouse.code} - ${warehouse.name}`,
+                            value: warehouse.id,
+                        }))}
+                        value={transferWarehouseId}
+                    />
+                    <div className="flex items-end">
+                        <Button
+                            disabled={
+                                !(
+                                    selectedItem &&
+                                    transferQuantity &&
+                                    transferWarehouseId
+                                )
+                            }
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        transferStock({
+                                            data: {
+                                                quantity:
+                                                    Number(transferQuantity),
+                                                stockItemId:
+                                                    selectedStockItemId,
+                                                toWarehouseId:
+                                                    transferWarehouseId,
+                                            },
+                                        }),
+                                    "Stock transferred."
+                                )
+                            }
+                            variant="outline"
+                        >
+                            Transfer
+                        </Button>
                     </div>
-                    <Button
-                        disabled={
-                            isSubmittingEntry ||
-                            !entryWarehouseId ||
-                            !entryProductId ||
-                            entryQuantity.trim().length === 0
-                        }
-                        onClick={handleCreateEntry}
-                    >
-                        {isSubmittingEntry
-                            ? "Creating..."
-                            : "Create Stock Entry"}
-                    </Button>
-                    {selectedEntryProduct ? (
-                        <p className="text-muted-foreground text-xs">
-                            Tracking required: serial (
-                            {selectedEntryProduct.trackBySerialNumber
-                                ? "yes"
-                                : "no"}
-                            ), expiry (
-                            {selectedEntryProduct.trackByExpiry ? "yes" : "no"})
-                            , batch (
-                            {selectedEntryProduct.trackByBatch ? "yes" : "no"})
-                            .
-                        </p>
-                    ) : null}
+
+                    <FieldInput
+                        label="Adjust To Qty"
+                        onChange={setAdjustQuantity}
+                        type="number"
+                        value={adjustQuantity}
+                    />
+                    <FieldInput
+                        label="Reserve Qty"
+                        onChange={setReserveQuantity}
+                        type="number"
+                        value={reserveQuantity}
+                    />
+                    <FieldInput
+                        label="Release Qty"
+                        onChange={setReleaseQuantity}
+                        type="number"
+                        value={releaseQuantity}
+                    />
+                    <FieldInput
+                        label="Cycle Count Qty"
+                        onChange={setCycleQuantity}
+                        type="number"
+                        value={cycleQuantity}
+                    />
+                    <div className="flex flex-wrap gap-2 md:col-span-4">
+                        <Button
+                            disabled={!(selectedItem && adjustQuantity)}
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        adjustStock({
+                                            data: {
+                                                countedQuantity:
+                                                    Number(adjustQuantity),
+                                                reason: "PHYSICAL_COUNT",
+                                                stockItemId:
+                                                    selectedStockItemId,
+                                            },
+                                        }),
+                                    "Stock adjusted."
+                                )
+                            }
+                            variant="outline"
+                        >
+                            Adjust
+                        </Button>
+                        <Button
+                            disabled={!(selectedItem && reserveQuantity)}
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        reserveStock({
+                                            data: {
+                                                quantity:
+                                                    Number(reserveQuantity),
+                                                stockItemId:
+                                                    selectedStockItemId,
+                                            },
+                                        }),
+                                    "Stock reserved."
+                                )
+                            }
+                            variant="outline"
+                        >
+                            Reserve
+                        </Button>
+                        <Button
+                            disabled={!(selectedItem && releaseQuantity)}
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        releaseReservedStock({
+                                            data: {
+                                                quantity:
+                                                    Number(releaseQuantity),
+                                                stockItemId:
+                                                    selectedStockItemId,
+                                            },
+                                        }),
+                                    "Stock released."
+                                )
+                            }
+                            variant="outline"
+                        >
+                            Release
+                        </Button>
+                        <Button
+                            disabled={!(selectedItem && cycleQuantity)}
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        submitCycleCount({
+                                            data: {
+                                                countedQuantity:
+                                                    Number(cycleQuantity),
+                                                stockItemId:
+                                                    selectedStockItemId,
+                                            },
+                                        }),
+                                    "Cycle count submitted."
+                                )
+                            }
+                        >
+                            Cycle Count
+                        </Button>
+                    </div>
                 </CardContent>
             </Card>
 
             <Card>
                 <CardHeader>
-                    <CardTitle>Stock Items</CardTitle>
+                    <CardTitle>Tracking, Expiry, Putaway</CardTitle>
+                </CardHeader>
+                <CardContent className="grid gap-3 md:grid-cols-3">
+                    <FieldInput
+                        label="Serial"
+                        onChange={setTrackingSerial}
+                        value={trackingSerial}
+                    />
+                    <FieldInput
+                        label="Batch"
+                        onChange={setTrackingBatch}
+                        value={trackingBatch}
+                    />
+                    <div className="flex items-end">
+                        <Button
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        getTrackingHistory({
+                                            data: {
+                                                batchNumber:
+                                                    trackingBatch || undefined,
+                                                serialNumber:
+                                                    trackingSerial || undefined,
+                                            },
+                                        }),
+                                    "Tracking history loaded."
+                                )
+                            }
+                            variant="outline"
+                        >
+                            Search Tracking
+                        </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2 md:col-span-3">
+                        <Button
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        getExpiryAlerts({
+                                            data: { withinDays: 30 },
+                                        }),
+                                    "Expiry alerts loaded."
+                                )
+                            }
+                            variant="outline"
+                        >
+                            Refresh Expiry Alerts
+                        </Button>
+                        <Button
+                            disabled={!selectedItem}
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        updateStockExpiryStatus({
+                                            data: {
+                                                operation: "QUARANTINE",
+                                                stockItemId:
+                                                    selectedStockItemId,
+                                            },
+                                        }),
+                                    "Moved to quarantine."
+                                )
+                            }
+                            variant="outline"
+                        >
+                            Quarantine Selected
+                        </Button>
+                        <Button
+                            disabled={!selectedItem}
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        updateStockExpiryStatus({
+                                            data: {
+                                                operation: "DISPOSE",
+                                                stockItemId:
+                                                    selectedStockItemId,
+                                            },
+                                        }),
+                                    "Disposed selected stock."
+                                )
+                            }
+                            variant="destructive"
+                        >
+                            Dispose Selected
+                        </Button>
+                        <Button
+                            disabled={
+                                !(
+                                    entryProductId &&
+                                    entryWarehouseId &&
+                                    entryQuantity
+                                )
+                            }
+                            onClick={() =>
+                                runAction(
+                                    () =>
+                                        getPutawaySuggestions({
+                                            data: {
+                                                productId: entryProductId,
+                                                quantity: Number(entryQuantity),
+                                                warehouseId: entryWarehouseId,
+                                            },
+                                        }),
+                                    "Putaway suggestions generated."
+                                )
+                            }
+                            variant="outline"
+                        >
+                            Generate Putaway Suggestions
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Stock Buckets</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <Table>
@@ -504,6 +613,92 @@ function StockPage() {
                     </Table>
                 </CardContent>
             </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Valuation Summary</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-1 text-sm">
+                    <p>
+                        Total stock value:{" "}
+                        {formatCurrencyFromMinorUnits(valuation.totalValue)}
+                    </p>
+                    <p>Warehouse groups: {valuation.byWarehouse.length}</p>
+                    <p>Location groups: {valuation.byLocation.length}</p>
+                    <p>Category groups: {valuation.byCategory.length}</p>
+                </CardContent>
+            </Card>
         </section>
+    );
+}
+
+function MetricCard({ label, value }: { label: string; value: string }) {
+    return (
+        <Card>
+            <CardContent className="p-4">
+                <p className="text-muted-foreground text-xs">{label}</p>
+                <p className="font-semibold text-xl">{value}</p>
+            </CardContent>
+        </Card>
+    );
+}
+
+interface FieldInputProps {
+    label: string;
+    onChange: (value: string) => void;
+    type?: string;
+    value: string;
+}
+
+function FieldInput({
+    label,
+    onChange,
+    type = "text",
+    value,
+}: FieldInputProps) {
+    return (
+        <div className="space-y-2">
+            <Label>{label}</Label>
+            <Input
+                onChange={(event) => onChange(event.target.value)}
+                type={type}
+                value={value}
+            />
+        </div>
+    );
+}
+
+interface FieldSelectProps {
+    label: string;
+    onValueChange: (value: string) => void;
+    options: { label: string; value: string }[];
+    value: string;
+}
+
+function FieldSelect({
+    label,
+    onValueChange,
+    options,
+    value,
+}: FieldSelectProps) {
+    return (
+        <div className="space-y-2">
+            <Label>{label}</Label>
+            <Select
+                onValueChange={(nextValue) => onValueChange(nextValue ?? "")}
+                value={value}
+            >
+                <SelectTrigger>
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    {options.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
     );
 }

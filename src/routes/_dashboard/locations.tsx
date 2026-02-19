@@ -24,6 +24,10 @@ import {
 import { getWarehouses } from "@/features/inventory/get-warehouses";
 import { createLocation } from "@/features/location/create-location";
 import { getLocations } from "@/features/location/get-locations";
+import {
+    archiveLocation,
+    updateLocation,
+} from "@/features/location/update-location";
 import type { LocationType } from "@/generated/prisma/client";
 
 const LOCATION_TYPES: LocationType[] = [
@@ -48,6 +52,7 @@ function LocationsPage() {
     >([]);
     const [isLoadingLocations, setIsLoadingLocations] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isUpdatingId, setIsUpdatingId] = useState<string | null>(null);
     const [code, setCode] = useState("");
     const [name, setName] = useState("");
     const [type, setType] = useState<LocationType>("STANDARD");
@@ -230,6 +235,9 @@ function LocationsPage() {
                                 <TableHead>Name</TableHead>
                                 <TableHead>Type</TableHead>
                                 <TableHead>Status</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -237,7 +245,7 @@ function LocationsPage() {
                                 <TableRow>
                                     <TableCell
                                         className="text-muted-foreground"
-                                        colSpan={4}
+                                        colSpan={5}
                                     >
                                         Loading locations...
                                     </TableCell>
@@ -247,7 +255,7 @@ function LocationsPage() {
                                 <TableRow>
                                     <TableCell
                                         className="text-muted-foreground"
-                                        colSpan={4}
+                                        colSpan={5}
                                     >
                                         No locations found for this warehouse.
                                     </TableCell>
@@ -263,6 +271,142 @@ function LocationsPage() {
                                               {location.isActive
                                                   ? "Active"
                                                   : "Inactive"}
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                              <div className="flex justify-end gap-2">
+                                                  <Button
+                                                      disabled={
+                                                          isUpdatingId ===
+                                                          location.id
+                                                      }
+                                                      onClick={async () => {
+                                                          try {
+                                                              setIsUpdatingId(
+                                                                  location.id
+                                                              );
+                                                              await updateLocation(
+                                                                  {
+                                                                      data: {
+                                                                          id: location.id,
+                                                                          isActive:
+                                                                              !location.isActive,
+                                                                      },
+                                                                  }
+                                                              );
+                                                              toast.success(
+                                                                  "Location updated."
+                                                              );
+                                                              await loadLocations(
+                                                                  warehouseId
+                                                              );
+                                                          } catch (error) {
+                                                              toast.error(
+                                                                  error instanceof
+                                                                      Error
+                                                                      ? error.message
+                                                                      : "Failed to update location."
+                                                              );
+                                                          } finally {
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
+                                                          }
+                                                      }}
+                                                      size="sm"
+                                                      variant="outline"
+                                                  >
+                                                      {location.isActive
+                                                          ? "Deactivate"
+                                                          : "Activate"}
+                                                  </Button>
+                                                  <Button
+                                                      disabled={
+                                                          isUpdatingId ===
+                                                          location.id
+                                                      }
+                                                      onClick={async () => {
+                                                          try {
+                                                              setIsUpdatingId(
+                                                                  location.id
+                                                              );
+                                                              await updateLocation(
+                                                                  {
+                                                                      data: {
+                                                                          id: location.id,
+                                                                          type:
+                                                                              location.type ===
+                                                                              "QUARANTINE"
+                                                                                  ? "STANDARD"
+                                                                                  : "QUARANTINE",
+                                                                      },
+                                                                  }
+                                                              );
+                                                              toast.success(
+                                                                  "Location type updated."
+                                                              );
+                                                              await loadLocations(
+                                                                  warehouseId
+                                                              );
+                                                          } catch (error) {
+                                                              toast.error(
+                                                                  error instanceof
+                                                                      Error
+                                                                      ? error.message
+                                                                      : "Failed to update location type."
+                                                              );
+                                                          } finally {
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
+                                                          }
+                                                      }}
+                                                      size="sm"
+                                                      variant="outline"
+                                                  >
+                                                      Toggle Type
+                                                  </Button>
+                                                  <Button
+                                                      disabled={
+                                                          isUpdatingId ===
+                                                          location.id
+                                                      }
+                                                      onClick={async () => {
+                                                          try {
+                                                              setIsUpdatingId(
+                                                                  location.id
+                                                              );
+                                                              await archiveLocation(
+                                                                  {
+                                                                      data: {
+                                                                          id: location.id,
+                                                                      },
+                                                                  }
+                                                              );
+                                                              toast.success(
+                                                                  "Location archived."
+                                                              );
+                                                              await loadLocations(
+                                                                  warehouseId
+                                                              );
+                                                          } catch (error) {
+                                                              toast.error(
+                                                                  error instanceof
+                                                                      Error
+                                                                      ? error.message
+                                                                      : "Failed to archive location."
+                                                              );
+                                                          } finally {
+                                                              setIsUpdatingId(
+                                                                  null
+                                                              );
+                                                          }
+                                                      }}
+                                                      size="sm"
+                                                      variant="destructive"
+                                                  >
+                                                      Archive
+                                                  </Button>
+                                              </div>
                                           </TableCell>
                                       </TableRow>
                                   ))
