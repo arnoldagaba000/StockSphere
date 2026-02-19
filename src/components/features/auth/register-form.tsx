@@ -19,7 +19,7 @@ import {
     FieldSeparator,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/client";
 import { registerSchema } from "@/schemas/auth-schema";
 import AccountLinkingNote from "./account-linking-note";
 import GoogleLogo from "./google-logo";

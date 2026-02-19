@@ -18,7 +18,7 @@ import {
     FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/client";
 import { requestResetSchema } from "@/schemas/auth-schema";
 import AccountLinkingNote from "./account-linking-note";
 

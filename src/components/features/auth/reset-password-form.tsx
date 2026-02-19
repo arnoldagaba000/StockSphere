@@ -18,7 +18,7 @@ import {
     FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/auth/client";
 import { resetPasswordSchema } from "@/schemas/auth-schema";
 
 const ResetPasswordForm = () => {
@@ -44,7 +44,7 @@ const ResetPasswordForm = () => {
                 });
 
                 if (error) {
-                    toast.error(error.message);
+                    toast.error(error.message ?? "Failed to reset password.");
                     return;
                 }
 
@@ -170,9 +170,7 @@ const ResetPasswordForm = () => {
                                         ) : (
                                             <span>
                                                 Back to{" "}
-                                                <Link to="/login">
-                                                    Sign in
-                                                </Link>
+                                                <Link to="/login">Sign in</Link>
                                             </span>
                                         )}
                                     </FieldDescription>
