@@ -1,4 +1,4 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
@@ -15,13 +15,25 @@ import {
     updateManagedUserRole,
 } from "@/utils/functions/manage-users";
 
-export const Route = createFileRoute("/_dashboard/users")({
-    component: UsersManagementPage,
+const ADMIN_ROLES = ["ADMIN", "SUPER_ADMIN"] as const;
+
+export const Route = createFileRoute("/_dashboard/settings/user-management")({
+    component: UserManagementSettingsPage,
     loader: async () => {
-        const [{ user: currentUser }, usersResponse] = await Promise.all([
-            getUser(),
-            listManagedUsers(),
-        ]);
+        const { user: currentUser } = await getUser();
+
+        if (
+            !(
+                typeof currentUser.role === "string" &&
+                ADMIN_ROLES.includes(
+                    currentUser.role as (typeof ADMIN_ROLES)[number]
+                )
+            )
+        ) {
+            throw redirect({ to: "/settings/profile" });
+        }
+
+        const usersResponse = await listManagedUsers();
 
         return {
             currentUser,
@@ -32,7 +44,7 @@ export const Route = createFileRoute("/_dashboard/users")({
 
 const formatRole = (role: string | null | undefined): string => {
     if (!role) {
-        return "Staff";
+        return "Viewer";
     }
 
     return role
@@ -42,12 +54,12 @@ const formatRole = (role: string | null | undefined): string => {
         .join(" ");
 };
 
-const canEditTarget = (
+const canManageTarget = (
     actorRole: string | null | undefined,
     targetRole: string | null | undefined
 ): boolean => actorRole === "SUPER_ADMIN" || targetRole !== "SUPER_ADMIN";
 
-function UsersManagementPage() {
+function UserManagementSettingsPage() {
     const router = useRouter();
     const { currentUser, users } = Route.useLoaderData();
     const [busyUserId, setBusyUserId] = useState<string | null>(null);
@@ -76,17 +88,17 @@ function UsersManagementPage() {
     };
 
     return (
-        <section className="w-full space-y-4">
-            <div>
-                <h1 className="font-semibold text-2xl">User Management</h1>
+        <section className="space-y-4">
+            <div className="space-y-1">
+                <h2 className="font-medium text-lg">User Management</h2>
                 <p className="text-muted-foreground text-sm">
-                    Admins can manage users. Only super admins can impersonate
-                    and assign the super admin role.
+                    Available to Admin and Super Admin. Only Super Admin can
+                    impersonate users.
                 </p>
             </div>
 
             <div className="overflow-x-auto rounded-lg border">
-                <table className="w-full min-w-220 text-left text-sm">
+                <table className="w-full min-w-[880px] text-left text-sm">
                     <thead className="bg-muted/40">
                         <tr className="border-b">
                             <th className="px-4 py-3 font-medium">Name</th>
@@ -98,24 +110,21 @@ function UsersManagementPage() {
                             </th>
                         </tr>
                     </thead>
-
                     <tbody>
                         {users.map((user) => {
                             const isBusy = busyUserId === user.id;
-                            const editable = canEditTarget(
+                            const manageable = canManageTarget(
                                 currentUser.role,
                                 user.role
                             );
                             const isCurrentUser = user.id === currentUser.id;
                             const selectedRole = (user.role ??
-                                "STAFF") as AppUserRole;
+                                "VIEWER") as AppUserRole;
 
                             return (
                                 <tr className="border-b" key={user.id}>
-                                    <td className="px-4 py-3">
-                                        <div className="font-medium">
-                                            {user.name}
-                                        </div>
+                                    <td className="px-4 py-3 font-medium">
+                                        {user.name}
                                     </td>
                                     <td className="px-4 py-3 text-muted-foreground">
                                         {user.email}
@@ -123,7 +132,7 @@ function UsersManagementPage() {
                                     <td className="px-4 py-3">
                                         <select
                                             className="h-9 min-w-36 rounded-md border bg-background px-2 text-sm"
-                                            disabled={!editable || isBusy}
+                                            disabled={!manageable || isBusy}
                                             onChange={(event) =>
                                                 runAction(
                                                     user.id,
@@ -172,7 +181,7 @@ function UsersManagementPage() {
                                             {user.banned ? (
                                                 <Button
                                                     disabled={
-                                                        !editable || isBusy
+                                                        !manageable || isBusy
                                                     }
                                                     onClick={() =>
                                                         runAction(
@@ -196,7 +205,7 @@ function UsersManagementPage() {
                                             ) : (
                                                 <Button
                                                     disabled={
-                                                        !editable || isBusy
+                                                        !manageable || isBusy
                                                     }
                                                     onClick={() =>
                                                         runAction(
@@ -219,7 +228,7 @@ function UsersManagementPage() {
 
                                             <Button
                                                 disabled={
-                                                    !editable ||
+                                                    !manageable ||
                                                     isBusy ||
                                                     isCurrentUser
                                                 }
@@ -246,7 +255,9 @@ function UsersManagementPage() {
                                             {isSuperAdmin ? (
                                                 <Button
                                                     disabled={
-                                                        isBusy || isCurrentUser
+                                                        !manageable ||
+                                                        isBusy ||
+                                                        isCurrentUser
                                                     }
                                                     onClick={() =>
                                                         runAction(
@@ -267,31 +278,29 @@ function UsersManagementPage() {
                                                 </Button>
                                             ) : null}
 
-                                            {isSuperAdmin ? (
-                                                <Button
-                                                    disabled={
-                                                        isBusy || isCurrentUser
-                                                    }
-                                                    onClick={() =>
-                                                        runAction(
-                                                            user.id,
-                                                            () =>
-                                                                removeManagedUser(
-                                                                    {
-                                                                        data: {
-                                                                            userId: user.id,
-                                                                        },
-                                                                    }
-                                                                ),
-                                                            "User removed."
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="destructive"
-                                                >
-                                                    Delete
-                                                </Button>
-                                            ) : null}
+                                            <Button
+                                                disabled={
+                                                    !manageable ||
+                                                    isBusy ||
+                                                    isCurrentUser
+                                                }
+                                                onClick={() =>
+                                                    runAction(
+                                                        user.id,
+                                                        () =>
+                                                            removeManagedUser({
+                                                                data: {
+                                                                    userId: user.id,
+                                                                },
+                                                            }),
+                                                        "User deleted."
+                                                    )
+                                                }
+                                                size="sm"
+                                                variant="destructive"
+                                            >
+                                                Delete
+                                            </Button>
                                         </div>
                                     </td>
                                 </tr>

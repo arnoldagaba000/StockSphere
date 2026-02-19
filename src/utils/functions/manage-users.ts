@@ -45,12 +45,6 @@ const assertAdminActor = (role: string | null | undefined): AppUserRole => {
     return role;
 };
 
-const assertSuperAdminActor = (role: AppUserRole): void => {
-    if (role !== "SUPER_ADMIN") {
-        throw new Error("Only super admins can perform this action.");
-    }
-};
-
 const assertCanManageTarget = (
     actorRole: AppUserRole,
     targetRole: AppUserRole | undefined
@@ -181,9 +175,11 @@ export const revokeManagedUserSessions = createServerFn({ method: "POST" })
 export const removeManagedUser = createServerFn({ method: "POST" })
     .inputValidator((data: UserPayload) => data)
     .middleware([authMiddleware])
-    .handler(({ context, data }) => {
+    .handler(async ({ context, data }) => {
         const actorRole = getActorRole(context);
-        assertSuperAdminActor(actorRole);
+        const targetUser = await getTargetUser(data.userId);
+        const targetRole = parseAppRole(targetUser.role);
+        assertCanManageTarget(actorRole, targetRole);
 
         const headers = getRequestHeaders();
         return auth.api.removeUser({

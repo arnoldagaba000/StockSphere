@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { GalleryVerticalEndIcon } from "lucide-react";
 import type { AuthUser as User } from "@/lib/auth/config";
-import { navData } from "@/utils/data/nav";
+import { getNavData } from "@/utils/data/nav";
 import {
     Sidebar,
     SidebarContent,
@@ -20,6 +20,8 @@ interface AppSidebarProps {
 }
 
 const AppSidebar = ({ user }: AppSidebarProps) => {
+    const navData = getNavData(user.role);
+
     return (
         <Sidebar collapsible="icon">
             <SidebarHeader>

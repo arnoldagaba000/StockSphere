@@ -19,7 +19,7 @@ model User {
   emailVerified Boolean  @default(false)
   image         String?
   isActive      Boolean  @default(true)
-  role          UserRole @default(STAFF)
+  role          UserRole @default(VIEWER)
   banned        Boolean? @default(false)
   banReason     String?
   banExpires    DateTime?
