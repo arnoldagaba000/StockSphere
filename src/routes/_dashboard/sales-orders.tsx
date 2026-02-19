@@ -544,20 +544,25 @@ function SalesOrdersPage() {
             toast.error("Draft needs at least one valid line.");
             return;
         }
+        const notesValue = draftNotes.trim() || null;
+        const requiredDateValue = draftRequiredDate
+            ? new Date(draftRequiredDate)
+            : null;
+        const shippingAddressValue = draftShippingAddress.trim() || null;
+        const shippingCostValue = Number(draftShippingCost) || 0;
+        const taxAmountValue = Number(draftTaxAmount) || 0;
 
         try {
             setIsSavingDraft(true);
             await updateSalesOrderDraft({
                 data: {
                     items: normalizedLines,
-                    notes: draftNotes.trim() || null,
-                    requiredDate: draftRequiredDate
-                        ? new Date(draftRequiredDate)
-                        : null,
+                    notes: notesValue,
+                    requiredDate: requiredDateValue,
                     salesOrderId: selectedOrderDetail.id,
-                    shippingAddress: draftShippingAddress.trim() || null,
-                    shippingCost: Number(draftShippingCost) || 0,
-                    taxAmount: Number(draftTaxAmount) || 0,
+                    shippingAddress: shippingAddressValue,
+                    shippingCost: shippingCostValue,
+                    taxAmount: taxAmountValue,
                 },
             });
             toast.success("Draft updated.");

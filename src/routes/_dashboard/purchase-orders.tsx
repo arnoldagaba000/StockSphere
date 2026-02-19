@@ -215,6 +215,9 @@ function PurchaseOrdersPage() {
         purchaseOrderId: string,
         action: TransitionAction
     ) => {
+        const reasonValue =
+            cancelReason.trim().length > 0 ? cancelReason.trim() : undefined;
+
         try {
             setIsTransitioningId(purchaseOrderId);
             if (action === "submit") {
@@ -229,10 +232,7 @@ function PurchaseOrdersPage() {
                 await cancelPurchaseOrder({
                     data: {
                         purchaseOrderId,
-                        reason:
-                            cancelReason.trim().length > 0
-                                ? cancelReason.trim()
-                                : undefined,
+                        reason: reasonValue,
                     },
                 });
             }
