@@ -1,5 +1,6 @@
 import {
     Boxes,
+    CircleDollarSign,
     FolderTree,
     LayoutDashboard,
     MapPinned,
@@ -102,6 +103,24 @@ export const getNavData = (
                 {
                     title: "Goods Receipts",
                     to: "/goods-receipts",
+                    activeOptions: { exact: false },
+                },
+            ],
+        },
+        {
+            title: "Sales",
+            to: "/sales-orders",
+            icon: CircleDollarSign,
+            activeOptions: { exact: false },
+            items: [
+                {
+                    title: "Customers",
+                    to: "/customers",
+                    activeOptions: { exact: false },
+                },
+                {
+                    title: "Sales Orders",
+                    to: "/sales-orders",
                     activeOptions: { exact: false },
                 },
             ],

@@ -31,6 +31,20 @@ const LoginForm = () => {
     const search = useSearch({ from: "/_auth/login" });
     const [isPending, startTransition] = useTransition();
 
+    const handleLoginError = (message: string) => {
+        if (message.toLowerCase().includes("ban")) {
+            navigate({
+                to: "/banned",
+                search: {
+                    reason: message,
+                },
+            });
+            return;
+        }
+
+        toast.error(message);
+    };
+
     const form = useForm({
         defaultValues: { email: "", password: "", rememberMe: false },
         onSubmit: ({ value }) => {
@@ -48,7 +62,7 @@ const LoginForm = () => {
                             toast.success(`Welcome back, ${displayName}`);
                         },
                         onError: (ctx) => {
-                            toast.error(ctx.error.message);
+                            handleLoginError(ctx.error.message);
                         },
                     }
                 );
@@ -72,7 +86,7 @@ const LoginForm = () => {
                     toast.success(`Welcome, ${displayName}`);
                 },
                 onError: ({ error }) => {
-                    toast.error(error.message);
+                    handleLoginError(error.message);
                 },
             },
         });
