@@ -5,6 +5,7 @@ import {
 } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import type { auth } from "./config";
+import { adminAccessControl, betterAuthAdminRoles } from "./config";
 
 /**
  * Browser auth client used by auth forms and logout flows.
@@ -12,7 +13,10 @@ import type { auth } from "./config";
 export const authClient = createAuthClient({
     plugins: [
         inferAdditionalFields<typeof auth>(),
-        adminClient(),
+        adminClient({
+            ac: adminAccessControl,
+            roles: betterAuthAdminRoles,
+        }),
         lastLoginMethodClient(),
     ],
 });

@@ -79,7 +79,9 @@ const UserManagementTable = ({
                             <TableCell className="px-4 py-3">
                                 <UserRoleSelect
                                     canAssignSuperAdmin={canAssignSuperAdmin}
-                                    disabled={!manageable || isBusy}
+                                    disabled={
+                                        !manageable || isBusy || isCurrentUser
+                                    }
                                     onChange={(nextRole) =>
                                         onUpdateRole(user.id, nextRole)
                                     }

@@ -1,23 +1,30 @@
 import z from "zod";
 
 const emailSchema = z.email("Invalid email address");
-const passwordSchema = z
+const PASSWORD_MIN_LENGTH = 8;
+const passwordPolicySchema = z
     .string()
     .regex(
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-        "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
+        new RegExp(
+            `^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z\\d]).{${PASSWORD_MIN_LENGTH},}$`
+        ),
+        `Password must be at least ${PASSWORD_MIN_LENGTH} characters long and include uppercase, lowercase, number, and special character`
     );
-const newPasswordSchema = passwordSchema;
+const loginPasswordSchema = z
+    .string()
+    // Login should only validate presence, not composition rules.
+    .min(1, "Password is required");
+const newPasswordSchema = passwordPolicySchema;
 
 export const registerSchema = z.object({
     name: z.string().min(4),
     email: emailSchema,
-    password: passwordSchema,
+    password: passwordPolicySchema,
 });
 
 export const loginSchema = z.object({
     email: emailSchema,
-    password: passwordSchema,
+    password: loginPasswordSchema,
     rememberMe: z.boolean(),
 });
 

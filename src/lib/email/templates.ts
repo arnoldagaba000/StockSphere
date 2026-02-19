@@ -40,13 +40,14 @@ export const createResetPasswordEmailTemplate = ({
     const safeSupportEmail = escapeHtml(supportEmail);
     const safeRecipientName = recipientName ? escapeHtml(recipientName) : null;
     const safeResetUrl = escapeHtml(resetUrl);
-    const greeting = safeRecipientName
+    const htmlGreeting = safeRecipientName
         ? `Hi ${safeRecipientName},`
         : "Hi there,";
+    const textGreeting = recipientName ? `Hi ${recipientName},` : "Hi there,";
     const subject = `${appName}: Reset your password`;
 
     const text = [
-        `${greeting}`,
+        textGreeting,
         "",
         `We received a request to reset your ${appName} password.`,
         `Use the link below within ${expiresInMinutes} minutes:`,
@@ -80,7 +81,7 @@ export const createResetPasswordEmailTemplate = ({
             <tr>
               <td style="padding:28px;">
                 <h1 style="margin:0 0 12px;font-size:22px;line-height:1.3;color:#111827;">Reset your password</h1>
-                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">${greeting}</p>
+                <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#374151;">${htmlGreeting}</p>
                 <p style="margin:0 0 20px;font-size:15px;line-height:1.6;color:#374151;">We received a request to reset your password. For security, this link expires in <strong>${expiresInMinutes} minutes</strong>.</p>
                 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 20px;">
                   <tr>
@@ -125,16 +126,17 @@ export const createChangeEmailVerificationTemplate = ({
     const safeRecipientName = recipientName ? escapeHtml(recipientName) : null;
     const safeSupportEmail = escapeHtml(supportEmail);
     const safeVerificationUrl = escapeHtml(verificationUrl);
-    const greeting = safeRecipientName
+    const htmlGreeting = safeRecipientName
         ? `Hi ${safeRecipientName},`
         : "Hi there,";
+    const textGreeting = recipientName ? `Hi ${recipientName},` : "Hi there,";
     const subject = `${appName}: Confirm your email change`;
 
     const text = [
-        greeting,
+        textGreeting,
         "",
         `We received a request to change your ${appName} email address.`,
-        safeCurrentEmail
+        currentEmail
             ? `Current email: ${currentEmail}`
             : "Current email: not available",
         `New email: ${newEmail}`,
@@ -167,7 +169,7 @@ export const createChangeEmailVerificationTemplate = ({
             <tr>
               <td style="padding:28px;">
                 <h1 style="margin:0 0 12px;font-size:22px;color:#111827;">Confirm your email change</h1>
-                <p style="margin:0 0 16px;font-size:15px;color:#374151;">${greeting}</p>
+                <p style="margin:0 0 16px;font-size:15px;color:#374151;">${htmlGreeting}</p>
                 <p style="margin:0 0 16px;font-size:15px;color:#374151;">We received a request to update your email address.</p>
                 <p style="margin:0 0 6px;font-size:14px;color:#6b7280;">Current email: <strong>${safeCurrentEmail ?? "not available"}</strong></p>
                 <p style="margin:0 0 20px;font-size:14px;color:#6b7280;">New email: <strong>${safeNewEmail}</strong></p>

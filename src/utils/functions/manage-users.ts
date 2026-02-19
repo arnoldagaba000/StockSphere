@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
+import type { UserWithRole } from "better-auth/plugins/admin";
 import { prisma } from "@/db";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { auth } from "@/lib/auth/config";
@@ -16,6 +17,8 @@ interface RolePayload {
 interface UserPayload {
     userId: string;
 }
+
+const DEFAULT_PAGE_LIMIT = 100;
 
 const parseAppRole = (value: unknown): AppUserRole | undefined => {
     if (typeof value !== "string") {
@@ -77,6 +80,34 @@ const getTargetUser = (userId: string) => {
     });
 };
 
+const assertValidUserId = (userId: string): void => {
+    if (!(typeof userId === "string" && userId.trim().length > 0)) {
+        throw new Error("A valid user id is required.");
+    }
+};
+
+const validateUserPayload = (data: UserPayload): UserPayload => {
+    assertValidUserId(data.userId);
+    return data;
+};
+
+const validateRolePayload = (data: RolePayload): RolePayload => {
+    assertValidUserId(data.userId);
+    if (!USER_ROLES.includes(data.role)) {
+        throw new Error("Invalid role.");
+    }
+    return data;
+};
+
+const assertNotSelfAction = (
+    actorUserId: string,
+    targetUserId: string
+): void => {
+    if (actorUserId === targetUserId) {
+        throw new Error("You cannot perform this action on your own account.");
+    }
+};
+
 const assertNotLastSuperAdmin = async (
     targetUserId: string,
     targetRole: AppUserRole | undefined
@@ -113,26 +144,43 @@ const assertNotLastSuperAdmin = async (
 
 export const listManagedUsers = createServerFn({ method: "GET" })
     .middleware([authMiddleware])
-    .handler(({ context }) => {
+    .handler(async ({ context }) => {
         getActorRole(context);
 
         const headers = getRequestHeaders();
-        return auth.api.listUsers({
-            headers,
-            query: {
-                limit: 100,
-                offset: 0,
-                sortBy: "createdAt",
-                sortDirection: "desc",
-            },
-        });
+        const users: UserWithRole[] = [];
+        let offset = 0;
+        let total = Number.POSITIVE_INFINITY;
+
+        while (offset < total) {
+            const page = await auth.api.listUsers({
+                headers,
+                query: {
+                    limit: DEFAULT_PAGE_LIMIT,
+                    offset,
+                    sortBy: "createdAt",
+                    sortDirection: "desc",
+                },
+            });
+
+            users.push(...page.users);
+            total = page.total;
+            offset += page.users.length;
+
+            if (page.users.length === 0) {
+                break;
+            }
+        }
+
+        return { users, total: users.length };
     });
 
 export const updateManagedUserRole = createServerFn({ method: "POST" })
-    .inputValidator((data: RolePayload) => data)
+    .inputValidator(validateRolePayload)
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         const actorRole = getActorRole(context);
+        assertNotSelfAction(context.session.user.id, data.userId);
 
         if (actorRole !== "SUPER_ADMIN" && data.role === "SUPER_ADMIN") {
             throw new Error(
@@ -173,13 +221,15 @@ export const updateManagedUserRole = createServerFn({ method: "POST" })
     });
 
 export const banManagedUser = createServerFn({ method: "POST" })
-    .inputValidator((data: UserPayload) => data)
+    .inputValidator(validateUserPayload)
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         const actorRole = getActorRole(context);
+        assertNotSelfAction(context.session.user.id, data.userId);
         const targetUser = await getTargetUser(data.userId);
         const targetRole = parseAppRole(targetUser.role);
         assertCanManageTarget(actorRole, targetRole);
+        await assertNotLastSuperAdmin(data.userId, targetRole);
 
         const headers = getRequestHeaders();
         const response = await auth.api.banUser({
@@ -204,10 +254,11 @@ export const banManagedUser = createServerFn({ method: "POST" })
     });
 
 export const unbanManagedUser = createServerFn({ method: "POST" })
-    .inputValidator((data: UserPayload) => data)
+    .inputValidator(validateUserPayload)
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         const actorRole = getActorRole(context);
+        assertNotSelfAction(context.session.user.id, data.userId);
         const targetUser = await getTargetUser(data.userId);
         const targetRole = parseAppRole(targetUser.role);
         assertCanManageTarget(actorRole, targetRole);
@@ -235,10 +286,11 @@ export const unbanManagedUser = createServerFn({ method: "POST" })
     });
 
 export const revokeManagedUserSessions = createServerFn({ method: "POST" })
-    .inputValidator((data: UserPayload) => data)
+    .inputValidator(validateUserPayload)
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         const actorRole = getActorRole(context);
+        assertNotSelfAction(context.session.user.id, data.userId);
         const targetUser = await getTargetUser(data.userId);
         const targetRole = parseAppRole(targetUser.role);
         assertCanManageTarget(actorRole, targetRole);
@@ -266,10 +318,11 @@ export const revokeManagedUserSessions = createServerFn({ method: "POST" })
     });
 
 export const removeManagedUser = createServerFn({ method: "POST" })
-    .inputValidator((data: UserPayload) => data)
+    .inputValidator(validateUserPayload)
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         const actorRole = getActorRole(context);
+        assertNotSelfAction(context.session.user.id, data.userId);
         const targetUser = await getTargetUser(data.userId);
         const targetRole = parseAppRole(targetUser.role);
         assertCanManageTarget(actorRole, targetRole);
@@ -298,13 +351,14 @@ export const removeManagedUser = createServerFn({ method: "POST" })
     });
 
 export const impersonateManagedUser = createServerFn({ method: "POST" })
-    .inputValidator((data: UserPayload) => data)
+    .inputValidator(validateUserPayload)
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         const actorRole = getActorRole(context);
         if (actorRole !== "SUPER_ADMIN") {
             throw new Error("Only super admins can impersonate users.");
         }
+        assertNotSelfAction(context.session.user.id, data.userId);
 
         const headers = getRequestHeaders();
         const response = await auth.api.impersonateUser({

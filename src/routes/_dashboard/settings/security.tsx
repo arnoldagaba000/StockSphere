@@ -89,7 +89,7 @@ function SecuritySettingsPage() {
     const [currentPassword, setCurrentPassword] = useState("");
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
-    const [newEmail, setNewEmail] = useState(user.email);
+    const [newEmail, setNewEmail] = useState("");
     const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
     const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
     const [revokingToken, setRevokingToken] = useState<string | null>(null);
@@ -231,13 +231,14 @@ function SecuritySettingsPage() {
                     <Input
                         id="new-email"
                         onChange={(event) => setNewEmail(event.target.value)}
+                        placeholder={`Current: ${user.email}`}
                         type="email"
                         value={newEmail}
                     />
                 </div>
 
                 <Button
-                    disabled={isSubmittingEmail}
+                    disabled={isSubmittingEmail || newEmail.trim().length === 0}
                     onClick={handleRequestEmailChange}
                 >
                     {isSubmittingEmail ? "Sending..." : "Request Email Change"}

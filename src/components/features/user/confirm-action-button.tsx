@@ -1,3 +1,5 @@
+import { useState } from "react";
+import toast from "react-hot-toast";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -34,42 +36,71 @@ const ConfirmActionButton = ({
     onConfirm,
     tooltip,
     variant = "outline",
-}: ConfirmActionButtonProps) => (
-    <Tooltip>
-        <AlertDialog>
-            <AlertDialogTrigger
-                disabled={disabled}
-                render={
-                    <TooltipTrigger
-                        render={
-                            <Button
-                                disabled={disabled}
-                                size="sm"
-                                variant={variant}
-                            >
-                                {label}
-                            </Button>
-                        }
-                    />
-                }
-            />
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        {confirmDescription}
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={onConfirm}>
-                        Confirm
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-        <TooltipContent>{tooltip}</TooltipContent>
-    </Tooltip>
-);
+}: ConfirmActionButtonProps) => {
+    const [isPending, setIsPending] = useState(false);
+    const isDisabled = disabled || isPending;
+
+    const handleConfirm = async (): Promise<void> => {
+        if (isPending) {
+            return;
+        }
+
+        try {
+            setIsPending(true);
+            await onConfirm();
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to perform action.";
+            toast.error(message);
+        } finally {
+            setIsPending(false);
+        }
+    };
+
+    return (
+        <Tooltip>
+            <AlertDialog>
+                <AlertDialogTrigger
+                    disabled={isDisabled}
+                    render={
+                        <TooltipTrigger
+                            render={
+                                <Button
+                                    disabled={isDisabled}
+                                    size="sm"
+                                    variant={variant}
+                                >
+                                    {isPending ? "Working..." : label}
+                                </Button>
+                            }
+                        />
+                    }
+                />
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>{confirmTitle}</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {confirmDescription}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isPending}>
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={isPending}
+                            onClick={handleConfirm}
+                        >
+                            {isPending ? "Working..." : "Confirm"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <TooltipContent>{tooltip}</TooltipContent>
+        </Tooltip>
+    );
+};
 
 export default ConfirmActionButton;

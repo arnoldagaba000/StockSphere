@@ -34,6 +34,11 @@ function ProfileSettingsPage() {
     const { user } = Route.useLoaderData();
     const [name, setName] = useState(user.name);
     const [image, setImage] = useState<string | null>(user.image ?? null);
+    const [imageUrlInput, setImageUrlInput] = useState<string>(
+        user.image?.startsWith("http://") || user.image?.startsWith("https://")
+            ? user.image
+            : ""
+    );
     const [isSaving, setIsSaving] = useState(false);
 
     const handleImageFileChange = async (
@@ -57,6 +62,7 @@ function ProfileSettingsPage() {
         try {
             const dataUrl = await readFileAsDataUrl(file);
             setImage(dataUrl);
+            setImageUrlInput("");
         } catch (error) {
             const message =
                 error instanceof Error
@@ -111,7 +117,10 @@ function ProfileSettingsPage() {
                         />
                         <Button
                             disabled={image === null}
-                            onClick={() => setImage(null)}
+                            onClick={() => {
+                                setImage(null);
+                                setImageUrlInput("");
+                            }}
                             type="button"
                             variant="outline"
                         >
@@ -132,12 +141,13 @@ function ProfileSettingsPage() {
                 <Input
                     id="image-url"
                     onChange={(event) => {
-                        const nextValue = event.target.value.trim();
+                        const nextValue = event.target.value;
+                        setImageUrlInput(nextValue);
                         setImage(nextValue ? nextValue : null);
                     }}
                     placeholder="https://example.com/avatar.jpg"
                     type="url"
-                    value={image ?? ""}
+                    value={imageUrlInput}
                 />
             </div>
 

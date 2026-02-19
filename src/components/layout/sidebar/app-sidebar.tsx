@@ -16,10 +16,11 @@ import NavMain from "./nav-main";
 import NavUser from "./nav-user";
 
 interface AppSidebarProps {
+    isImpersonating: boolean;
     user: User;
 }
 
-const AppSidebar = ({ user }: AppSidebarProps) => {
+const AppSidebar = ({ user, isImpersonating }: AppSidebarProps) => {
     const navData = getNavData(user.role);
 
     return (
@@ -59,7 +60,7 @@ const AppSidebar = ({ user }: AppSidebarProps) => {
             </SidebarContent>
 
             <SidebarFooter>
-                <NavUser user={user} />
+                <NavUser isImpersonating={isImpersonating} user={user} />
             </SidebarFooter>
             <SidebarRail />
         </Sidebar>

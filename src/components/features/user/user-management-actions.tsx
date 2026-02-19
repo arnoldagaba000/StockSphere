@@ -42,7 +42,7 @@ const UserManagementActions = ({
                     <TooltipTrigger
                         render={
                             <Button
-                                disabled={isActionDisabled}
+                                disabled={isActionDisabled || isCurrentUser}
                                 onClick={() => onUnban()}
                                 size="sm"
                                 variant="outline"
@@ -60,7 +60,7 @@ const UserManagementActions = ({
                     <TooltipTrigger
                         render={
                             <Button
-                                disabled={isActionDisabled}
+                                disabled={isActionDisabled || isCurrentUser}
                                 onClick={() => onBan()}
                                 size="sm"
                                 variant="outline"

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
@@ -38,6 +39,9 @@ const PASSWORD_UPPERCASE_REGEX = /[A-Z]/;
 const PASSWORD_LOWERCASE_REGEX = /[a-z]/;
 const PASSWORD_NUMBER_REGEX = /\d/;
 const PASSWORD_SYMBOL_REGEX = /[^A-Za-z0-9]/;
+
+const hashEmailForAudit = (email: string): string =>
+    createHash("sha256").update(email).digest("hex");
 
 const assertPasswordStrength = (password: string): void => {
     const minLength = 10;
@@ -179,6 +183,11 @@ export const requestCurrentUserEmailChange = createServerFn({ method: "POST" })
         if (!nextEmail) {
             throw new Error("New email is required.");
         }
+        if (nextEmail === context.session.user.email.toLowerCase()) {
+            throw new Error(
+                "New email must be different from your current email."
+            );
+        }
 
         await auth.api.changeEmail({
             body: {
@@ -192,7 +201,8 @@ export const requestCurrentUserEmailChange = createServerFn({ method: "POST" })
             action: "EMAIL_CHANGE_REQUESTED",
             actorUserId: context.session.user.id,
             changes: {
-                newEmail: nextEmail,
+                hasNewEmail: true,
+                newEmailHash: hashEmailForAudit(nextEmail),
             },
             entity: "User",
             entityId: context.session.user.id,

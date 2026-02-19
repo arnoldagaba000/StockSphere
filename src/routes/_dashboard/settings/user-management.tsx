@@ -1,4 +1,9 @@
-import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    redirect,
+    useNavigate,
+    useRouter,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import type { ManagedUser } from "@/components/features/user/types";
@@ -56,19 +61,29 @@ export const Route = createFileRoute("/_dashboard/settings/user-management")({
 
 function UserManagementSettingsPage() {
     const router = useRouter();
+    const navigate = useNavigate();
     const { currentUser, users } = Route.useLoaderData();
     const [busyUserId, setBusyUserId] = useState<string | null>(null);
 
     const runAction = async (
         userId: string,
         action: () => Promise<unknown>,
-        successMessage: string
+        successMessage: string,
+        options?: {
+            invalidate?: boolean;
+            onSuccess?: () => Promise<void>;
+        }
     ): Promise<void> => {
         try {
             setBusyUserId(userId);
             await action();
             toast.success(successMessage);
-            await router.invalidate();
+            if (options?.onSuccess) {
+                await options.onSuccess();
+            }
+            if (options?.invalidate !== false) {
+                await router.invalidate();
+            }
         } catch (error) {
             const message =
                 error instanceof Error
@@ -129,7 +144,16 @@ function UserManagementSettingsPage() {
                                             userId,
                                         },
                                     }),
-                                "Impersonation started."
+                                "Impersonation started. Switched to impersonated account.",
+                                {
+                                    invalidate: false,
+                                    onSuccess: () =>
+                                        navigate({
+                                            to: "/",
+                                            replace: true,
+                                            reloadDocument: true,
+                                        }),
+                                }
                             )
                         }
                         onRevokeSessions={(userId) =>

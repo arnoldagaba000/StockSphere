@@ -1,5 +1,11 @@
 import { useNavigate } from "@tanstack/react-router";
-import { ChevronsUpDown, LogOut, Settings, UserCircle } from "lucide-react";
+import {
+    ChevronsUpDown,
+    LogOut,
+    Settings,
+    Undo2,
+    UserCircle,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import {
     DropdownMenu,
@@ -21,7 +27,12 @@ import type { AuthUser as User } from "@/lib/auth/config";
 import UserAvatar from "../user-avatar";
 import UserDetails from "../user-details";
 
-const NavUser = ({ user }: { user: User }) => {
+interface NavUserProps {
+    isImpersonating: boolean;
+    user: User;
+}
+
+const NavUser = ({ user, isImpersonating }: NavUserProps) => {
     const { isMobile } = useSidebar();
     const navigate = useNavigate();
 
@@ -32,6 +43,21 @@ const NavUser = ({ user }: { user: User }) => {
                     toast.success("Logged out successfully");
                     navigate({
                         to: "/login",
+                        replace: true,
+                        reloadDocument: true,
+                    });
+                },
+            },
+        });
+    };
+
+    const handleStopImpersonating = async () => {
+        await authClient.admin.stopImpersonating({
+            fetchOptions: {
+                onSuccess: () => {
+                    toast.success("Returned to your admin session.");
+                    navigate({
+                        to: "/settings/user-management",
                         replace: true,
                         reloadDocument: true,
                     });
@@ -103,6 +129,18 @@ const NavUser = ({ user }: { user: User }) => {
                             </DropdownMenuGroup>
 
                             <DropdownMenuSeparator />
+
+                            {isImpersonating ? (
+                                <>
+                                    <DropdownMenuItem
+                                        onClick={handleStopImpersonating}
+                                    >
+                                        <Undo2 />
+                                        Stop Impersonating
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                </>
+                            ) : null}
 
                             <DropdownMenuItem onClick={handleLogout}>
                                 <LogOut />

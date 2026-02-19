@@ -13,7 +13,7 @@ import {
 import { DEFAULT_USER_ROLE, isSuperAdminEmail } from "./roles";
 import { ensureSuperAdminRole } from "./super-admin";
 
-const adminAccessControl = createAccessControl({
+export const adminAccessControl = createAccessControl({
     user: [
         "create",
         "list",
@@ -28,7 +28,7 @@ const adminAccessControl = createAccessControl({
     session: ["list", "revoke", "delete"],
 } as const);
 
-const betterAuthAdminRoles = {
+export const betterAuthAdminRoles = {
     SUPER_ADMIN: adminAccessControl.newRole({
         user: [
             "create",

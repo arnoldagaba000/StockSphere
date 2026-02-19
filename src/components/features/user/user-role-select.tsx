@@ -1,3 +1,5 @@
+import { useState } from "react";
+import toast from "react-hot-toast";
 import {
     Select,
     SelectContent,
@@ -20,29 +22,51 @@ const UserRoleSelect = ({
     disabled = false,
     onChange,
     value,
-}: UserRoleSelectProps) => (
-    <Select
-        disabled={disabled}
-        onValueChange={(nextValue) => onChange(nextValue as AppUserRole)}
-        value={value}
-    >
-        <SelectTrigger className="w-44">
-            <SelectValue placeholder="Select role" />
-        </SelectTrigger>
-        <SelectContent>
-            {USER_ROLES.map((roleOption) => (
-                <SelectItem
-                    disabled={
-                        !canAssignSuperAdmin && roleOption === "SUPER_ADMIN"
-                    }
-                    key={roleOption}
-                    value={roleOption}
-                >
-                    {formatRole(roleOption)}
-                </SelectItem>
-            ))}
-        </SelectContent>
-    </Select>
-);
+}: UserRoleSelectProps) => {
+    const [isPending, setIsPending] = useState(false);
+    const handleValueChange = (nextValue: AppUserRole | null): void => {
+        if (!nextValue) {
+            return;
+        }
+
+        setIsPending(true);
+        onChange(nextValue)
+            .catch((error) => {
+                const message =
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to update role.";
+                toast.error(message);
+            })
+            .finally(() => {
+                setIsPending(false);
+            });
+    };
+
+    return (
+        <Select
+            disabled={disabled || isPending}
+            onValueChange={handleValueChange}
+            value={value}
+        >
+            <SelectTrigger className="w-44">
+                <SelectValue placeholder="Select role" />
+            </SelectTrigger>
+            <SelectContent>
+                {USER_ROLES.map((roleOption) => (
+                    <SelectItem
+                        disabled={
+                            !canAssignSuperAdmin && roleOption === "SUPER_ADMIN"
+                        }
+                        key={roleOption}
+                        value={roleOption}
+                    >
+                        {formatRole(roleOption)}
+                    </SelectItem>
+                ))}
+            </SelectContent>
+        </Select>
+    );
+};
 
 export default UserRoleSelect;
