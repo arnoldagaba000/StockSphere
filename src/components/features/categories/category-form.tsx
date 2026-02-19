@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { buildCategoryHierarchy } from "@/components/features/categories/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +54,8 @@ const CategoryForm = ({
     onSubmit,
     submitLabel,
 }: CategoryFormProps) => {
-    const [values, setValues] = useState(defaultValues);
+    const initialValuesRef = useRef(defaultValues);
+    const [values, setValues] = useState(initialValuesRef.current);
     const parentCategoryOptions = useMemo(
         () => buildCategoryHierarchy(categories, excludeCategoryIds),
         [categories, excludeCategoryIds]

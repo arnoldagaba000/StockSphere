@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -93,7 +93,10 @@ const ProductForm = ({
     onSubmit,
     submitLabel,
 }: ProductFormProps) => {
-    const [values, setValues] = useState<ProductFormValues>(defaultValues);
+    const initialValuesRef = useRef(defaultValues);
+    const [values, setValues] = useState<ProductFormValues>(
+        initialValuesRef.current
+    );
 
     return (
         <form
