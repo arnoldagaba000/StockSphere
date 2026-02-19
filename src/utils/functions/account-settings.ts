@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth/config";
 import { authMiddleware } from "@/middleware/auth";
 
 interface UpdateProfilePayload {
-    image: string;
+    image: string | null;
     name: string;
 }
 
@@ -20,7 +20,7 @@ export const updateCurrentUserProfile = createServerFn({ method: "POST" })
     .handler(async ({ data }) => {
         const headers = getRequestHeaders();
         const normalizedName = data.name.trim();
-        const normalizedImage = data.image.trim();
+        const normalizedImage = data.image?.trim() ?? "";
 
         if (!normalizedName) {
             throw new Error("Name is required.");

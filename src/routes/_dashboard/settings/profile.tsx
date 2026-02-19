@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { type ChangeEvent, useState } from "react";
 import toast from "react-hot-toast";
+import UserAvatar from "@/components/layout/user-avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,12 +13,60 @@ export const Route = createFileRoute("/_dashboard/settings/profile")({
     loader: () => getUser(),
 });
 
+const MAX_PROFILE_IMAGE_BYTES = 2 * 1024 * 1024;
+
+const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("Failed to read image file."));
+        reader.onload = () => {
+            if (typeof reader.result === "string") {
+                resolve(reader.result);
+                return;
+            }
+            reject(new Error("Invalid image file."));
+        };
+        reader.readAsDataURL(file);
+    });
+
 function ProfileSettingsPage() {
     const router = useRouter();
     const { user } = Route.useLoaderData();
     const [name, setName] = useState(user.name);
-    const [image, setImage] = useState(user.image ?? "");
+    const [image, setImage] = useState<string | null>(user.image ?? null);
     const [isSaving, setIsSaving] = useState(false);
+
+    const handleImageFileChange = async (
+        event: ChangeEvent<HTMLInputElement>
+    ) => {
+        const file = event.target.files?.[0];
+        if (!file) {
+            return;
+        }
+
+        if (!file.type.startsWith("image/")) {
+            toast.error("Please select a valid image file.");
+            return;
+        }
+
+        if (file.size > MAX_PROFILE_IMAGE_BYTES) {
+            toast.error("Image must be 2MB or less.");
+            return;
+        }
+
+        try {
+            const dataUrl = await readFileAsDataUrl(file);
+            setImage(dataUrl);
+        } catch (error) {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load selected image.";
+            toast.error(message);
+        } finally {
+            event.target.value = "";
+        }
+    };
 
     const handleSave = async () => {
         try {
@@ -46,8 +95,50 @@ function ProfileSettingsPage() {
             <div className="space-y-1">
                 <h2 className="font-medium text-lg">Profile Settings</h2>
                 <p className="text-muted-foreground text-sm">
-                    Update your display name and profile image URL.
+                    Update your display name and profile picture.
                 </p>
+            </div>
+
+            <div className="space-y-3">
+                <Label>Profile Picture</Label>
+                <div className="flex items-center gap-4">
+                    <UserAvatar size="lg" user={{ ...user, image }} />
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                            accept="image/*"
+                            onChange={handleImageFileChange}
+                            type="file"
+                        />
+                        <Button
+                            disabled={image === null}
+                            onClick={() => setImage(null)}
+                            type="button"
+                            variant="outline"
+                        >
+                            Remove Picture
+                        </Button>
+                    </div>
+                </div>
+                <p className="text-muted-foreground text-xs">
+                    Upload from your computer (max 2MB), paste an image URL, or
+                    remove your current picture.
+                </p>
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="image-url">
+                    Profile Picture URL (Optional)
+                </Label>
+                <Input
+                    id="image-url"
+                    onChange={(event) => {
+                        const nextValue = event.target.value.trim();
+                        setImage(nextValue ? nextValue : null);
+                    }}
+                    placeholder="https://example.com/avatar.jpg"
+                    type="url"
+                    value={image ?? ""}
+                />
             </div>
 
             <div className="space-y-2">
@@ -56,16 +147,6 @@ function ProfileSettingsPage() {
                     id="name"
                     onChange={(event) => setName(event.target.value)}
                     value={name}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="image">Profile Picture URL</Label>
-                <Input
-                    id="image"
-                    onChange={(event) => setImage(event.target.value)}
-                    placeholder="https://example.com/avatar.jpg"
-                    value={image}
                 />
             </div>
 
