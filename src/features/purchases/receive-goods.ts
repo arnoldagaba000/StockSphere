@@ -368,6 +368,7 @@ export const receiveGoods = createServerFn({ method: "POST" })
                             createdById: context.session.user.id,
                             inventoryTransactionId: inventoryTransaction.id,
                             movementNumber: generateStockMovementNumber(
+                                numberingPrefixes.stockMovement,
                                 transactionNumber,
                                 itemLine
                             ),

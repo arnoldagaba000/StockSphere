@@ -54,6 +54,7 @@ const reverseStockForItem = async ({
     lineNumber,
     receiptNumber,
     reversalTransactionId,
+    stockMovementPrefix,
     transactionNumber,
     tx,
     voidReason,
@@ -63,6 +64,7 @@ const reverseStockForItem = async ({
     lineNumber: number;
     receiptNumber: string;
     reversalTransactionId: string;
+    stockMovementPrefix: string;
     transactionNumber: string;
     tx: Prisma.TransactionClient;
     voidReason: string;
@@ -88,6 +90,7 @@ const reverseStockForItem = async ({
             fromWarehouseId: item.warehouseId,
             inventoryTransactionId: reversalTransactionId,
             movementNumber: generateStockMovementNumber(
+                stockMovementPrefix,
                 transactionNumber,
                 lineNumber
             ),
@@ -216,6 +219,7 @@ export const voidGoodsReceipt = createServerFn({ method: "POST" })
                     lineNumber,
                     receiptNumber: receipt.receiptNumber,
                     reversalTransactionId: reversalTransaction.id,
+                    stockMovementPrefix: numberingPrefixes.stockMovement,
                     transactionNumber,
                     tx,
                     voidReason: data.reason,

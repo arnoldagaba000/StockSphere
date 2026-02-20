@@ -27,9 +27,11 @@ export const generateInventoryTransactionNumber = (prefix = "IT"): string =>
     createUniqueCode(prefix);
 
 export const generateStockMovementNumber = (
+    prefix: string,
     transactionNumber: string,
     lineNumber: number
-): string => `${transactionNumber}-L${String(lineNumber).padStart(3, "0")}`;
+): string =>
+    `${prefix}-${transactionNumber}-L${String(lineNumber).padStart(3, "0")}`;
 
 export const toNumber = (value: Prisma.Decimal | number): number =>
     Number(value);

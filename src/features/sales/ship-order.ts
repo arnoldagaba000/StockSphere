@@ -60,6 +60,7 @@ const processShipmentLine = async ({
     orderItem,
     shipmentId,
     shipItem,
+    stockMovementPrefix,
     tx,
     userId,
     notes,
@@ -72,6 +73,7 @@ const processShipmentLine = async ({
     orderItem: SalesOrderItem;
     shipmentId: string;
     shipItem: ShipmentInputItem;
+    stockMovementPrefix: string;
     tx: Prisma.TransactionClient;
     userId: string;
 }) => {
@@ -112,6 +114,7 @@ const processShipmentLine = async ({
                 fromWarehouseId: stockItem.warehouseId,
                 inventoryTransactionId,
                 movementNumber: generateStockMovementNumber(
+                    stockMovementPrefix,
                     inventoryTransactionNumber,
                     index + 1
                 ),
@@ -228,6 +231,7 @@ export const shipOrder = createServerFn({ method: "POST" })
                         orderItem,
                         shipmentId: shipment.id,
                         shipItem,
+                        stockMovementPrefix: numberingPrefixes.stockMovement,
                         tx,
                         userId: context.session.user.id,
                     });
