@@ -42,6 +42,7 @@ import {
     reserveStock,
 } from "@/features/inventory/reserve-stock";
 import { transferStock } from "@/features/inventory/transfer-stock";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 const TRAILING_ZEROES_REGEX = /\.?0+$/;
 const formatQuantity = (value: number): string =>
@@ -135,11 +136,16 @@ const loadStockBootstrapWithRetry = async (): Promise<StockBootstrapData> => {
 export const Route = createFileRoute("/_dashboard/stock")({
     component: StockPage,
     loader: async () => {
-        return await loadStockBootstrapWithRetry();
+        const [financialSettings, stockBootstrap] = await Promise.all([
+            getFinancialSettings(),
+            loadStockBootstrapWithRetry(),
+        ]);
+        return { financialSettings, ...stockBootstrap };
     },
 });
 
 interface StockEntryCardProps {
+    currencyCode: string;
     entryProductId: string;
     entryQuantity: string;
     entryUnitCost: string;
@@ -154,6 +160,7 @@ interface StockEntryCardProps {
 }
 
 const StockEntryCard = ({
+    currencyCode,
     entryProductId,
     entryQuantity,
     entryUnitCost,
@@ -198,7 +205,7 @@ const StockEntryCard = ({
                     value={entryQuantity}
                 />
                 <FieldInput
-                    label="Unit Cost (UGX)"
+                    label={`Unit Cost (${currencyCode})`}
                     onChange={(value) => setState({ entryUnitCost: value })}
                     type="number"
                     value={entryUnitCost}
@@ -952,6 +959,7 @@ const MovementHistoryCard = ({
 };
 
 interface StockPageContentProps {
+    currencyCode: string;
     kpis: InventoryKpis;
     loadBatchTraceability: () => Promise<void>;
     loadExpiryAlerts: () => Promise<void>;
@@ -969,6 +977,7 @@ interface StockPageContentProps {
 }
 
 const StockPageContent = ({
+    currencyCode,
     kpis,
     loadBatchTraceability,
     loadExpiryAlerts,
@@ -1015,11 +1024,15 @@ const StockPageContent = ({
                 />
                 <MetricCard
                     label="Stock Value"
-                    value={formatCurrencyFromMinorUnits(kpis.totalValue)}
+                    value={formatCurrencyFromMinorUnits(
+                        kpis.totalValue,
+                        currencyCode
+                    )}
                 />
             </div>
 
             <StockEntryCard
+                currencyCode={currencyCode}
                 entryProductId={state.entryProductId}
                 entryQuantity={state.entryQuantity}
                 entryUnitCost={state.entryUnitCost}
@@ -1125,7 +1138,8 @@ const StockPageContent = ({
                                     </TableCell>
                                     <TableCell>
                                         {formatCurrencyFromMinorUnits(
-                                            item.unitCostDisplay
+                                            item.unitCostDisplay,
+                                            currencyCode
                                         )}
                                     </TableCell>
                                     <TableCell>{item.status}</TableCell>
@@ -1144,7 +1158,8 @@ const StockPageContent = ({
                     <p>
                         Total stock value:{" "}
                         {formatCurrencyFromMinorUnits(
-                            state.valuation.totalValue
+                            state.valuation.totalValue,
+                            currencyCode
                         )}
                     </p>
                     <p>
@@ -1159,8 +1174,14 @@ const StockPageContent = ({
 };
 
 function StockPage() {
-    const { initialStock, initialValuation, kpis, products, warehouses } =
-        Route.useLoaderData();
+    const {
+        financialSettings,
+        initialStock,
+        initialValuation,
+        kpis,
+        products,
+        warehouses,
+    } = Route.useLoaderData();
 
     const [state, setState] = useReducer(stockPageReducer, {
         adjustmentApprovalNotes: "",
@@ -1339,6 +1360,7 @@ function StockPage() {
 
     return (
         <StockPageContent
+            currencyCode={financialSettings.currencyCode}
             kpis={kpis}
             loadBatchTraceability={loadBatchTraceability}
             loadExpiryAlerts={loadExpiryAlerts}
