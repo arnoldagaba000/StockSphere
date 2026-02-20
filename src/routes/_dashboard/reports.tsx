@@ -125,7 +125,8 @@ function ReportsPage() {
                 },
             });
             if (result.format !== "csv") {
-                throw new Error("Unexpected response format.");
+                toast.error("Unexpected response format.");
+                return;
             }
             setState({ csvPreview: result.content.slice(0, 2000) });
             toast.success(`CSV generated: ${result.filename}`);
