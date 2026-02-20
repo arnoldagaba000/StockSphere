@@ -238,12 +238,13 @@ function KitsPage() {
             toast.error("Disassembly quantity must be greater than zero.");
             return;
         }
+        const normalizedDisassemblyNotes = disassemblyNotes || undefined;
 
         try {
             const result = await disassembleKit({
                 data: {
                     kitStockItemId: disassemblyStockItemId,
-                    notes: disassemblyNotes || undefined,
+                    notes: normalizedDisassemblyNotes,
                     quantity,
                 },
             });
