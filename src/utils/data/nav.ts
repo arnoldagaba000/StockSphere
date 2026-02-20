@@ -44,6 +44,11 @@ export const getNavData = (
         ADMIN_ROLES.includes(role as (typeof ADMIN_ROLES)[number])
     ) {
         settingsItems.push({
+            title: "System",
+            to: "/settings/system",
+            activeOptions: { exact: false },
+        });
+        settingsItems.push({
             title: "User Management",
             to: "/settings/user-management",
             activeOptions: { exact: false },

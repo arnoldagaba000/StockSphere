@@ -39,6 +39,7 @@ import { Route as DashboardMobileIndexRouteImport } from './routes/_dashboard/mo
 import { Route as DashboardCategoriesIndexRouteImport } from './routes/_dashboard/categories/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as DashboardSettingsUserManagementRouteImport } from './routes/_dashboard/settings/user-management'
+import { Route as DashboardSettingsSystemRouteImport } from './routes/_dashboard/settings/system'
 import { Route as DashboardSettingsSecurityRouteImport } from './routes/_dashboard/settings/security'
 import { Route as DashboardSettingsProfileRouteImport } from './routes/_dashboard/settings/profile'
 import { Route as DashboardSettingsAuditRouteImport } from './routes/_dashboard/settings/audit'
@@ -201,6 +202,11 @@ const DashboardSettingsUserManagementRoute =
     path: '/user-management',
     getParentRoute: () => DashboardSettingsRouteRoute,
   } as any)
+const DashboardSettingsSystemRoute = DashboardSettingsSystemRouteImport.update({
+  id: '/system',
+  path: '/system',
+  getParentRoute: () => DashboardSettingsRouteRoute,
+} as any)
 const DashboardSettingsSecurityRoute =
   DashboardSettingsSecurityRouteImport.update({
     id: '/security',
@@ -289,6 +295,7 @@ export interface FileRoutesByFullPath {
   '/settings/audit': typeof DashboardSettingsAuditRoute
   '/settings/profile': typeof DashboardSettingsProfileRoute
   '/settings/security': typeof DashboardSettingsSecurityRoute
+  '/settings/system': typeof DashboardSettingsSystemRoute
   '/settings/user-management': typeof DashboardSettingsUserManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/categories/': typeof DashboardCategoriesIndexRoute
@@ -325,6 +332,7 @@ export interface FileRoutesByTo {
   '/settings/audit': typeof DashboardSettingsAuditRoute
   '/settings/profile': typeof DashboardSettingsProfileRoute
   '/settings/security': typeof DashboardSettingsSecurityRoute
+  '/settings/system': typeof DashboardSettingsSystemRoute
   '/settings/user-management': typeof DashboardSettingsUserManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/categories': typeof DashboardCategoriesIndexRoute
@@ -368,6 +376,7 @@ export interface FileRoutesById {
   '/_dashboard/settings/audit': typeof DashboardSettingsAuditRoute
   '/_dashboard/settings/profile': typeof DashboardSettingsProfileRoute
   '/_dashboard/settings/security': typeof DashboardSettingsSecurityRoute
+  '/_dashboard/settings/system': typeof DashboardSettingsSystemRoute
   '/_dashboard/settings/user-management': typeof DashboardSettingsUserManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_dashboard/categories/': typeof DashboardCategoriesIndexRoute
@@ -410,6 +419,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/settings/profile'
     | '/settings/security'
+    | '/settings/system'
     | '/settings/user-management'
     | '/api/auth/$'
     | '/categories/'
@@ -446,6 +456,7 @@ export interface FileRouteTypes {
     | '/settings/audit'
     | '/settings/profile'
     | '/settings/security'
+    | '/settings/system'
     | '/settings/user-management'
     | '/api/auth/$'
     | '/categories'
@@ -488,6 +499,7 @@ export interface FileRouteTypes {
     | '/_dashboard/settings/audit'
     | '/_dashboard/settings/profile'
     | '/_dashboard/settings/security'
+    | '/_dashboard/settings/system'
     | '/_dashboard/settings/user-management'
     | '/api/auth/$'
     | '/_dashboard/categories/'
@@ -715,6 +727,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardSettingsUserManagementRouteImport
       parentRoute: typeof DashboardSettingsRouteRoute
     }
+    '/_dashboard/settings/system': {
+      id: '/_dashboard/settings/system'
+      path: '/system'
+      fullPath: '/settings/system'
+      preLoaderRoute: typeof DashboardSettingsSystemRouteImport
+      parentRoute: typeof DashboardSettingsRouteRoute
+    }
     '/_dashboard/settings/security': {
       id: '/_dashboard/settings/security'
       path: '/security'
@@ -863,6 +882,7 @@ interface DashboardSettingsRouteRouteChildren {
   DashboardSettingsAuditRoute: typeof DashboardSettingsAuditRoute
   DashboardSettingsProfileRoute: typeof DashboardSettingsProfileRoute
   DashboardSettingsSecurityRoute: typeof DashboardSettingsSecurityRoute
+  DashboardSettingsSystemRoute: typeof DashboardSettingsSystemRoute
   DashboardSettingsUserManagementRoute: typeof DashboardSettingsUserManagementRoute
   DashboardSettingsIndexRoute: typeof DashboardSettingsIndexRoute
 }
@@ -872,6 +892,7 @@ const DashboardSettingsRouteRouteChildren: DashboardSettingsRouteRouteChildren =
     DashboardSettingsAuditRoute: DashboardSettingsAuditRoute,
     DashboardSettingsProfileRoute: DashboardSettingsProfileRoute,
     DashboardSettingsSecurityRoute: DashboardSettingsSecurityRoute,
+    DashboardSettingsSystemRoute: DashboardSettingsSystemRoute,
     DashboardSettingsUserManagementRoute: DashboardSettingsUserManagementRoute,
     DashboardSettingsIndexRoute: DashboardSettingsIndexRoute,
   }
