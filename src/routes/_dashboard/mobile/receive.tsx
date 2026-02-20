@@ -94,6 +94,13 @@ function MobileReceivePage() {
         const normalizedBatchNumber = state.batchNumber || null;
         const normalizedUnitCost =
             state.unitCost.trim().length > 0 ? Number(state.unitCost) : null;
+        if (
+            normalizedUnitCost !== null &&
+            (!Number.isFinite(normalizedUnitCost) || normalizedUnitCost < 0)
+        ) {
+            toast.error("Unit cost must be zero or greater.");
+            return;
+        }
         const operationPayload: MobileReceivePayload = {
             batchNumber: normalizedBatchNumber,
             productId: state.productId,

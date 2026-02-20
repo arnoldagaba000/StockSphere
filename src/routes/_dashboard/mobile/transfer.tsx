@@ -78,6 +78,20 @@ function MobileTransferPage() {
             toast.error("Quantity must be greater than zero.");
             return;
         }
+        if (
+            selectedStockItem &&
+            selectedStockItem.warehouseId === state.toWarehouseId
+        ) {
+            toast.error("Destination warehouse must be different.");
+            return;
+        }
+        if (
+            selectedStockItem &&
+            quantity > Number(selectedStockItem.availableQuantity)
+        ) {
+            toast.error("Quantity cannot exceed available stock.");
+            return;
+        }
         const operationPayload: MobileTransferPayload = {
             quantity,
             stockItemId: state.stockItemId,

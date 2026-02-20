@@ -34,6 +34,24 @@ const pickPageReducer = (
     patch: Partial<PickPageState>
 ): PickPageState => ({ ...state, ...patch });
 
+const handlePickError = (error: unknown) => {
+    if (!(error instanceof Error)) {
+        toast.error("Pick failed.");
+        return;
+    }
+    if (error.message.includes("Insufficient available stock")) {
+        toast.error(
+            "Cannot pick order: stock is insufficient for one or more items."
+        );
+        return;
+    }
+    if (error.message.includes("No remaining lines to ship")) {
+        toast.error("Order is already fully shipped.");
+        return;
+    }
+    toast.error(error.message);
+};
+
 export const Route = createFileRoute("/_dashboard/mobile/pick")({
     component: MobilePickPage,
     loader: async () => {
@@ -108,9 +126,7 @@ function MobilePickPage() {
                 toast.success("Offline. Pick request queued for retry.");
                 return;
             }
-            toast.error(
-                error instanceof Error ? error.message : "Pick failed."
-            );
+            handlePickError(error);
         }
     };
 
