@@ -17,6 +17,7 @@ import { Route as DashboardWarehousesRouteImport } from './routes/_dashboard/war
 import { Route as DashboardSuppliersRouteImport } from './routes/_dashboard/suppliers'
 import { Route as DashboardStockRouteImport } from './routes/_dashboard/stock'
 import { Route as DashboardSalesOrdersRouteImport } from './routes/_dashboard/sales-orders'
+import { Route as DashboardReportsRouteImport } from './routes/_dashboard/reports'
 import { Route as DashboardPurchaseOrdersRouteImport } from './routes/_dashboard/purchase-orders'
 import { Route as DashboardProfileRouteImport } from './routes/_dashboard/profile'
 import { Route as DashboardLocationsRouteImport } from './routes/_dashboard/locations'
@@ -77,6 +78,11 @@ const DashboardStockRoute = DashboardStockRouteImport.update({
 const DashboardSalesOrdersRoute = DashboardSalesOrdersRouteImport.update({
   id: '/sales-orders',
   path: '/sales-orders',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardReportsRoute = DashboardReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const DashboardPurchaseOrdersRoute = DashboardPurchaseOrdersRouteImport.update({
@@ -217,6 +223,7 @@ export interface FileRoutesByFullPath {
   '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
   '/purchase-orders': typeof DashboardPurchaseOrdersRoute
+  '/reports': typeof DashboardReportsRoute
   '/sales-orders': typeof DashboardSalesOrdersRoute
   '/stock': typeof DashboardStockRoute
   '/suppliers': typeof DashboardSuppliersRoute
@@ -245,6 +252,7 @@ export interface FileRoutesByTo {
   '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
   '/purchase-orders': typeof DashboardPurchaseOrdersRoute
+  '/reports': typeof DashboardReportsRoute
   '/sales-orders': typeof DashboardSalesOrdersRoute
   '/stock': typeof DashboardStockRoute
   '/suppliers': typeof DashboardSuppliersRoute
@@ -278,6 +286,7 @@ export interface FileRoutesById {
   '/_dashboard/locations': typeof DashboardLocationsRoute
   '/_dashboard/profile': typeof DashboardProfileRoute
   '/_dashboard/purchase-orders': typeof DashboardPurchaseOrdersRoute
+  '/_dashboard/reports': typeof DashboardReportsRoute
   '/_dashboard/sales-orders': typeof DashboardSalesOrdersRoute
   '/_dashboard/stock': typeof DashboardStockRoute
   '/_dashboard/suppliers': typeof DashboardSuppliersRoute
@@ -312,6 +321,7 @@ export interface FileRouteTypes {
     | '/locations'
     | '/profile'
     | '/purchase-orders'
+    | '/reports'
     | '/sales-orders'
     | '/stock'
     | '/suppliers'
@@ -340,6 +350,7 @@ export interface FileRouteTypes {
     | '/locations'
     | '/profile'
     | '/purchase-orders'
+    | '/reports'
     | '/sales-orders'
     | '/stock'
     | '/suppliers'
@@ -372,6 +383,7 @@ export interface FileRouteTypes {
     | '/_dashboard/locations'
     | '/_dashboard/profile'
     | '/_dashboard/purchase-orders'
+    | '/_dashboard/reports'
     | '/_dashboard/sales-orders'
     | '/_dashboard/stock'
     | '/_dashboard/suppliers'
@@ -453,6 +465,13 @@ declare module '@tanstack/react-router' {
       path: '/sales-orders'
       fullPath: '/sales-orders'
       preLoaderRoute: typeof DashboardSalesOrdersRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/_dashboard/reports': {
+      id: '/_dashboard/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof DashboardReportsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/_dashboard/purchase-orders': {
@@ -702,6 +721,7 @@ interface DashboardRouteRouteChildren {
   DashboardLocationsRoute: typeof DashboardLocationsRoute
   DashboardProfileRoute: typeof DashboardProfileRoute
   DashboardPurchaseOrdersRoute: typeof DashboardPurchaseOrdersRoute
+  DashboardReportsRoute: typeof DashboardReportsRoute
   DashboardSalesOrdersRoute: typeof DashboardSalesOrdersRoute
   DashboardStockRoute: typeof DashboardStockRoute
   DashboardSuppliersRoute: typeof DashboardSuppliersRoute
@@ -718,6 +738,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardLocationsRoute: DashboardLocationsRoute,
   DashboardProfileRoute: DashboardProfileRoute,
   DashboardPurchaseOrdersRoute: DashboardPurchaseOrdersRoute,
+  DashboardReportsRoute: DashboardReportsRoute,
   DashboardSalesOrdersRoute: DashboardSalesOrdersRoute,
   DashboardStockRoute: DashboardStockRoute,
   DashboardSuppliersRoute: DashboardSuppliersRoute,

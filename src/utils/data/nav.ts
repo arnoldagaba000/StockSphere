@@ -5,6 +5,7 @@ import {
     LayoutDashboard,
     MapPinned,
     PackageSearch,
+    PieChart,
     Settings,
     ShoppingCart,
     UserCircle2,
@@ -82,6 +83,12 @@ export const getNavData = (
             title: "Stock",
             to: "/stock",
             icon: PackageSearch,
+            activeOptions: { exact: false },
+        },
+        {
+            title: "Reports",
+            to: "/reports",
+            icon: PieChart,
             activeOptions: { exact: false },
         },
         {
