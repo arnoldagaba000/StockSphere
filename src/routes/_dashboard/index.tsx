@@ -12,7 +12,7 @@ import {
     ShoppingCartIcon,
     TruckIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
     Area,
     AreaChart,
@@ -20,7 +20,6 @@ import {
     Cell,
     Pie,
     PieChart,
-    ResponsiveContainer,
     Tooltip,
     XAxis,
     YAxis,
@@ -76,6 +75,8 @@ function HomePage() {
 
     const lowStockSeverity = toHealthSeverity(metrics.lowStockAlerts);
     const expiringSeverity = toHealthSeverity(metrics.expiringIn30Days);
+    const trendChart = useElementSize<HTMLDivElement>();
+    const queueChart = useElementSize<HTMLDivElement>();
     const trendData = metrics.inventoryTrend.map((item) => ({
         dateLabel: new Intl.DateTimeFormat("en-US", {
             day: "numeric",
@@ -193,14 +194,17 @@ function HomePage() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {trendData.length > 0 ? (
-                            <div className="h-72 w-full min-w-0 rounded-md border bg-muted/20 p-2">
-                                <ResponsiveContainer
-                                    height="100%"
-                                    minHeight={0}
-                                    minWidth={0}
-                                    width="100%"
-                                >
-                                    <AreaChart data={trendData}>
+                            <div
+                                className="h-72 w-full min-w-0 rounded-md border bg-muted/20 p-2"
+                                ref={trendChart.ref}
+                            >
+                                {trendChart.size.height > 0 &&
+                                trendChart.size.width > 0 ? (
+                                    <AreaChart
+                                        data={trendData}
+                                        height={trendChart.size.height}
+                                        width={trendChart.size.width}
+                                    >
                                         <defs>
                                             <linearGradient
                                                 id="inventoryValueGradient"
@@ -251,7 +255,7 @@ function HomePage() {
                                             type="monotone"
                                         />
                                     </AreaChart>
-                                </ResponsiveContainer>
+                                ) : null}
                             </div>
                         ) : (
                             <EmptyChartMessage />
@@ -288,14 +292,16 @@ function HomePage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="h-52 w-full min-w-0">
-                            <ResponsiveContainer
-                                height="100%"
-                                minHeight={0}
-                                minWidth={0}
-                                width="100%"
-                            >
-                                <PieChart>
+                        <div
+                            className="h-52 w-full min-w-0"
+                            ref={queueChart.ref}
+                        >
+                            {queueChart.size.height > 0 &&
+                            queueChart.size.width > 0 ? (
+                                <PieChart
+                                    height={queueChart.size.height}
+                                    width={queueChart.size.width}
+                                >
                                     <Pie
                                         cx="50%"
                                         cy="50%"
@@ -314,7 +320,7 @@ function HomePage() {
                                     </Pie>
                                     <Tooltip />
                                 </PieChart>
-                            </ResponsiveContainer>
+                            ) : null}
                         </div>
                         <div className="space-y-2">
                             {queueDistribution.map((item) => (
@@ -639,3 +645,37 @@ function EmptyChartMessage() {
         </div>
     );
 }
+
+const useElementSize = <TElement extends HTMLElement>() => {
+    const ref = useRef<TElement | null>(null);
+    const [size, setSize] = useState({
+        height: 0,
+        width: 0,
+    });
+
+    useEffect(() => {
+        const element = ref.current;
+        if (!element) {
+            return;
+        }
+
+        const updateSize = () => {
+            const nextSize = {
+                height: Math.max(0, Math.floor(element.clientHeight)),
+                width: Math.max(0, Math.floor(element.clientWidth)),
+            };
+            setSize(nextSize);
+        };
+
+        updateSize();
+
+        const observer = new ResizeObserver(updateSize);
+        observer.observe(element);
+
+        return () => {
+            observer.disconnect();
+        };
+    }, []);
+
+    return { ref, size };
+};
