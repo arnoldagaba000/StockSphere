@@ -1,12 +1,13 @@
 import { createServerFn } from "@tanstack/react-start";
 import { prisma } from "@/db";
 import { toNumber } from "@/features/inventory/helpers";
+import { createKitGraph, hasPath } from "@/features/kits/bom-graph";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
 import { setKitBomSchema } from "@/schemas/kit-schema";
 
-const loadKitGraph = async (kitId: string): Promise<Map<string, string[]>> => {
+const loadKitGraph = async (): Promise<Map<string, string[]>> => {
     const [kitProducts, edges] = await Promise.all([
         prisma.product.findMany({
             where: { deletedAt: null, isKit: true },
@@ -16,45 +17,10 @@ const loadKitGraph = async (kitId: string): Promise<Map<string, string[]>> => {
             select: { componentId: true, kitId: true },
         }),
     ]);
-
-    const graph = new Map<string, string[]>();
-    for (const product of kitProducts) {
-        graph.set(product.id, []);
-    }
-    if (!graph.has(kitId)) {
-        graph.set(kitId, []);
-    }
-    for (const edge of edges) {
-        if (!graph.has(edge.kitId)) {
-            graph.set(edge.kitId, []);
-        }
-        graph.get(edge.kitId)?.push(edge.componentId);
-    }
-    return graph;
-};
-
-const hasPath = (
-    graph: Map<string, string[]>,
-    fromId: string,
-    targetId: string
-): boolean => {
-    const visited = new Set<string>();
-    const stack: string[] = [fromId];
-    while (stack.length > 0) {
-        const current = stack.pop();
-        if (!current || visited.has(current)) {
-            continue;
-        }
-        if (current === targetId) {
-            return true;
-        }
-        visited.add(current);
-        const children = graph.get(current) ?? [];
-        for (const child of children) {
-            stack.push(child);
-        }
-    }
-    return false;
+    return createKitGraph(
+        kitProducts.map((product) => product.id),
+        edges
+    );
 };
 
 export const setKitBom = createServerFn({ method: "POST" })
@@ -102,7 +68,10 @@ export const setKitBom = createServerFn({ method: "POST" })
             }
         }
 
-        const graph = await loadKitGraph(data.kitId);
+        const graph = await loadKitGraph();
+        if (!graph.has(data.kitId)) {
+            graph.set(data.kitId, []);
+        }
         graph.set(
             data.kitId,
             data.components.map((component) => component.componentId)

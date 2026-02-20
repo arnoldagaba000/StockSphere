@@ -20,10 +20,11 @@ interface ProductAuditShape {
     costPrice?: number | null;
     id: string;
     isActive?: boolean;
+    isKit?: boolean;
     name: string;
     sellingPrice?: number | null;
-    status?: string;
     sku: string;
+    status?: string;
     taxRate?: number | null;
 }
 
@@ -49,6 +50,7 @@ export const toProductAuditSnapshot = (
             : null,
     id: product.id,
     isActive: String(product.isActive ?? true),
+    isKit: String(product.isKit ?? false),
     name: product.name,
     sellingPrice:
         typeof product.sellingPrice === "number"

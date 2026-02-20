@@ -16,6 +16,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
 import { assembleKit } from "@/features/kits/assemble-kit";
 import { disassembleKit } from "@/features/kits/disassemble-kit";
+import { getKitGenealogy } from "@/features/kits/get-kit-genealogy";
+import { getKitStockItems } from "@/features/kits/get-kit-stock-items";
 import { getKits } from "@/features/kits/get-kits";
 import { setKitBom } from "@/features/kits/set-kit-bom";
 import { getProducts } from "@/features/products/get-products";
@@ -31,8 +33,29 @@ export const Route = createFileRoute("/_dashboard/kits")({
         const kits = selectedWarehouseId
             ? await getKits({ data: { warehouseId: selectedWarehouseId } })
             : [];
+        const initialKitId = kits[0]?.kitId;
+        const [genealogy, kitStockItems] =
+            selectedWarehouseId && initialKitId
+                ? await Promise.all([
+                      getKitGenealogy({
+                          data: {
+                              kitId: initialKitId,
+                              limit: 20,
+                              warehouseId: selectedWarehouseId,
+                          },
+                      }),
+                      getKitStockItems({
+                          data: {
+                              kitId: initialKitId,
+                              warehouseId: selectedWarehouseId,
+                          },
+                      }),
+                  ])
+                : [[], []];
 
         return {
+            genealogy,
+            kitStockItems,
             kits,
             products: productsPage.products,
             selectedWarehouseId,
@@ -53,14 +76,46 @@ function KitsPage() {
         loaderData.selectedWarehouseId ?? ""
     );
     const [kitId, setKitId] = useState(loaderData.kits[0]?.kitId ?? "");
+    const [genealogy, setGenealogy] = useState(loaderData.genealogy);
+    const [kitStockItems, setKitStockItems] = useState(
+        loaderData.kitStockItems
+    );
     const [bomItems, setBomItems] = useState<BomItemState[]>([
         { componentId: "", quantity: "1" },
     ]);
     const [assemblyQuantity, setAssemblyQuantity] = useState("1");
     const [assemblyNotes, setAssemblyNotes] = useState("");
-    const [disassemblyStockItemId, setDisassemblyStockItemId] = useState("");
+    const [disassemblyStockItemId, setDisassemblyStockItemId] = useState(
+        loaderData.kitStockItems[0]?.stockItemId ?? ""
+    );
     const [disassemblyQuantity, setDisassemblyQuantity] = useState("1");
     const [disassemblyNotes, setDisassemblyNotes] = useState("");
+    const [genealogyBatch, setGenealogyBatch] = useState("");
+    const [genealogyDateFrom, setGenealogyDateFrom] = useState("");
+    const [genealogyDateTo, setGenealogyDateTo] = useState("");
+
+    const fetchGenealogy = async (
+        nextKitId: string,
+        nextWarehouseId: string
+    ) => {
+        if (!(nextKitId && nextWarehouseId)) {
+            return [];
+        }
+        return await getKitGenealogy({
+            data: {
+                batchNumber: genealogyBatch || undefined,
+                dateFrom: genealogyDateFrom
+                    ? new Date(`${genealogyDateFrom}T00:00:00.000Z`)
+                    : undefined,
+                dateTo: genealogyDateTo
+                    ? new Date(`${genealogyDateTo}T23:59:59.999Z`)
+                    : undefined,
+                kitId: nextKitId,
+                limit: 20,
+                warehouseId: nextWarehouseId,
+            },
+        });
+    };
 
     const selectedKit = useMemo(
         () => kits.find((entry) => entry.kitId === kitId) ?? null,
@@ -70,11 +125,27 @@ function KitsPage() {
     const refreshKits = async () => {
         if (!warehouseId) {
             setKits([]);
+            setGenealogy([]);
+            setKitStockItems([]);
             return;
         }
         try {
-            const nextKits = await getKits({ data: { warehouseId } });
+            const [nextKits, nextGenealogy, nextKitStockItems] =
+                await Promise.all([
+                    getKits({ data: { warehouseId } }),
+                    fetchGenealogy(kitId, warehouseId),
+                    kitId
+                        ? getKitStockItems({
+                              data: {
+                                  kitId,
+                                  warehouseId,
+                              },
+                          })
+                        : Promise.resolve([]),
+                ]);
             setKits(nextKits);
+            setGenealogy(nextGenealogy);
+            setKitStockItems(nextKitStockItems);
             if (!nextKits.some((entry) => entry.kitId === kitId)) {
                 setKitId(nextKits[0]?.kitId ?? "");
             }
@@ -233,9 +304,37 @@ function KitsPage() {
                                             {entry.kitName}
                                         </h3>
                                         <Button
-                                            onClick={() =>
-                                                setKitId(entry.kitId)
-                                            }
+                                            onClick={async () => {
+                                                setKitId(entry.kitId);
+                                                if (!warehouseId) {
+                                                    setGenealogy([]);
+                                                    setKitStockItems([]);
+                                                    return;
+                                                }
+                                                const [
+                                                    nextGenealogy,
+                                                    nextKitStockItems,
+                                                ] = await Promise.all([
+                                                    fetchGenealogy(
+                                                        entry.kitId,
+                                                        warehouseId
+                                                    ),
+                                                    getKitStockItems({
+                                                        data: {
+                                                            kitId: entry.kitId,
+                                                            warehouseId,
+                                                        },
+                                                    }),
+                                                ]);
+                                                setGenealogy(nextGenealogy);
+                                                setKitStockItems(
+                                                    nextKitStockItems
+                                                );
+                                                setDisassemblyStockItemId(
+                                                    nextKitStockItems[0]
+                                                        ?.stockItemId ?? ""
+                                                );
+                                            }}
                                             size="sm"
                                             type="button"
                                             variant={
@@ -295,6 +394,101 @@ function KitsPage() {
                 </Card>
             </div>
 
+            <Card>
+                <CardHeader>
+                    <CardTitle>Batch Genealogy</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <div className="grid gap-2 md:grid-cols-4">
+                        <Input
+                            onChange={(event) =>
+                                setGenealogyBatch(event.target.value)
+                            }
+                            placeholder="Batch number"
+                            value={genealogyBatch}
+                        />
+                        <Input
+                            onChange={(event) =>
+                                setGenealogyDateFrom(event.target.value)
+                            }
+                            type="date"
+                            value={genealogyDateFrom}
+                        />
+                        <Input
+                            onChange={(event) =>
+                                setGenealogyDateTo(event.target.value)
+                            }
+                            type="date"
+                            value={genealogyDateTo}
+                        />
+                        <Button
+                            onClick={async () => {
+                                const nextGenealogy = await fetchGenealogy(
+                                    kitId,
+                                    warehouseId
+                                );
+                                setGenealogy(nextGenealogy);
+                            }}
+                            type="button"
+                            variant="outline"
+                        >
+                            Apply Filters
+                        </Button>
+                    </div>
+                    {genealogy.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">
+                            No assembly genealogy records for current filters.
+                        </p>
+                    ) : (
+                        genealogy.map((entry) => (
+                            <article
+                                className="space-y-2 rounded-md border p-3"
+                                key={`${entry.transactionNumber}-${entry.assembledAt.toString()}`}
+                            >
+                                <div className="text-sm">
+                                    <p>
+                                        <span className="font-medium">
+                                            Txn:
+                                        </span>{" "}
+                                        {entry.transactionNumber}
+                                    </p>
+                                    <p>
+                                        <span className="font-medium">
+                                            Warehouse:
+                                        </span>{" "}
+                                        {entry.warehouse}
+                                    </p>
+                                    <p>
+                                        <span className="font-medium">
+                                            Assembled:
+                                        </span>{" "}
+                                        {entry.assembledQuantity} | Batch:{" "}
+                                        {entry.assembledBatchNumber ?? "—"} |
+                                        Serial:{" "}
+                                        {entry.assembledSerialNumber ?? "—"}
+                                    </p>
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                    {entry.consumedComponents.map(
+                                        (component) => (
+                                            <p
+                                                key={`${entry.transactionNumber}-${component.componentId}-${component.batchNumber ?? "na"}-${component.serialNumber ?? "na"}`}
+                                            >
+                                                {component.componentSku} • qty{" "}
+                                                {component.quantity} • batch{" "}
+                                                {component.batchNumber ?? "—"} •
+                                                serial{" "}
+                                                {component.serialNumber ?? "—"}
+                                            </p>
+                                        )
+                                    )}
+                                </div>
+                            </article>
+                        ))
+                    )}
+                </CardContent>
+            </Card>
+
             <div className="grid gap-4 xl:grid-cols-3">
                 <Card>
                     <CardHeader>
@@ -304,7 +498,33 @@ function KitsPage() {
                         <div className="space-y-1">
                             <Label htmlFor="bom-kit">Kit Product</Label>
                             <Select
-                                onValueChange={(value) => setKitId(value ?? "")}
+                                onValueChange={async (value) => {
+                                    const nextKitId = value ?? "";
+                                    setKitId(nextKitId);
+                                    if (!(warehouseId && nextKitId)) {
+                                        setGenealogy([]);
+                                        setKitStockItems([]);
+                                        return;
+                                    }
+                                    const [nextGenealogy, nextKitStockItems] =
+                                        await Promise.all([
+                                            fetchGenealogy(
+                                                nextKitId,
+                                                warehouseId
+                                            ),
+                                            getKitStockItems({
+                                                data: {
+                                                    kitId: nextKitId,
+                                                    warehouseId,
+                                                },
+                                            }),
+                                        ]);
+                                    setGenealogy(nextGenealogy);
+                                    setKitStockItems(nextKitStockItems);
+                                    setDisassemblyStockItemId(
+                                        nextKitStockItems[0]?.stockItemId ?? ""
+                                    );
+                                }}
                                 value={kitId}
                             >
                                 <SelectTrigger id="bom-kit">
@@ -322,7 +542,6 @@ function KitsPage() {
                                 </SelectContent>
                             </Select>
                         </div>
-
                         {bomItems.map((item, index) => (
                             <div
                                 className="grid grid-cols-12 gap-2"
@@ -433,17 +652,31 @@ function KitsPage() {
                     <CardContent className="space-y-2">
                         <div className="space-y-1">
                             <Label htmlFor="disassembly-stock-item-id">
-                                Kit Stock Item ID
+                                Kit Stock Item
                             </Label>
-                            <Input
-                                id="disassembly-stock-item-id"
-                                onChange={(event) =>
-                                    setDisassemblyStockItemId(
-                                        event.target.value
-                                    )
+                            <Select
+                                onValueChange={(value) =>
+                                    setDisassemblyStockItemId(value ?? "")
                                 }
                                 value={disassemblyStockItemId}
-                            />
+                            >
+                                <SelectTrigger id="disassembly-stock-item-id">
+                                    <SelectValue placeholder="Select kit stock row" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {kitStockItems.map((row) => (
+                                        <SelectItem
+                                            key={row.stockItemId}
+                                            value={row.stockItemId}
+                                        >
+                                            {row.stockItemId.slice(0, 8)}... |
+                                            qty {row.availableQuantity} | batch{" "}
+                                            {row.batchNumber ?? "—"} | serial{" "}
+                                            {row.serialNumber ?? "—"}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-1">
                             <Label htmlFor="disassembly-qty">Quantity</Label>

@@ -25,6 +25,7 @@ const DEFAULT_PRODUCT_FORM_VALUES: ProductFormValues = {
     status: "ACTIVE",
     sku: "",
     taxRate: "",
+    isKit: false,
     trackByBatch: false,
     trackByExpiry: false,
     trackBySerialNumber: false,
