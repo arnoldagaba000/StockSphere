@@ -12,18 +12,14 @@ import {
     ShoppingCartIcon,
     TruckIcon,
 } from "lucide-react";
-import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
-    Area,
-    AreaChart,
-    CartesianGrid,
-    Cell,
-    Pie,
-    PieChart,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+    lazy,
+    type ReactNode,
+    Suspense,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +31,51 @@ const dashboardMetricsQueryOptions = queryOptions({
     queryFn: () => getDashboardMetrics(),
     queryKey: ["dashboard-home-metrics"],
     staleTime: 5 * 60 * 1000,
+});
+
+const Area = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.Area };
+});
+
+const AreaChart = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.AreaChart };
+});
+
+const CartesianGrid = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.CartesianGrid };
+});
+
+const Cell = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.Cell };
+});
+
+const Pie = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.Pie };
+});
+
+const PieChart = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.PieChart };
+});
+
+const Tooltip = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.Tooltip };
+});
+
+const XAxis = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.XAxis };
+});
+
+const YAxis = lazy(async () => {
+    const module = await import("recharts");
+    return { default: module.YAxis };
 });
 
 export const Route = createFileRoute("/_dashboard/")({
@@ -200,61 +241,63 @@ function HomePage() {
                             >
                                 {trendChart.size.height > 0 &&
                                 trendChart.size.width > 0 ? (
-                                    <AreaChart
-                                        data={trendData}
-                                        height={trendChart.size.height}
-                                        width={trendChart.size.width}
-                                    >
-                                        <defs>
-                                            <linearGradient
-                                                id="inventoryValueGradient"
-                                                x1="0"
-                                                x2="0"
-                                                y1="0"
-                                                y2="1"
-                                            >
-                                                <stop
-                                                    offset="5%"
-                                                    stopColor="hsl(var(--primary))"
-                                                    stopOpacity={0.3}
-                                                />
-                                                <stop
-                                                    offset="95%"
-                                                    stopColor="hsl(var(--primary))"
-                                                    stopOpacity={0}
-                                                />
-                                            </linearGradient>
-                                        </defs>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis
-                                            dataKey="dateLabel"
-                                            tickMargin={8}
-                                        />
-                                        <YAxis
-                                            tickFormatter={(value) =>
-                                                Intl.NumberFormat("en-US", {
-                                                    notation: "compact",
-                                                }).format(value)
-                                            }
-                                        />
-                                        <Tooltip
-                                            formatter={(value) =>
-                                                formatCurrencyFromMinorUnits(
-                                                    Math.round(
-                                                        Number(value) * 100
-                                                    ),
-                                                    currencyCode
-                                                )
-                                            }
-                                        />
-                                        <Area
-                                            dataKey="valueMajor"
-                                            fill="url(#inventoryValueGradient)"
-                                            stroke="hsl(var(--primary))"
-                                            strokeWidth={2}
-                                            type="monotone"
-                                        />
-                                    </AreaChart>
+                                    <Suspense fallback={<ChartLoadingState />}>
+                                        <AreaChart
+                                            data={trendData}
+                                            height={trendChart.size.height}
+                                            width={trendChart.size.width}
+                                        >
+                                            <defs>
+                                                <linearGradient
+                                                    id="inventoryValueGradient"
+                                                    x1="0"
+                                                    x2="0"
+                                                    y1="0"
+                                                    y2="1"
+                                                >
+                                                    <stop
+                                                        offset="5%"
+                                                        stopColor="hsl(var(--primary))"
+                                                        stopOpacity={0.3}
+                                                    />
+                                                    <stop
+                                                        offset="95%"
+                                                        stopColor="hsl(var(--primary))"
+                                                        stopOpacity={0}
+                                                    />
+                                                </linearGradient>
+                                            </defs>
+                                            <CartesianGrid strokeDasharray="3 3" />
+                                            <XAxis
+                                                dataKey="dateLabel"
+                                                tickMargin={8}
+                                            />
+                                            <YAxis
+                                                tickFormatter={(value) =>
+                                                    Intl.NumberFormat("en-US", {
+                                                        notation: "compact",
+                                                    }).format(value)
+                                                }
+                                            />
+                                            <Tooltip
+                                                formatter={(value) =>
+                                                    formatCurrencyFromMinorUnits(
+                                                        Math.round(
+                                                            Number(value) * 100
+                                                        ),
+                                                        currencyCode
+                                                    )
+                                                }
+                                            />
+                                            <Area
+                                                dataKey="valueMajor"
+                                                fill="url(#inventoryValueGradient)"
+                                                stroke="hsl(var(--primary))"
+                                                strokeWidth={2}
+                                                type="monotone"
+                                            />
+                                        </AreaChart>
+                                    </Suspense>
                                 ) : null}
                             </div>
                         ) : (
@@ -298,28 +341,30 @@ function HomePage() {
                         >
                             {queueChart.size.height > 0 &&
                             queueChart.size.width > 0 ? (
-                                <PieChart
-                                    height={queueChart.size.height}
-                                    width={queueChart.size.width}
-                                >
-                                    <Pie
-                                        cx="50%"
-                                        cy="50%"
-                                        data={queueDistribution}
-                                        dataKey="value"
-                                        innerRadius={48}
-                                        nameKey="label"
-                                        outerRadius={72}
+                                <Suspense fallback={<ChartLoadingState />}>
+                                    <PieChart
+                                        height={queueChart.size.height}
+                                        width={queueChart.size.width}
                                     >
-                                        {queueDistribution.map((entry) => (
-                                            <Cell
-                                                className={entry.colorClass}
-                                                key={entry.key}
-                                            />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip />
-                                </PieChart>
+                                        <Pie
+                                            cx="50%"
+                                            cy="50%"
+                                            data={queueDistribution}
+                                            dataKey="value"
+                                            innerRadius={48}
+                                            nameKey="label"
+                                            outerRadius={72}
+                                        >
+                                            {queueDistribution.map((entry) => (
+                                                <Cell
+                                                    className={entry.colorClass}
+                                                    key={entry.key}
+                                                />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip />
+                                    </PieChart>
+                                </Suspense>
                             ) : null}
                         </div>
                         <div className="space-y-2">
@@ -643,6 +688,12 @@ function EmptyChartMessage() {
             Not enough trend data yet. Generate stock snapshots to populate this
             chart.
         </div>
+    );
+}
+
+function ChartLoadingState() {
+    return (
+        <div className="h-full w-full animate-pulse rounded-md bg-muted/60" />
     );
 }
 
