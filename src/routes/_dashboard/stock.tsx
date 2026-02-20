@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useReducer } from "react";
+import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -81,8 +82,12 @@ interface StockPageState {
     adjustmentRejectionReason: string;
     adjustQuantity: string;
     cycleQuantity: string;
+    entryBatchNumber: string;
+    entryExpiryDate: string;
+    entryNotes: string;
     entryProductId: string;
     entryQuantity: string;
+    entrySerialNumber: string;
     entryUnitCost: string;
     entryWarehouseId: string;
     expiryAlerts: ExpiryAlertsData;
@@ -97,6 +102,9 @@ interface StockPageState {
     selectedStockItemId: string;
     serialHistoryData: SerialHistoryData | null;
     stockData: StockData;
+    stockSearchQuery: string;
+    stockStatusFilter: string;
+    stockWarehouseFilter: string;
     traceabilityData: BatchTraceabilityData | null;
     trackingBatch: string;
     trackingSerial: string;
@@ -146,8 +154,12 @@ export const Route = createFileRoute("/_dashboard/stock")({
 
 interface StockEntryCardProps {
     currencyCode: string;
+    entryBatchNumber: string;
+    entryExpiryDate: string;
+    entryNotes: string;
     entryProductId: string;
     entryQuantity: string;
+    entrySerialNumber: string;
     entryUnitCost: string;
     entryWarehouseId: string;
     products: Product[];
@@ -155,21 +167,56 @@ interface StockEntryCardProps {
         work: () => Promise<unknown>,
         successMessage: string
     ) => Promise<void>;
+    selectedEntryProduct: Product | undefined;
     setState: (action: StockPageAction) => void;
     warehouses: Warehouse[];
 }
 
 const StockEntryCard = ({
     currencyCode,
+    entryBatchNumber,
+    entryExpiryDate,
+    entryNotes,
     entryProductId,
     entryQuantity,
+    entrySerialNumber,
     entryUnitCost,
     entryWarehouseId,
     products,
     runAction,
+    selectedEntryProduct,
     setState,
     warehouses,
 }: StockEntryCardProps) => {
+    const requiresBatch = selectedEntryProduct?.trackByBatch ?? false;
+    const requiresExpiry = selectedEntryProduct?.trackByExpiry ?? false;
+    const requiresSerial = selectedEntryProduct?.trackBySerialNumber ?? false;
+    const isKit = selectedEntryProduct?.isKit ?? false;
+    const isEntryReady = Boolean(
+        entryProductId && entryWarehouseId && entryQuantity
+    );
+    const validateTrackingInputs = (): boolean => {
+        if (requiresBatch && entryBatchNumber.trim().length === 0) {
+            toast.error("Batch number is required for this product.");
+            return false;
+        }
+        if (requiresExpiry && entryExpiryDate.trim().length === 0) {
+            toast.error("Expiry date is required for this product.");
+            return false;
+        }
+        if (requiresSerial && entrySerialNumber.trim().length === 0) {
+            toast.error("Serial number is required for this product.");
+            return false;
+        }
+        if (requiresSerial && Math.trunc(Number(entryQuantity)) !== 1) {
+            toast.error(
+                "Serial-tracked products must be received as quantity 1."
+            );
+            return false;
+        }
+        return true;
+    };
+
     return (
         <Card>
             <CardHeader>
@@ -210,27 +257,94 @@ const StockEntryCard = ({
                     type="number"
                     value={entryUnitCost}
                 />
+                {requiresBatch ? (
+                    <FieldInput
+                        label="Batch Number"
+                        onChange={(value) =>
+                            setState({ entryBatchNumber: value })
+                        }
+                        required
+                        value={entryBatchNumber}
+                    />
+                ) : null}
+                {requiresSerial ? (
+                    <FieldInput
+                        label="Serial Number"
+                        onChange={(value) =>
+                            setState({ entrySerialNumber: value })
+                        }
+                        required
+                        value={entrySerialNumber}
+                    />
+                ) : null}
+                {requiresExpiry ? (
+                    <FieldInput
+                        label="Expiry Date"
+                        onChange={(value) =>
+                            setState({ entryExpiryDate: value })
+                        }
+                        required
+                        type="date"
+                        value={entryExpiryDate}
+                    />
+                ) : null}
+                <div className="space-y-2 md:col-span-3">
+                    <Label>Notes</Label>
+                    <Input
+                        onChange={(event) =>
+                            setState({ entryNotes: event.target.value })
+                        }
+                        placeholder="Optional note for this stock entry"
+                        value={entryNotes}
+                    />
+                </div>
+                <div className="flex flex-wrap gap-2 md:col-span-3">
+                    {requiresBatch ? (
+                        <Badge variant="outline">Batch tracking required</Badge>
+                    ) : null}
+                    {requiresSerial ? (
+                        <Badge variant="outline">
+                            Serial tracking required
+                        </Badge>
+                    ) : null}
+                    {requiresExpiry ? (
+                        <Badge variant="outline">
+                            Expiry tracking required
+                        </Badge>
+                    ) : null}
+                    {isKit ? (
+                        <Badge variant="secondary">
+                            Kit product: assemble/disassemble via Kits when
+                            needed
+                        </Badge>
+                    ) : null}
+                </div>
                 <div className="flex flex-wrap gap-2 md:col-span-2">
                     <Button
-                        disabled={
-                            !(
-                                entryProductId &&
-                                entryWarehouseId &&
-                                entryQuantity
-                            )
-                        }
-                        onClick={() =>
+                        disabled={!isEntryReady}
+                        onClick={() => {
+                            if (!validateTrackingInputs()) {
+                                return;
+                            }
                             runAction(
                                 () =>
                                     createInitialStock({
                                         data: {
-                                            batchNumber: null,
-                                            expiryDate: null,
+                                            batchNumber: requiresBatch
+                                                ? entryBatchNumber.trim() ||
+                                                  null
+                                                : null,
+                                            expiryDate: requiresExpiry
+                                                ? new Date(entryExpiryDate)
+                                                : null,
                                             locationId: null,
-                                            notes: null,
+                                            notes: entryNotes.trim() || null,
                                             productId: entryProductId,
                                             quantity: Number(entryQuantity),
-                                            serialNumber: null,
+                                            serialNumber: requiresSerial
+                                                ? entrySerialNumber.trim() ||
+                                                  null
+                                                : null,
                                             unitCost: entryUnitCost
                                                 ? Number(entryUnitCost)
                                                 : null,
@@ -238,40 +352,51 @@ const StockEntryCard = ({
                                         },
                                     }),
                                 "Initial stock created."
-                            )
-                        }
+                            ).catch(() => undefined);
+                        }}
                     >
                         Create Initial Stock
                     </Button>
                     <Button
-                        disabled={
-                            !(
-                                entryProductId &&
-                                entryWarehouseId &&
-                                entryQuantity
-                            )
-                        }
-                        onClick={() =>
+                        disabled={!isEntryReady}
+                        onClick={() => {
+                            if (!validateTrackingInputs()) {
+                                return;
+                            }
                             runAction(
                                 () =>
                                     receiveGoods({
                                         data: {
                                             items: [
                                                 {
+                                                    batchNumber: requiresBatch
+                                                        ? entryBatchNumber.trim() ||
+                                                          null
+                                                        : null,
+                                                    expiryDate: requiresExpiry
+                                                        ? new Date(
+                                                              entryExpiryDate
+                                                          )
+                                                        : null,
                                                     productId: entryProductId,
                                                     quantity:
                                                         Number(entryQuantity),
+                                                    serialNumber: requiresSerial
+                                                        ? entrySerialNumber.trim() ||
+                                                          null
+                                                        : null,
                                                     unitCost: entryUnitCost
                                                         ? Number(entryUnitCost)
                                                         : null,
                                                 },
                                             ],
+                                            notes: entryNotes.trim() || null,
                                             warehouseId: entryWarehouseId,
                                         },
                                     }),
                                 "Goods received."
-                            )
-                        }
+                            ).catch(() => undefined);
+                        }}
                         variant="outline"
                     >
                         Receive Goods
@@ -965,11 +1090,13 @@ interface StockPageContentProps {
     loadExpiryAlerts: () => Promise<void>;
     loadMovementHistory: () => Promise<void>;
     loadSerialHistory: () => Promise<void>;
+    onRefresh: () => Promise<void>;
     products: Product[];
     runAction: (
         work: () => Promise<unknown>,
         successMessage: string
     ) => Promise<void>;
+    selectedEntryProduct: Product | undefined;
     selectedItem: StockItem | undefined;
     setState: (action: StockPageAction) => void;
     state: StockPageState;
@@ -982,23 +1109,109 @@ const StockPageContent = ({
     loadBatchTraceability,
     loadExpiryAlerts,
     loadMovementHistory,
+    onRefresh,
     loadSerialHistory,
     products,
     runAction,
+    selectedEntryProduct,
     selectedItem,
     setState,
     state,
     warehouses,
 }: StockPageContentProps) => {
+    const statusOptions = useMemo(
+        () =>
+            [...new Set(state.stockData.stockItems.map((item) => item.status))]
+                .filter((status) => status.length > 0)
+                .sort((left, right) => left.localeCompare(right)),
+        [state.stockData.stockItems]
+    );
+
+    const filteredStockItems = useMemo(() => {
+        const normalizedQuery = state.stockSearchQuery.trim().toLowerCase();
+
+        return state.stockData.stockItems.filter((item) => {
+            if (
+                state.stockWarehouseFilter &&
+                item.warehouse.id !== state.stockWarehouseFilter
+            ) {
+                return false;
+            }
+
+            if (
+                state.stockStatusFilter !== "all" &&
+                item.status !== state.stockStatusFilter
+            ) {
+                return false;
+            }
+
+            if (normalizedQuery.length === 0) {
+                return true;
+            }
+
+            const searchableText = [
+                item.product.sku,
+                item.product.name,
+                item.warehouse.code,
+                item.warehouse.name,
+                item.location?.code ?? "",
+                item.location?.name ?? "",
+            ]
+                .join(" ")
+                .toLowerCase();
+
+            return searchableText.includes(normalizedQuery);
+        });
+    }, [
+        state.stockData.stockItems,
+        state.stockSearchQuery,
+        state.stockStatusFilter,
+        state.stockWarehouseFilter,
+    ]);
+
     return (
         <section className="w-full space-y-4">
-            <div>
-                <h1 className="font-semibold text-2xl">Stock Management</h1>
-                <p className="text-muted-foreground text-sm">
-                    End-to-end inventory controls: transfer, adjust, reserve,
-                    tracking, expiry, cycle count, receiving, putaway, and
-                    valuation.
-                </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h1 className="font-semibold text-2xl">Stock Management</h1>
+                    <p className="text-muted-foreground text-sm">
+                        End-to-end inventory controls: transfer, adjust,
+                        reserve, tracking, expiry, cycle count, receiving,
+                        putaway, and valuation.
+                    </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    {selectedItem ? (
+                        <Badge variant="outline">
+                            Selected: {selectedItem.product.sku} @{" "}
+                            {selectedItem.warehouse.code}
+                        </Badge>
+                    ) : (
+                        <Badge variant="secondary">
+                            No stock item selected
+                        </Badge>
+                    )}
+                    <Button
+                        onClick={() => {
+                            onRefresh()
+                                .then(() => {
+                                    toast.success("Stock data refreshed.");
+                                })
+                                .catch((error) => {
+                                    toast.error(
+                                        getErrorMessage(
+                                            error,
+                                            "Failed to refresh stock data."
+                                        )
+                                    );
+                                });
+                        }}
+                        size="sm"
+                        variant="outline"
+                    >
+                        Refresh Data
+                    </Button>
+                </div>
             </div>
 
             <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
@@ -1033,12 +1246,17 @@ const StockPageContent = ({
 
             <StockEntryCard
                 currencyCode={currencyCode}
+                entryBatchNumber={state.entryBatchNumber}
+                entryExpiryDate={state.entryExpiryDate}
+                entryNotes={state.entryNotes}
                 entryProductId={state.entryProductId}
                 entryQuantity={state.entryQuantity}
+                entrySerialNumber={state.entrySerialNumber}
                 entryUnitCost={state.entryUnitCost}
                 entryWarehouseId={state.entryWarehouseId}
                 products={products}
                 runAction={runAction}
+                selectedEntryProduct={selectedEntryProduct}
                 setState={setState}
                 warehouses={warehouses}
             />
@@ -1101,7 +1319,54 @@ const StockPageContent = ({
                 <CardHeader>
                     <CardTitle>Stock Buckets</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-4">
+                    <div className="grid gap-3 md:grid-cols-3">
+                        <FieldInput
+                            label="Search Stock"
+                            onChange={(value) =>
+                                setState({ stockSearchQuery: value })
+                            }
+                            value={state.stockSearchQuery}
+                        />
+                        <FieldSelect
+                            label="Warehouse"
+                            onValueChange={(value) =>
+                                setState({
+                                    stockWarehouseFilter:
+                                        value === "all" ? "" : value,
+                                })
+                            }
+                            options={[
+                                { label: "All Warehouses", value: "all" },
+                                ...warehouses.map((warehouse) => ({
+                                    label: `${warehouse.code} - ${warehouse.name}`,
+                                    value: warehouse.id,
+                                })),
+                            ]}
+                            value={state.stockWarehouseFilter || "all"}
+                        />
+                        <FieldSelect
+                            label="Status"
+                            onValueChange={(value) =>
+                                setState({
+                                    stockStatusFilter:
+                                        value === "all" ? "all" : value,
+                                })
+                            }
+                            options={[
+                                { label: "All Statuses", value: "all" },
+                                ...statusOptions.map((status) => ({
+                                    label: status,
+                                    value: status,
+                                })),
+                            ]}
+                            value={state.stockStatusFilter}
+                        />
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                        Showing {filteredStockItems.length} of{" "}
+                        {state.stockData.stockItems.length} stock buckets
+                    </div>
                     <Table>
                         <TableHeader>
                             <TableRow>
@@ -1116,35 +1381,53 @@ const StockPageContent = ({
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {state.stockData.stockItems.map((item) => (
-                                <TableRow key={item.id}>
-                                    <TableCell>
-                                        {item.product.sku} - {item.product.name}
+                            {filteredStockItems.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        className="text-center"
+                                        colSpan={8}
+                                    >
+                                        No stock buckets match your filters.
                                     </TableCell>
-                                    <TableCell>{item.warehouse.name}</TableCell>
-                                    <TableCell>
-                                        {item.location
-                                            ? `${item.location.code} - ${item.location.name}`
-                                            : "\u2014"}
-                                    </TableCell>
-                                    <TableCell>
-                                        {formatQuantity(item.quantity)}
-                                    </TableCell>
-                                    <TableCell>
-                                        {formatQuantity(item.reservedQuantity)}
-                                    </TableCell>
-                                    <TableCell>
-                                        {formatQuantity(item.availableQuantity)}
-                                    </TableCell>
-                                    <TableCell>
-                                        {formatCurrencyFromMinorUnits(
-                                            item.unitCostDisplay,
-                                            currencyCode
-                                        )}
-                                    </TableCell>
-                                    <TableCell>{item.status}</TableCell>
                                 </TableRow>
-                            ))}
+                            ) : (
+                                filteredStockItems.map((item) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>
+                                            {item.product.sku} -{" "}
+                                            {item.product.name}
+                                        </TableCell>
+                                        <TableCell>
+                                            {item.warehouse.name}
+                                        </TableCell>
+                                        <TableCell>
+                                            {item.location
+                                                ? `${item.location.code} - ${item.location.name}`
+                                                : "\u2014"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatQuantity(item.quantity)}
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatQuantity(
+                                                item.reservedQuantity
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatQuantity(
+                                                item.availableQuantity
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatCurrencyFromMinorUnits(
+                                                item.unitCostDisplay,
+                                                currencyCode
+                                            )}
+                                        </TableCell>
+                                        <TableCell>{item.status}</TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </CardContent>
@@ -1189,8 +1472,12 @@ function StockPage() {
         adjustmentRejectionReason: "",
         adjustQuantity: "",
         cycleQuantity: "",
+        entryBatchNumber: "",
+        entryExpiryDate: "",
+        entryNotes: "",
         entryProductId: products[0]?.id ?? "",
         entryQuantity: "",
+        entrySerialNumber: "",
         entryUnitCost: "",
         entryWarehouseId: warehouses[0]?.id ?? "",
         expiryAlerts: [],
@@ -1205,6 +1492,9 @@ function StockPage() {
         selectedStockItemId: "",
         serialHistoryData: null,
         stockData: initialStock,
+        stockStatusFilter: "all",
+        stockSearchQuery: "",
+        stockWarehouseFilter: "",
         traceabilityData: null,
         trackingBatch: "",
         trackingSerial: "",
@@ -1357,6 +1647,9 @@ function StockPage() {
     const selectedItem = state.stockData.stockItems.find(
         (item) => item.id === state.selectedStockItemId
     );
+    const selectedEntryProduct = products.find(
+        (product) => product.id === state.entryProductId
+    );
 
     return (
         <StockPageContent
@@ -1366,8 +1659,10 @@ function StockPage() {
             loadExpiryAlerts={loadExpiryAlerts}
             loadMovementHistory={loadMovementHistory}
             loadSerialHistory={loadSerialHistory}
+            onRefresh={refreshAll}
             products={products}
             runAction={runAction}
+            selectedEntryProduct={selectedEntryProduct}
             selectedItem={selectedItem}
             setState={setState}
             state={state}
@@ -1390,6 +1685,7 @@ function MetricCard({ label, value }: { label: string; value: string }) {
 interface FieldInputProps {
     label: string;
     onChange: (value: string) => void;
+    required?: boolean;
     type?: string;
     value: string;
 }
@@ -1397,6 +1693,7 @@ interface FieldInputProps {
 function FieldInput({
     label,
     onChange,
+    required = false,
     type = "text",
     value,
 }: FieldInputProps) {
@@ -1405,6 +1702,7 @@ function FieldInput({
             <Label>{label}</Label>
             <Input
                 onChange={(event) => onChange(event.target.value)}
+                required={required}
                 type={type}
                 value={value}
             />
