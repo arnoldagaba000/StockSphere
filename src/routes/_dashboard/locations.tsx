@@ -12,6 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
     Table,
@@ -234,7 +235,10 @@ const LocationListCard = ({
                                     className="text-muted-foreground"
                                     colSpan={5}
                                 >
-                                    Loading locations...
+                                    <div className="space-y-2">
+                                        <Skeleton className="h-4 w-48" />
+                                        <Skeleton className="h-4 w-32" />
+                                    </div>
                                 </TableCell>
                             </TableRow>
                         ) : null}
