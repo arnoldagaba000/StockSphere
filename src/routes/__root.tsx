@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { ThemeProvider } from "next-themes";
+import { useEffect } from "react";
 import { Toaster } from "react-hot-toast";
 
 import appCss from "../styles.css?url";
@@ -28,6 +29,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
                 content: "width=device-width, initial-scale=1",
             },
             {
+                name: "theme-color",
+                content: "#0f172a",
+            },
+            {
                 title: "StockSphere",
             },
         ],
@@ -35,6 +40,10 @@ export const Route = createRootRouteWithContext<MyRouterContext>()({
             {
                 rel: "stylesheet",
                 href: appCss,
+            },
+            {
+                rel: "manifest",
+                href: "/manifest.json",
             },
         ],
     }),
@@ -54,6 +63,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 </ThemeProvider>
 
                 <Toaster position="top-right" />
+                <ServiceWorkerRegistration />
 
                 <TanStackDevtools
                     config={{
@@ -78,4 +88,15 @@ function RootDocument({ children }: { children: React.ReactNode }) {
             </body>
         </html>
     );
+}
+
+function ServiceWorkerRegistration() {
+    useEffect(() => {
+        if (!("serviceWorker" in navigator)) {
+            return;
+        }
+        navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    }, []);
+
+    return null;
 }

@@ -10,6 +10,7 @@ import {
     PieChart,
     Settings,
     ShoppingCart,
+    Smartphone,
     UserCircle2,
     Warehouse,
 } from "lucide-react";
@@ -109,6 +110,29 @@ export const getNavData = (
             to: "/reports",
             icon: PieChart,
             activeOptions: { exact: false },
+        },
+        {
+            title: "Mobile Ops",
+            to: "/mobile/receive",
+            icon: Smartphone,
+            activeOptions: { exact: false },
+            items: [
+                {
+                    title: "Receive",
+                    to: "/mobile/receive",
+                    activeOptions: { exact: false },
+                },
+                {
+                    title: "Pick",
+                    to: "/mobile/pick",
+                    activeOptions: { exact: false },
+                },
+                {
+                    title: "Transfer",
+                    to: "/mobile/transfer",
+                    activeOptions: { exact: false },
+                },
+            ],
         },
         {
             title: "Purchasing",
