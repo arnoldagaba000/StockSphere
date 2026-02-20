@@ -143,6 +143,7 @@ export const productSchema = z
         trackBySerialNumber: z.boolean().default(false),
         trackByBatch: z.boolean().default(false),
         trackByExpiry: z.boolean().default(false),
+        isKit: z.boolean().default(false),
         status: z.enum(PRODUCT_STATUSES).default("ACTIVE"),
     })
     .refine(

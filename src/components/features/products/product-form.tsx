@@ -23,14 +23,15 @@ export interface ProductFormValues {
     costPrice: string;
     description: string;
     dimensions: string;
+    isKit: boolean;
     maximumStock: string;
     minimumStock: string;
     name: string;
     reorderPoint: string;
     reorderQuantity: string;
     sellingPrice: string;
-    status: "ACTIVE" | "ARCHIVED" | "DISCONTINUED" | "DRAFT";
     sku: string;
+    status: "ACTIVE" | "ARCHIVED" | "DISCONTINUED" | "DRAFT";
     taxRate: string;
     trackByBatch: boolean;
     trackByExpiry: boolean;
@@ -46,14 +47,15 @@ export interface ProductSubmitData {
     costPrice: number | null;
     description: string | null;
     dimensions: string | null;
+    isKit: boolean;
     maximumStock: number | null;
     minimumStock: number | null;
     name: string;
     reorderPoint: number | null;
     reorderQuantity: number | null;
     sellingPrice: number | null;
-    status: "ACTIVE" | "ARCHIVED" | "DISCONTINUED" | "DRAFT";
     sku: string;
+    status: "ACTIVE" | "ARCHIVED" | "DISCONTINUED" | "DRAFT";
     taxRate: number | null;
     trackByBatch: boolean;
     trackByExpiry: boolean;
@@ -407,7 +409,18 @@ const ProductTrackingSection = ({
 }: ProductTrackingSectionProps) => (
     <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
         <p className="font-medium text-sm">Tracking</p>
-        <div className="grid gap-3 md:grid-cols-3">
+        <div className="grid gap-3 md:grid-cols-4">
+            <Label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+                Is Kit
+                <Switch
+                    checked={values.isKit}
+                    onCheckedChange={(checked) =>
+                        setValues({
+                            isKit: checked,
+                        })
+                    }
+                />
+            </Label>
             <Label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
                 Serial Number
                 <Switch
@@ -475,6 +488,7 @@ const ProductForm = ({
                     status: values.status,
                     sku: values.sku.trim().toUpperCase(),
                     taxRate: toNullableNumber(values.taxRate),
+                    isKit: values.isKit,
                     trackByBatch: values.trackByBatch,
                     trackByExpiry: values.trackByExpiry,
                     trackBySerialNumber: values.trackBySerialNumber,

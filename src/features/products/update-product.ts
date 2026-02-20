@@ -100,6 +100,14 @@ const assertUpdatePermissions = (
             "You do not have permission to update tracking fields."
         );
     }
+    if (
+        data.isKit !== undefined &&
+        !canUser(user, PERMISSIONS.KITS_CREATE_PRODUCT)
+    ) {
+        throw new Error(
+            "You do not have permission to update kit product settings."
+        );
+    }
 
     if (
         data.status !== undefined &&
@@ -162,6 +170,7 @@ const buildUpdatePayload = (
     trackByBatch: data.trackByBatch,
     trackByExpiry: data.trackByExpiry,
     trackBySerialNumber: data.trackBySerialNumber,
+    isKit: data.isKit,
     unit: data.unit,
     weight: data.weight,
     weightUnit: data.weightUnit,

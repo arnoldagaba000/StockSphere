@@ -157,6 +157,7 @@ const toFormValues = (
     sku: product.sku,
     status: product.status,
     taxRate: product.taxRate != null ? String(product.taxRate) : "",
+    isKit: product.isKit,
     trackByBatch: product.trackByBatch,
     trackByExpiry: product.trackByExpiry,
     trackBySerialNumber: product.trackBySerialNumber,

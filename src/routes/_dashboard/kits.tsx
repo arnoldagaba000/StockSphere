@@ -16,6 +16,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
 import { assembleKit } from "@/features/kits/assemble-kit";
 import { disassembleKit } from "@/features/kits/disassemble-kit";
+import { getKitGenealogy } from "@/features/kits/get-kit-genealogy";
 import { getKits } from "@/features/kits/get-kits";
 import { setKitBom } from "@/features/kits/set-kit-bom";
 import { getProducts } from "@/features/products/get-products";
@@ -31,8 +32,20 @@ export const Route = createFileRoute("/_dashboard/kits")({
         const kits = selectedWarehouseId
             ? await getKits({ data: { warehouseId: selectedWarehouseId } })
             : [];
+        const initialKitId = kits[0]?.kitId;
+        const genealogy =
+            selectedWarehouseId && initialKitId
+                ? await getKitGenealogy({
+                      data: {
+                          kitId: initialKitId,
+                          limit: 20,
+                          warehouseId: selectedWarehouseId,
+                      },
+                  })
+                : [];
 
         return {
+            genealogy,
             kits,
             products: productsPage.products,
             selectedWarehouseId,
@@ -53,6 +66,7 @@ function KitsPage() {
         loaderData.selectedWarehouseId ?? ""
     );
     const [kitId, setKitId] = useState(loaderData.kits[0]?.kitId ?? "");
+    const [genealogy, setGenealogy] = useState(loaderData.genealogy);
     const [bomItems, setBomItems] = useState<BomItemState[]>([
         { componentId: "", quantity: "1" },
     ]);
@@ -70,11 +84,24 @@ function KitsPage() {
     const refreshKits = async () => {
         if (!warehouseId) {
             setKits([]);
+            setGenealogy([]);
             return;
         }
         try {
-            const nextKits = await getKits({ data: { warehouseId } });
+            const [nextKits, nextGenealogy] = await Promise.all([
+                getKits({ data: { warehouseId } }),
+                kitId
+                    ? getKitGenealogy({
+                          data: {
+                              kitId,
+                              limit: 20,
+                              warehouseId,
+                          },
+                      })
+                    : Promise.resolve([]),
+            ]);
             setKits(nextKits);
+            setGenealogy(nextGenealogy);
             if (!nextKits.some((entry) => entry.kitId === kitId)) {
                 setKitId(nextKits[0]?.kitId ?? "");
             }
@@ -233,9 +260,22 @@ function KitsPage() {
                                             {entry.kitName}
                                         </h3>
                                         <Button
-                                            onClick={() =>
-                                                setKitId(entry.kitId)
-                                            }
+                                            onClick={async () => {
+                                                setKitId(entry.kitId);
+                                                if (!warehouseId) {
+                                                    setGenealogy([]);
+                                                    return;
+                                                }
+                                                const nextGenealogy =
+                                                    await getKitGenealogy({
+                                                        data: {
+                                                            kitId: entry.kitId,
+                                                            limit: 20,
+                                                            warehouseId,
+                                                        },
+                                                    });
+                                                setGenealogy(nextGenealogy);
+                                            }}
                                             size="sm"
                                             type="button"
                                             variant={
@@ -295,6 +335,65 @@ function KitsPage() {
                 </Card>
             </div>
 
+            <Card>
+                <CardHeader>
+                    <CardTitle>Batch Genealogy</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {genealogy.length === 0 ? (
+                        <p className="text-muted-foreground text-sm">
+                            No assembly genealogy records for current filters.
+                        </p>
+                    ) : (
+                        genealogy.map((entry) => (
+                            <article
+                                className="space-y-2 rounded-md border p-3"
+                                key={`${entry.transactionNumber}-${entry.assembledAt.toString()}`}
+                            >
+                                <div className="text-sm">
+                                    <p>
+                                        <span className="font-medium">
+                                            Txn:
+                                        </span>{" "}
+                                        {entry.transactionNumber}
+                                    </p>
+                                    <p>
+                                        <span className="font-medium">
+                                            Warehouse:
+                                        </span>{" "}
+                                        {entry.warehouse}
+                                    </p>
+                                    <p>
+                                        <span className="font-medium">
+                                            Assembled:
+                                        </span>{" "}
+                                        {entry.assembledQuantity} | Batch:{" "}
+                                        {entry.assembledBatchNumber ?? "—"} |
+                                        Serial:{" "}
+                                        {entry.assembledSerialNumber ?? "—"}
+                                    </p>
+                                </div>
+                                <div className="space-y-1 text-xs">
+                                    {entry.consumedComponents.map(
+                                        (component) => (
+                                            <p
+                                                key={`${entry.transactionNumber}-${component.componentId}-${component.batchNumber ?? "na"}-${component.serialNumber ?? "na"}`}
+                                            >
+                                                {component.componentSku} • qty{" "}
+                                                {component.quantity} • batch{" "}
+                                                {component.batchNumber ?? "—"} •
+                                                serial{" "}
+                                                {component.serialNumber ?? "—"}
+                                            </p>
+                                        )
+                                    )}
+                                </div>
+                            </article>
+                        ))
+                    )}
+                </CardContent>
+            </Card>
+
             <div className="grid gap-4 xl:grid-cols-3">
                 <Card>
                     <CardHeader>
@@ -304,7 +403,24 @@ function KitsPage() {
                         <div className="space-y-1">
                             <Label htmlFor="bom-kit">Kit Product</Label>
                             <Select
-                                onValueChange={(value) => setKitId(value ?? "")}
+                                onValueChange={async (value) => {
+                                    const nextKitId = value ?? "";
+                                    setKitId(nextKitId);
+                                    if (!(warehouseId && nextKitId)) {
+                                        setGenealogy([]);
+                                        return;
+                                    }
+                                    const nextGenealogy = await getKitGenealogy(
+                                        {
+                                            data: {
+                                                kitId: nextKitId,
+                                                limit: 20,
+                                                warehouseId,
+                                            },
+                                        }
+                                    );
+                                    setGenealogy(nextGenealogy);
+                                }}
                                 value={kitId}
                             >
                                 <SelectTrigger id="bom-kit">

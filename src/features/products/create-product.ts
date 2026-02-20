@@ -21,6 +21,14 @@ export const createProduct = createServerFn({ method: "POST" })
         if (!canUser(context.session.user, PERMISSIONS.PRODUCTS_CREATE)) {
             throw new Error("You do not have permission to create products.");
         }
+        if (
+            data.isKit &&
+            !canUser(context.session.user, PERMISSIONS.KITS_CREATE_PRODUCT)
+        ) {
+            throw new Error(
+                "You do not have permission to create kit products."
+            );
+        }
 
         await assertCategoryExists(data.categoryId);
         await assertUniqueProductIdentifiers({
@@ -37,6 +45,7 @@ export const createProduct = createServerFn({ method: "POST" })
                 deletedAt: data.status === "ARCHIVED" ? new Date() : null,
                 description: data.description ?? null,
                 isActive: data.status === "ACTIVE",
+                isKit: data.isKit,
                 dimensions: data.dimensions ?? null,
                 maximumStock: data.maximumStock ?? null,
                 minimumStock: data.minimumStock ?? 0,
