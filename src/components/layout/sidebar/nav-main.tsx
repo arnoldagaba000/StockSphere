@@ -14,6 +14,7 @@ import {
     SidebarMenuSub,
     SidebarMenuSubButton,
     SidebarMenuSubItem,
+    useSidebar,
 } from "@/components/ui/sidebar";
 
 export interface NavMainProps {
@@ -31,6 +32,14 @@ export interface NavMainProps {
 }
 
 const NavMain = ({ mainItems }: NavMainProps) => {
+    const { isMobile, setOpenMobile } = useSidebar();
+
+    const handleNavigation = () => {
+        if (isMobile) {
+            setOpenMobile(false);
+        }
+    };
+
     return (
         <SidebarGroup>
             <SidebarGroupLabel>Navigation</SidebarGroupLabel>
@@ -52,6 +61,7 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                                                     "bg-primary text-primary-foreground",
                                             }}
                                             className="rounded-md"
+                                            onClick={handleNavigation}
                                             to={nav.to}
                                         />
                                     }
@@ -66,7 +76,7 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                     return (
                         <Collapsible
                             className="group/collapsible"
-                            defaultOpen
+                            defaultOpen={false}
                             key={nav.title}
                         >
                             <SidebarMenuItem>
@@ -75,7 +85,7 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                                         <SidebarMenuButton tooltip={nav.title}>
                                             {nav.icon && <nav.icon />}
                                             <span>{nav.title}</span>
-                                            <ChevronRightIcon className="ml-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90" />
+                                            <ChevronRightIcon className="ml-auto shrink-0 transition-transform duration-200 group-data-[open]/collapsible:rotate-90" />
                                         </SidebarMenuButton>
                                     }
                                 />
@@ -97,6 +107,9 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                                                                     "bg-primary text-primary-foreground",
                                                             }}
                                                             className="rounded-md"
+                                                            onClick={
+                                                                handleNavigation
+                                                            }
                                                             to={item.to}
                                                         />
                                                     }
