@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Button } from "@/components/ui/button";
@@ -50,6 +50,42 @@ const formatQuantity = (value: number): string =>
         ? String(value)
         : value.toFixed(3).replace(TRAILING_ZEROES_REGEX, "");
 
+type StockData = Awaited<ReturnType<typeof getStock>>;
+type ValuationData = Awaited<ReturnType<typeof getInventoryValuationReport>>;
+type StockItem = StockData["stockItems"][number];
+type Product = Awaited<ReturnType<typeof getProducts>>["products"][number];
+type Warehouse = Awaited<ReturnType<typeof getWarehouses>>[number];
+
+interface StockPageState {
+    adjustQuantity: string;
+    cycleQuantity: string;
+    entryProductId: string;
+    entryQuantity: string;
+    entryUnitCost: string;
+    entryWarehouseId: string;
+    releaseQuantity: string;
+    reserveQuantity: string;
+    selectedStockItemId: string;
+    stockData: StockData;
+    trackingBatch: string;
+    trackingSerial: string;
+    transferQuantity: string;
+    transferWarehouseId: string;
+    valuation: ValuationData;
+}
+
+type StockPageAction =
+    | Partial<StockPageState>
+    | ((state: StockPageState) => Partial<StockPageState>);
+
+const stockPageReducer = (
+    state: StockPageState,
+    action: StockPageAction
+): StockPageState => {
+    const patch = typeof action === "function" ? action(state) : action;
+    return { ...state, ...patch };
+};
+
 export const Route = createFileRoute("/_dashboard/stock")({
     component: StockPage,
     loader: async () => {
@@ -72,40 +108,514 @@ export const Route = createFileRoute("/_dashboard/stock")({
     },
 });
 
+interface StockEntryCardProps {
+    entryProductId: string;
+    entryQuantity: string;
+    entryUnitCost: string;
+    entryWarehouseId: string;
+    products: Product[];
+    runAction: (
+        work: () => Promise<unknown>,
+        successMessage: string
+    ) => Promise<void>;
+    setState: (action: StockPageAction) => void;
+    warehouses: Warehouse[];
+}
+
+const StockEntryCard = ({
+    entryProductId,
+    entryQuantity,
+    entryUnitCost,
+    entryWarehouseId,
+    products,
+    runAction,
+    setState,
+    warehouses,
+}: StockEntryCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Initial Stock + Receiving</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-3">
+                <FieldSelect
+                    label="Warehouse"
+                    onValueChange={(value) =>
+                        setState({ entryWarehouseId: value })
+                    }
+                    options={warehouses.map((warehouse) => ({
+                        label: `${warehouse.code} - ${warehouse.name}`,
+                        value: warehouse.id,
+                    }))}
+                    value={entryWarehouseId}
+                />
+                <FieldSelect
+                    label="Product"
+                    onValueChange={(value) =>
+                        setState({ entryProductId: value })
+                    }
+                    options={products.map((product) => ({
+                        label: `${product.sku} - ${product.name}`,
+                        value: product.id,
+                    }))}
+                    value={entryProductId}
+                />
+                <FieldInput
+                    label="Quantity"
+                    onChange={(value) => setState({ entryQuantity: value })}
+                    type="number"
+                    value={entryQuantity}
+                />
+                <FieldInput
+                    label="Unit Cost (UGX)"
+                    onChange={(value) => setState({ entryUnitCost: value })}
+                    type="number"
+                    value={entryUnitCost}
+                />
+                <div className="flex flex-wrap gap-2 md:col-span-2">
+                    <Button
+                        disabled={
+                            !(
+                                entryProductId &&
+                                entryWarehouseId &&
+                                entryQuantity
+                            )
+                        }
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    createInitialStock({
+                                        data: {
+                                            batchNumber: null,
+                                            expiryDate: null,
+                                            locationId: null,
+                                            notes: null,
+                                            productId: entryProductId,
+                                            quantity: Number(entryQuantity),
+                                            serialNumber: null,
+                                            unitCost: entryUnitCost
+                                                ? Number(entryUnitCost)
+                                                : null,
+                                            warehouseId: entryWarehouseId,
+                                        },
+                                    }),
+                                "Initial stock created."
+                            )
+                        }
+                    >
+                        Create Initial Stock
+                    </Button>
+                    <Button
+                        disabled={
+                            !(
+                                entryProductId &&
+                                entryWarehouseId &&
+                                entryQuantity
+                            )
+                        }
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    receiveGoods({
+                                        data: {
+                                            items: [
+                                                {
+                                                    productId: entryProductId,
+                                                    quantity:
+                                                        Number(entryQuantity),
+                                                    unitCost: entryUnitCost
+                                                        ? Number(entryUnitCost)
+                                                        : null,
+                                                },
+                                            ],
+                                            warehouseId: entryWarehouseId,
+                                        },
+                                    }),
+                                "Goods received."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Receive Goods
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface StockOperationsCardProps {
+    adjustQuantity: string;
+    cycleQuantity: string;
+    releaseQuantity: string;
+    reserveQuantity: string;
+    runAction: (
+        work: () => Promise<unknown>,
+        successMessage: string
+    ) => Promise<void>;
+    selectedItem: StockItem | undefined;
+    selectedStockItemId: string;
+    setState: (action: StockPageAction) => void;
+    stockItems: StockItem[];
+    transferQuantity: string;
+    transferWarehouseId: string;
+    warehouses: Warehouse[];
+}
+
+const StockOperationsCard = ({
+    adjustQuantity,
+    cycleQuantity,
+    releaseQuantity,
+    reserveQuantity,
+    runAction,
+    selectedItem,
+    selectedStockItemId,
+    setState,
+    stockItems,
+    transferQuantity,
+    transferWarehouseId,
+    warehouses,
+}: StockOperationsCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Stock Operations</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-4">
+                <FieldSelect
+                    label="Stock Item"
+                    onValueChange={(value) =>
+                        setState({ selectedStockItemId: value })
+                    }
+                    options={stockItems.map((item) => ({
+                        label: `${item.product.sku} - ${item.warehouse.code} - ${item.location?.code ?? "NO-LOC"}`,
+                        value: item.id,
+                    }))}
+                    value={selectedStockItemId}
+                />
+                <FieldInput
+                    label="Transfer Qty"
+                    onChange={(value) => setState({ transferQuantity: value })}
+                    type="number"
+                    value={transferQuantity}
+                />
+                <FieldSelect
+                    label="To Warehouse"
+                    onValueChange={(value) =>
+                        setState({ transferWarehouseId: value })
+                    }
+                    options={warehouses.map((warehouse) => ({
+                        label: `${warehouse.code} - ${warehouse.name}`,
+                        value: warehouse.id,
+                    }))}
+                    value={transferWarehouseId}
+                />
+                <div className="flex items-end">
+                    <Button
+                        disabled={
+                            !(
+                                selectedItem &&
+                                transferQuantity &&
+                                transferWarehouseId
+                            )
+                        }
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    transferStock({
+                                        data: {
+                                            quantity: Number(transferQuantity),
+                                            stockItemId: selectedStockItemId,
+                                            toWarehouseId: transferWarehouseId,
+                                        },
+                                    }),
+                                "Stock transferred."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Transfer
+                    </Button>
+                </div>
+
+                <FieldInput
+                    label="Adjust To Qty"
+                    onChange={(value) => setState({ adjustQuantity: value })}
+                    type="number"
+                    value={adjustQuantity}
+                />
+                <FieldInput
+                    label="Reserve Qty"
+                    onChange={(value) => setState({ reserveQuantity: value })}
+                    type="number"
+                    value={reserveQuantity}
+                />
+                <FieldInput
+                    label="Release Qty"
+                    onChange={(value) => setState({ releaseQuantity: value })}
+                    type="number"
+                    value={releaseQuantity}
+                />
+                <FieldInput
+                    label="Cycle Count Qty"
+                    onChange={(value) => setState({ cycleQuantity: value })}
+                    type="number"
+                    value={cycleQuantity}
+                />
+                <div className="flex flex-wrap gap-2 md:col-span-4">
+                    <Button
+                        disabled={!(selectedItem && adjustQuantity)}
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    adjustStock({
+                                        data: {
+                                            countedQuantity:
+                                                Number(adjustQuantity),
+                                            reason: "PHYSICAL_COUNT",
+                                            stockItemId: selectedStockItemId,
+                                        },
+                                    }),
+                                "Stock adjusted."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Adjust
+                    </Button>
+                    <Button
+                        disabled={!(selectedItem && reserveQuantity)}
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    reserveStock({
+                                        data: {
+                                            quantity: Number(reserveQuantity),
+                                            stockItemId: selectedStockItemId,
+                                        },
+                                    }),
+                                "Stock reserved."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Reserve
+                    </Button>
+                    <Button
+                        disabled={!(selectedItem && releaseQuantity)}
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    releaseReservedStock({
+                                        data: {
+                                            quantity: Number(releaseQuantity),
+                                            stockItemId: selectedStockItemId,
+                                        },
+                                    }),
+                                "Stock released."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Release
+                    </Button>
+                    <Button
+                        disabled={!(selectedItem && cycleQuantity)}
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    submitCycleCount({
+                                        data: {
+                                            countedQuantity:
+                                                Number(cycleQuantity),
+                                            stockItemId: selectedStockItemId,
+                                        },
+                                    }),
+                                "Cycle count submitted."
+                            )
+                        }
+                    >
+                        Cycle Count
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface StockTrackingCardProps {
+    entryProductId: string;
+    entryQuantity: string;
+    entryWarehouseId: string;
+    runAction: (
+        work: () => Promise<unknown>,
+        successMessage: string
+    ) => Promise<void>;
+    selectedItem: StockItem | undefined;
+    selectedStockItemId: string;
+    setState: (action: StockPageAction) => void;
+    trackingBatch: string;
+    trackingSerial: string;
+}
+
+const StockTrackingCard = ({
+    entryProductId,
+    entryQuantity,
+    entryWarehouseId,
+    runAction,
+    selectedItem,
+    selectedStockItemId,
+    setState,
+    trackingBatch,
+    trackingSerial,
+}: StockTrackingCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Tracking, Expiry, Putaway</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-3">
+                <FieldInput
+                    label="Serial"
+                    onChange={(value) => setState({ trackingSerial: value })}
+                    value={trackingSerial}
+                />
+                <FieldInput
+                    label="Batch"
+                    onChange={(value) => setState({ trackingBatch: value })}
+                    value={trackingBatch}
+                />
+                <div className="flex items-end">
+                    <Button
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    getTrackingHistory({
+                                        data: {
+                                            batchNumber:
+                                                trackingBatch || undefined,
+                                            serialNumber:
+                                                trackingSerial || undefined,
+                                        },
+                                    }),
+                                "Tracking history loaded."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Search Tracking
+                    </Button>
+                </div>
+                <div className="flex flex-wrap gap-2 md:col-span-3">
+                    <Button
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    getExpiryAlerts({
+                                        data: { withinDays: 30 },
+                                    }),
+                                "Expiry alerts loaded."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Refresh Expiry Alerts
+                    </Button>
+                    <Button
+                        disabled={!selectedItem}
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    updateStockExpiryStatus({
+                                        data: {
+                                            operation: "QUARANTINE",
+                                            stockItemId: selectedStockItemId,
+                                        },
+                                    }),
+                                "Moved to quarantine."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Quarantine Selected
+                    </Button>
+                    <Button
+                        disabled={!selectedItem}
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    updateStockExpiryStatus({
+                                        data: {
+                                            operation: "DISPOSE",
+                                            stockItemId: selectedStockItemId,
+                                        },
+                                    }),
+                                "Disposed selected stock."
+                            )
+                        }
+                        variant="destructive"
+                    >
+                        Dispose Selected
+                    </Button>
+                    <Button
+                        disabled={
+                            !(
+                                entryProductId &&
+                                entryWarehouseId &&
+                                entryQuantity
+                            )
+                        }
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    getPutawaySuggestions({
+                                        data: {
+                                            productId: entryProductId,
+                                            quantity: Number(entryQuantity),
+                                            warehouseId: entryWarehouseId,
+                                        },
+                                    }),
+                                "Putaway suggestions generated."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Generate Putaway Suggestions
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
 function StockPage() {
     const { initialStock, initialValuation, kpis, products, warehouses } =
         Route.useLoaderData();
 
-    const [stockData, setStockData] = useState(initialStock);
-    const [valuation, setValuation] = useState(initialValuation);
-
-    const [selectedStockItemId, setSelectedStockItemId] = useState("");
-    const [entryProductId, setEntryProductId] = useState(products[0]?.id ?? "");
-    const [entryWarehouseId, setEntryWarehouseId] = useState(
-        warehouses[0]?.id ?? ""
-    );
-    const [entryQuantity, setEntryQuantity] = useState("");
-    const [entryUnitCost, setEntryUnitCost] = useState("");
-
-    const [transferWarehouseId, setTransferWarehouseId] = useState(
-        warehouses[0]?.id ?? ""
-    );
-    const [transferQuantity, setTransferQuantity] = useState("");
-    const [adjustQuantity, setAdjustQuantity] = useState("");
-    const [reserveQuantity, setReserveQuantity] = useState("");
-    const [releaseQuantity, setReleaseQuantity] = useState("");
-    const [cycleQuantity, setCycleQuantity] = useState("");
-
-    const [trackingSerial, setTrackingSerial] = useState("");
-    const [trackingBatch, setTrackingBatch] = useState("");
+    const [state, setState] = useReducer(stockPageReducer, {
+        adjustQuantity: "",
+        cycleQuantity: "",
+        entryProductId: products[0]?.id ?? "",
+        entryQuantity: "",
+        entryUnitCost: "",
+        entryWarehouseId: warehouses[0]?.id ?? "",
+        releaseQuantity: "",
+        reserveQuantity: "",
+        selectedStockItemId: "",
+        stockData: initialStock,
+        trackingBatch: "",
+        trackingSerial: "",
+        transferQuantity: "",
+        transferWarehouseId: warehouses[0]?.id ?? "",
+        valuation: initialValuation,
+    });
 
     const refreshAll = async () => {
         const [nextStock, nextValuation] = await Promise.all([
             getStock({ data: { pageSize: 150 } }),
             getInventoryValuationReport({ data: {} }),
         ]);
-        setStockData(nextStock);
-        setValuation(nextValuation);
+        setState({ stockData: nextStock, valuation: nextValuation });
     };
 
     const runAction = async (
@@ -123,8 +633,8 @@ function StockPage() {
         }
     };
 
-    const selectedItem = stockData.stockItems.find(
-        (item) => item.id === selectedStockItemId
+    const selectedItem = state.stockData.stockItems.find(
+        (item) => item.id === state.selectedStockItemId
     );
 
     return (
@@ -165,402 +675,43 @@ function StockPage() {
                 />
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Initial Stock + Receiving</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-3">
-                    <FieldSelect
-                        label="Warehouse"
-                        onValueChange={setEntryWarehouseId}
-                        options={warehouses.map((warehouse) => ({
-                            label: `${warehouse.code} - ${warehouse.name}`,
-                            value: warehouse.id,
-                        }))}
-                        value={entryWarehouseId}
-                    />
-                    <FieldSelect
-                        label="Product"
-                        onValueChange={setEntryProductId}
-                        options={products.map((product) => ({
-                            label: `${product.sku} - ${product.name}`,
-                            value: product.id,
-                        }))}
-                        value={entryProductId}
-                    />
-                    <FieldInput
-                        label="Quantity"
-                        onChange={setEntryQuantity}
-                        type="number"
-                        value={entryQuantity}
-                    />
-                    <FieldInput
-                        label="Unit Cost (UGX)"
-                        onChange={setEntryUnitCost}
-                        type="number"
-                        value={entryUnitCost}
-                    />
-                    <div className="flex flex-wrap gap-2 md:col-span-2">
-                        <Button
-                            disabled={
-                                !(
-                                    entryProductId &&
-                                    entryWarehouseId &&
-                                    entryQuantity
-                                )
-                            }
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        createInitialStock({
-                                            data: {
-                                                batchNumber: null,
-                                                expiryDate: null,
-                                                locationId: null,
-                                                notes: null,
-                                                productId: entryProductId,
-                                                quantity: Number(entryQuantity),
-                                                serialNumber: null,
-                                                unitCost: entryUnitCost
-                                                    ? Number(entryUnitCost)
-                                                    : null,
-                                                warehouseId: entryWarehouseId,
-                                            },
-                                        }),
-                                    "Initial stock created."
-                                )
-                            }
-                        >
-                            Create Initial Stock
-                        </Button>
-                        <Button
-                            disabled={
-                                !(
-                                    entryProductId &&
-                                    entryWarehouseId &&
-                                    entryQuantity
-                                )
-                            }
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        receiveGoods({
-                                            data: {
-                                                items: [
-                                                    {
-                                                        productId:
-                                                            entryProductId,
-                                                        quantity:
-                                                            Number(
-                                                                entryQuantity
-                                                            ),
-                                                        unitCost: entryUnitCost
-                                                            ? Number(
-                                                                  entryUnitCost
-                                                              )
-                                                            : null,
-                                                    },
-                                                ],
-                                                warehouseId: entryWarehouseId,
-                                            },
-                                        }),
-                                    "Goods received."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Receive Goods
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+            <StockEntryCard
+                entryProductId={state.entryProductId}
+                entryQuantity={state.entryQuantity}
+                entryUnitCost={state.entryUnitCost}
+                entryWarehouseId={state.entryWarehouseId}
+                products={products}
+                runAction={runAction}
+                setState={setState}
+                warehouses={warehouses}
+            />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Stock Operations</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-4">
-                    <FieldSelect
-                        label="Stock Item"
-                        onValueChange={setSelectedStockItemId}
-                        options={stockData.stockItems.map((item) => ({
-                            label: `${item.product.sku} - ${item.warehouse.code} - ${item.location?.code ?? "NO-LOC"}`,
-                            value: item.id,
-                        }))}
-                        value={selectedStockItemId}
-                    />
-                    <FieldInput
-                        label="Transfer Qty"
-                        onChange={setTransferQuantity}
-                        type="number"
-                        value={transferQuantity}
-                    />
-                    <FieldSelect
-                        label="To Warehouse"
-                        onValueChange={setTransferWarehouseId}
-                        options={warehouses.map((warehouse) => ({
-                            label: `${warehouse.code} - ${warehouse.name}`,
-                            value: warehouse.id,
-                        }))}
-                        value={transferWarehouseId}
-                    />
-                    <div className="flex items-end">
-                        <Button
-                            disabled={
-                                !(
-                                    selectedItem &&
-                                    transferQuantity &&
-                                    transferWarehouseId
-                                )
-                            }
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        transferStock({
-                                            data: {
-                                                quantity:
-                                                    Number(transferQuantity),
-                                                stockItemId:
-                                                    selectedStockItemId,
-                                                toWarehouseId:
-                                                    transferWarehouseId,
-                                            },
-                                        }),
-                                    "Stock transferred."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Transfer
-                        </Button>
-                    </div>
+            <StockOperationsCard
+                adjustQuantity={state.adjustQuantity}
+                cycleQuantity={state.cycleQuantity}
+                releaseQuantity={state.releaseQuantity}
+                reserveQuantity={state.reserveQuantity}
+                runAction={runAction}
+                selectedItem={selectedItem}
+                selectedStockItemId={state.selectedStockItemId}
+                setState={setState}
+                stockItems={state.stockData.stockItems}
+                transferQuantity={state.transferQuantity}
+                transferWarehouseId={state.transferWarehouseId}
+                warehouses={warehouses}
+            />
 
-                    <FieldInput
-                        label="Adjust To Qty"
-                        onChange={setAdjustQuantity}
-                        type="number"
-                        value={adjustQuantity}
-                    />
-                    <FieldInput
-                        label="Reserve Qty"
-                        onChange={setReserveQuantity}
-                        type="number"
-                        value={reserveQuantity}
-                    />
-                    <FieldInput
-                        label="Release Qty"
-                        onChange={setReleaseQuantity}
-                        type="number"
-                        value={releaseQuantity}
-                    />
-                    <FieldInput
-                        label="Cycle Count Qty"
-                        onChange={setCycleQuantity}
-                        type="number"
-                        value={cycleQuantity}
-                    />
-                    <div className="flex flex-wrap gap-2 md:col-span-4">
-                        <Button
-                            disabled={!(selectedItem && adjustQuantity)}
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        adjustStock({
-                                            data: {
-                                                countedQuantity:
-                                                    Number(adjustQuantity),
-                                                reason: "PHYSICAL_COUNT",
-                                                stockItemId:
-                                                    selectedStockItemId,
-                                            },
-                                        }),
-                                    "Stock adjusted."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Adjust
-                        </Button>
-                        <Button
-                            disabled={!(selectedItem && reserveQuantity)}
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        reserveStock({
-                                            data: {
-                                                quantity:
-                                                    Number(reserveQuantity),
-                                                stockItemId:
-                                                    selectedStockItemId,
-                                            },
-                                        }),
-                                    "Stock reserved."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Reserve
-                        </Button>
-                        <Button
-                            disabled={!(selectedItem && releaseQuantity)}
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        releaseReservedStock({
-                                            data: {
-                                                quantity:
-                                                    Number(releaseQuantity),
-                                                stockItemId:
-                                                    selectedStockItemId,
-                                            },
-                                        }),
-                                    "Stock released."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Release
-                        </Button>
-                        <Button
-                            disabled={!(selectedItem && cycleQuantity)}
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        submitCycleCount({
-                                            data: {
-                                                countedQuantity:
-                                                    Number(cycleQuantity),
-                                                stockItemId:
-                                                    selectedStockItemId,
-                                            },
-                                        }),
-                                    "Cycle count submitted."
-                                )
-                            }
-                        >
-                            Cycle Count
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Tracking, Expiry, Putaway</CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-3">
-                    <FieldInput
-                        label="Serial"
-                        onChange={setTrackingSerial}
-                        value={trackingSerial}
-                    />
-                    <FieldInput
-                        label="Batch"
-                        onChange={setTrackingBatch}
-                        value={trackingBatch}
-                    />
-                    <div className="flex items-end">
-                        <Button
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        getTrackingHistory({
-                                            data: {
-                                                batchNumber:
-                                                    trackingBatch || undefined,
-                                                serialNumber:
-                                                    trackingSerial || undefined,
-                                            },
-                                        }),
-                                    "Tracking history loaded."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Search Tracking
-                        </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2 md:col-span-3">
-                        <Button
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        getExpiryAlerts({
-                                            data: { withinDays: 30 },
-                                        }),
-                                    "Expiry alerts loaded."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Refresh Expiry Alerts
-                        </Button>
-                        <Button
-                            disabled={!selectedItem}
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        updateStockExpiryStatus({
-                                            data: {
-                                                operation: "QUARANTINE",
-                                                stockItemId:
-                                                    selectedStockItemId,
-                                            },
-                                        }),
-                                    "Moved to quarantine."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Quarantine Selected
-                        </Button>
-                        <Button
-                            disabled={!selectedItem}
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        updateStockExpiryStatus({
-                                            data: {
-                                                operation: "DISPOSE",
-                                                stockItemId:
-                                                    selectedStockItemId,
-                                            },
-                                        }),
-                                    "Disposed selected stock."
-                                )
-                            }
-                            variant="destructive"
-                        >
-                            Dispose Selected
-                        </Button>
-                        <Button
-                            disabled={
-                                !(
-                                    entryProductId &&
-                                    entryWarehouseId &&
-                                    entryQuantity
-                                )
-                            }
-                            onClick={() =>
-                                runAction(
-                                    () =>
-                                        getPutawaySuggestions({
-                                            data: {
-                                                productId: entryProductId,
-                                                quantity: Number(entryQuantity),
-                                                warehouseId: entryWarehouseId,
-                                            },
-                                        }),
-                                    "Putaway suggestions generated."
-                                )
-                            }
-                            variant="outline"
-                        >
-                            Generate Putaway Suggestions
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
+            <StockTrackingCard
+                entryProductId={state.entryProductId}
+                entryQuantity={state.entryQuantity}
+                entryWarehouseId={state.entryWarehouseId}
+                runAction={runAction}
+                selectedItem={selectedItem}
+                selectedStockItemId={state.selectedStockItemId}
+                setState={setState}
+                trackingBatch={state.trackingBatch}
+                trackingSerial={state.trackingSerial}
+            />
 
             <Card>
                 <CardHeader>
@@ -581,7 +732,7 @@ function StockPage() {
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {stockData.stockItems.map((item) => (
+                            {state.stockData.stockItems.map((item) => (
                                 <TableRow key={item.id}>
                                     <TableCell>
                                         {item.product.sku} - {item.product.name}
@@ -590,7 +741,7 @@ function StockPage() {
                                     <TableCell>
                                         {item.location
                                             ? `${item.location.code} - ${item.location.name}`
-                                            : "—"}
+                                            : "\u2014"}
                                     </TableCell>
                                     <TableCell>
                                         {formatQuantity(item.quantity)}
@@ -621,11 +772,15 @@ function StockPage() {
                 <CardContent className="space-y-1 text-sm">
                     <p>
                         Total stock value:{" "}
-                        {formatCurrencyFromMinorUnits(valuation.totalValue)}
+                        {formatCurrencyFromMinorUnits(
+                            state.valuation.totalValue
+                        )}
                     </p>
-                    <p>Warehouse groups: {valuation.byWarehouse.length}</p>
-                    <p>Location groups: {valuation.byLocation.length}</p>
-                    <p>Category groups: {valuation.byCategory.length}</p>
+                    <p>
+                        Warehouse groups: {state.valuation.byWarehouse.length}
+                    </p>
+                    <p>Location groups: {state.valuation.byLocation.length}</p>
+                    <p>Category groups: {state.valuation.byCategory.length}</p>
                 </CardContent>
             </Card>
         </section>

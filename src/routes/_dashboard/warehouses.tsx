@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useReducer } from "react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,59 +26,89 @@ export const Route = createFileRoute("/_dashboard/warehouses")({
     loader: () => getWarehouses({ data: {} }),
 });
 
+interface WarehousesPageState {
+    address: string;
+    code: string;
+    country: string;
+    district: string;
+    isActive: boolean;
+    isSubmitting: boolean;
+    isUpdatingId: string | null;
+    name: string;
+    postalCode: string;
+}
+
+type WarehousesPageAction =
+    | Partial<WarehousesPageState>
+    | ((state: WarehousesPageState) => Partial<WarehousesPageState>);
+
+const warehousesPageReducer = (
+    state: WarehousesPageState,
+    action: WarehousesPageAction
+): WarehousesPageState => {
+    const patch = typeof action === "function" ? action(state) : action;
+    return { ...state, ...patch };
+};
+
 function WarehousesPage() {
     const router = useRouter();
     const warehouses = Route.useLoaderData();
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isUpdatingId, setIsUpdatingId] = useState<string | null>(null);
-    const [code, setCode] = useState("");
-    const [name, setName] = useState("");
-    const [address, setAddress] = useState("");
-    const [district, setDistrict] = useState("");
-    const [postalCode, setPostalCode] = useState("");
-    const [country, setCountry] = useState("Uganda");
-    const [isActive, setIsActive] = useState(true);
+    const [state, setState] = useReducer(warehousesPageReducer, {
+        address: "",
+        code: "",
+        country: "Uganda",
+        district: "",
+        isActive: true,
+        isSubmitting: false,
+        isUpdatingId: null,
+        name: "",
+        postalCode: "",
+    });
 
     const resetForm = () => {
-        setCode("");
-        setName("");
-        setAddress("");
-        setDistrict("");
-        setPostalCode("");
-        setCountry("Uganda");
-        setIsActive(true);
+        setState({
+            address: "",
+            code: "",
+            country: "Uganda",
+            district: "",
+            isActive: true,
+            name: "",
+            postalCode: "",
+        });
     };
 
     const handleCreateWarehouse = async () => {
-        const trimmedAddress = address.trim();
-        const addressValue = trimmedAddress.length > 0 ? address : null;
-        const trimmedCountry = country.trim();
-        const countryValue = trimmedCountry.length > 0 ? country : "Uganda";
-        const trimmedDistrict = district.trim();
-        const districtValue = trimmedDistrict.length > 0 ? district : null;
-        const trimmedPostalCode = postalCode.trim();
+        const trimmedAddress = state.address.trim();
+        const addressValue = trimmedAddress.length > 0 ? state.address : null;
+        const trimmedCountry = state.country.trim();
+        const countryValue =
+            trimmedCountry.length > 0 ? state.country : "Uganda";
+        const trimmedDistrict = state.district.trim();
+        const districtValue =
+            trimmedDistrict.length > 0 ? state.district : null;
+        const trimmedPostalCode = state.postalCode.trim();
         const postalCodeValue =
-            trimmedPostalCode.length > 0 ? postalCode : null;
+            trimmedPostalCode.length > 0 ? state.postalCode : null;
 
         try {
-            setIsSubmitting(true);
+            setState({ isSubmitting: true });
             await createWarehouse({
                 data: {
                     address: addressValue,
-                    code: code.trim(),
+                    code: state.code.trim(),
                     country: countryValue,
                     district: districtValue,
-                    isActive,
-                    name: name.trim(),
+                    isActive: state.isActive,
+                    name: state.name.trim(),
                     postalCode: postalCodeValue,
                 },
             });
             toast.success("Warehouse created.");
             resetForm();
             await router.invalidate();
-            setIsSubmitting(false);
+            setState({ isSubmitting: false });
         } catch (error) {
-            setIsSubmitting(false);
+            setState({ isSubmitting: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -107,10 +137,12 @@ function WarehousesPage() {
                             <Input
                                 id="warehouse-code"
                                 onChange={(event) =>
-                                    setCode(event.target.value.toUpperCase())
+                                    setState({
+                                        code: event.target.value.toUpperCase(),
+                                    })
                                 }
                                 placeholder="WH-KLA-01"
-                                value={code}
+                                value={state.code}
                             />
                         </div>
                         <div className="space-y-2">
@@ -118,10 +150,10 @@ function WarehousesPage() {
                             <Input
                                 id="warehouse-name"
                                 onChange={(event) =>
-                                    setName(event.target.value)
+                                    setState({ name: event.target.value })
                                 }
                                 placeholder="Kampala Main Warehouse"
-                                value={name}
+                                value={state.name}
                             />
                         </div>
                         <div className="space-y-2 md:col-span-2">
@@ -129,10 +161,10 @@ function WarehousesPage() {
                             <Input
                                 id="warehouse-address"
                                 onChange={(event) =>
-                                    setAddress(event.target.value)
+                                    setState({ address: event.target.value })
                                 }
                                 placeholder="Physical address"
-                                value={address}
+                                value={state.address}
                             />
                         </div>
                         <div className="space-y-2">
@@ -140,9 +172,9 @@ function WarehousesPage() {
                             <Input
                                 id="warehouse-district"
                                 onChange={(event) =>
-                                    setDistrict(event.target.value)
+                                    setState({ district: event.target.value })
                                 }
-                                value={district}
+                                value={state.district}
                             />
                         </div>
                         <div className="space-y-2">
@@ -152,9 +184,9 @@ function WarehousesPage() {
                             <Input
                                 id="warehouse-postal"
                                 onChange={(event) =>
-                                    setPostalCode(event.target.value)
+                                    setState({ postalCode: event.target.value })
                                 }
-                                value={postalCode}
+                                value={state.postalCode}
                             />
                         </div>
                         <div className="space-y-2">
@@ -162,29 +194,33 @@ function WarehousesPage() {
                             <Input
                                 id="warehouse-country"
                                 onChange={(event) =>
-                                    setCountry(event.target.value)
+                                    setState({ country: event.target.value })
                                 }
-                                value={country}
+                                value={state.country}
                             />
                         </div>
                         <div className="flex items-end gap-2 pb-2">
                             <Switch
-                                checked={isActive}
+                                checked={state.isActive}
                                 id="warehouse-active"
-                                onCheckedChange={setIsActive}
+                                onCheckedChange={(checked) =>
+                                    setState({ isActive: checked })
+                                }
                             />
                             <Label htmlFor="warehouse-active">Active</Label>
                         </div>
                     </div>
                     <Button
                         disabled={
-                            isSubmitting ||
-                            code.trim().length === 0 ||
-                            name.trim().length === 0
+                            state.isSubmitting ||
+                            state.code.trim().length === 0 ||
+                            state.name.trim().length === 0
                         }
                         onClick={handleCreateWarehouse}
                     >
-                        {isSubmitting ? "Creating..." : "Create Warehouse"}
+                        {state.isSubmitting
+                            ? "Creating..."
+                            : "Create Warehouse"}
                     </Button>
                 </CardContent>
             </Card>
@@ -229,14 +265,15 @@ function WarehousesPage() {
                                         <div className="flex justify-end gap-2">
                                             <Button
                                                 disabled={
-                                                    isUpdatingId ===
+                                                    state.isUpdatingId ===
                                                     warehouse.id
                                                 }
                                                 onClick={async () => {
                                                     try {
-                                                        setIsUpdatingId(
-                                                            warehouse.id
-                                                        );
+                                                        setState({
+                                                            isUpdatingId:
+                                                                warehouse.id,
+                                                        });
                                                         await updateWarehouse({
                                                             data: {
                                                                 id: warehouse.id,
@@ -248,9 +285,13 @@ function WarehousesPage() {
                                                             "Warehouse updated."
                                                         );
                                                         await router.invalidate();
-                                                        setIsUpdatingId(null);
+                                                        setState({
+                                                            isUpdatingId: null,
+                                                        });
                                                     } catch (error) {
-                                                        setIsUpdatingId(null);
+                                                        setState({
+                                                            isUpdatingId: null,
+                                                        });
                                                         toast.error(
                                                             error instanceof
                                                                 Error
@@ -268,14 +309,15 @@ function WarehousesPage() {
                                             </Button>
                                             <Button
                                                 disabled={
-                                                    isUpdatingId ===
+                                                    state.isUpdatingId ===
                                                     warehouse.id
                                                 }
                                                 onClick={async () => {
                                                     try {
-                                                        setIsUpdatingId(
-                                                            warehouse.id
-                                                        );
+                                                        setState({
+                                                            isUpdatingId:
+                                                                warehouse.id,
+                                                        });
                                                         await archiveWarehouse({
                                                             data: {
                                                                 id: warehouse.id,
@@ -285,9 +327,13 @@ function WarehousesPage() {
                                                             "Warehouse archived."
                                                         );
                                                         await router.invalidate();
-                                                        setIsUpdatingId(null);
+                                                        setState({
+                                                            isUpdatingId: null,
+                                                        });
                                                     } catch (error) {
-                                                        setIsUpdatingId(null);
+                                                        setState({
+                                                            isUpdatingId: null,
+                                                        });
                                                         toast.error(
                                                             error instanceof
                                                                 Error
