@@ -152,3 +152,43 @@ export const flushQueuedMobileOperations = async (
 export const removeQueuedMobileOperation = (operationId: string): void => {
     writeQueue(readQueue().filter((operation) => operation.id !== operationId));
 };
+
+type RetryResult =
+    | { status: "not_found" }
+    | { status: "processed" }
+    | { message: string; status: "failed" };
+
+export const retryQueuedMobileOperation = async (
+    operationId: string,
+    execute: (
+        operation: QueuedMobileOperation<MobileOperationPayload>
+    ) => Promise<void>
+): Promise<RetryResult> => {
+    const queue = readQueue();
+    const queuedOperation = queue.find(
+        (operation) => operation.id === operationId
+    );
+    if (!queuedOperation) {
+        return { status: "not_found" };
+    }
+
+    try {
+        await execute(queuedOperation);
+        writeQueue(queue.filter((operation) => operation.id !== operationId));
+        return { status: "processed" };
+    } catch (error: unknown) {
+        const message = getErrorMessage(error);
+        writeQueue(
+            queue.map((operation) =>
+                operation.id === operationId
+                    ? {
+                          ...operation,
+                          lastError: message,
+                          retryCount: operation.retryCount + 1,
+                      }
+                    : operation
+            )
+        );
+        return { message, status: "failed" };
+    }
+};

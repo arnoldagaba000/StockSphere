@@ -11,6 +11,7 @@ import {
     flushQueuedMobileOperations,
     getQueuedMobileOperations,
     removeQueuedMobileOperation,
+    retryQueuedMobileOperation,
     type StoredQueuedMobileOperation,
 } from "@/components/features/mobile/offline-ops-queue";
 import { Button } from "@/components/ui/button";
@@ -135,6 +136,31 @@ function MobileLayout() {
         refreshQueueState();
     };
 
+    const handleRetryQueuedOperation = async (operationId: string) => {
+        if (syncState.isSyncing) {
+            return;
+        }
+
+        setSyncState({ isSyncing: true });
+        const result = await retryQueuedMobileOperation(
+            operationId,
+            executeMobileOperation
+        );
+        setSyncState({ isSyncing: false });
+        refreshQueueState();
+
+        if (result.status === "processed") {
+            toast.success("Queued action processed.");
+            await router.invalidate();
+            return;
+        }
+        if (result.status === "failed") {
+            toast.error(result.message);
+            return;
+        }
+        toast.error("Queued action not found.");
+    };
+
     return (
         <section className="w-full space-y-4">
             <div className="space-y-1">
@@ -185,6 +211,18 @@ function MobileLayout() {
                                             operation.createdAt
                                         ).toLocaleString()}
                                     </p>
+                                    <Button
+                                        onClick={() =>
+                                            handleRetryQueuedOperation(
+                                                operation.id
+                                            )
+                                        }
+                                        size="sm"
+                                        type="button"
+                                        variant="outline"
+                                    >
+                                        Retry
+                                    </Button>
                                     <Button
                                         onClick={() =>
                                             handleRemoveQueuedOperation(
