@@ -49,6 +49,18 @@ interface ProductsLoaderData {
     products: ProductListItem[];
 }
 
+interface LoadAllProductsParams {
+    categoryId?: string;
+    includeDescendantCategories?: boolean;
+    isActive?: boolean;
+    maxSellingPrice?: number;
+    minSellingPrice?: number;
+    search?: string;
+    trackByBatch?: boolean;
+    trackByExpiry?: boolean;
+    trackBySerialNumber?: boolean;
+}
+
 interface ProductsPageState {
     bulkAction: BulkAction;
     bulkCategoryId: string;
@@ -139,30 +151,68 @@ const toBulkAction = (value: string | null): BulkAction => {
 
 export const Route = createFileRoute("/_dashboard/products/")({
     component: ProductsPage,
+    staleTime: 0,
+    preloadStaleTime: 0,
     loader: async (): Promise<ProductsLoaderData> => {
+        const loadAllProducts = async (
+            params: LoadAllProductsParams
+        ): Promise<ProductListItem[]> => {
+            const pageSize = 100;
+            const firstPage = await getProducts({
+                data: {
+                    ...params,
+                    page: 1,
+                    pageSize,
+                },
+            });
+
+            if (firstPage.pagination.totalPages <= 1) {
+                return firstPage.products;
+            }
+
+            const remainingPagePromises: ReturnType<typeof getProducts>[] = [];
+            for (
+                let page = 2;
+                page <= firstPage.pagination.totalPages;
+                page += 1
+            ) {
+                remainingPagePromises.push(
+                    getProducts({
+                        data: {
+                            ...params,
+                            page,
+                            pageSize,
+                        },
+                    })
+                );
+            }
+
+            const remainingPages = await Promise.all(remainingPagePromises);
+            return [
+                ...firstPage.products,
+                ...remainingPages.flatMap((page) => page.products),
+            ];
+        };
+
         const [
-            activeProductsResponse,
-            inactiveProductsResponse,
+            activeProducts,
+            inactiveProducts,
             categories,
             analytics,
             financialSettings,
         ] = await Promise.all([
-            getProducts({
-                data: { isActive: true },
-            }),
-            getProducts({
-                data: { isActive: false },
-            }),
+            loadAllProducts({ isActive: true }),
+            loadAllProducts({ isActive: false }),
             getCategories(),
             getProductAnalytics(),
             getFinancialSettings(),
         ]);
 
         const mergedProductsMap = new Map<string, ProductListItem>();
-        for (const product of activeProductsResponse.products) {
+        for (const product of activeProducts) {
             mergedProductsMap.set(product.id, product);
         }
-        for (const product of inactiveProductsResponse.products) {
+        for (const product of inactiveProducts) {
             mergedProductsMap.set(product.id, product);
         }
 
@@ -633,6 +683,7 @@ const ProductTable = ({
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-2">
                                         <Button
+                                            nativeButton={false}
                                             render={
                                                 <Link
                                                     params={{
@@ -722,6 +773,42 @@ function ProductsPage() {
         [categories]
     );
 
+    const loadAllProducts = async (
+        params: LoadAllProductsParams
+    ): Promise<ProductListItem[]> => {
+        const pageSize = 100;
+        const firstPage = await getProducts({
+            data: {
+                ...params,
+                page: 1,
+                pageSize,
+            },
+        });
+
+        if (firstPage.pagination.totalPages <= 1) {
+            return firstPage.products;
+        }
+
+        const remainingPagePromises: ReturnType<typeof getProducts>[] = [];
+        for (let page = 2; page <= firstPage.pagination.totalPages; page += 1) {
+            remainingPagePromises.push(
+                getProducts({
+                    data: {
+                        ...params,
+                        page,
+                        pageSize,
+                    },
+                })
+            );
+        }
+
+        const remainingPages = await Promise.all(remainingPagePromises);
+        return [
+            ...firstPage.products,
+            ...remainingPages.flatMap((page) => page.products),
+        ];
+    };
+
     const selectedProductsCount = selectedProductIds.length;
     const allVisibleSelected =
         visibleProducts.length > 0 &&
@@ -741,22 +828,20 @@ function ProductsPage() {
 
         try {
             setState({ isFiltering: true });
-            const response = await getProducts({
-                data: {
-                    categoryId: categoryIdValue,
-                    includeDescendantCategories: includeDescendants,
-                    isActive: isActiveValue,
-                    maxSellingPrice: maxSellingPriceValue,
-                    minSellingPrice: minSellingPriceValue,
-                    search: searchValue,
-                    trackByBatch: trackingFilterToBoolean(trackingBatchValue),
-                    trackByExpiry: trackingFilterToBoolean(trackingExpiryValue),
-                    trackBySerialNumber:
-                        trackingFilterToBoolean(trackingSerialValue),
-                },
+            const allFilteredProducts = await loadAllProducts({
+                categoryId: categoryIdValue,
+                includeDescendantCategories: includeDescendants,
+                isActive: isActiveValue,
+                maxSellingPrice: maxSellingPriceValue,
+                minSellingPrice: minSellingPriceValue,
+                search: searchValue,
+                trackByBatch: trackingFilterToBoolean(trackingBatchValue),
+                trackByExpiry: trackingFilterToBoolean(trackingExpiryValue),
+                trackBySerialNumber:
+                    trackingFilterToBoolean(trackingSerialValue),
             });
             setState({
-                filteredProducts: response.products,
+                filteredProducts: allFilteredProducts,
                 isFiltering: false,
                 selectedProductIds: [],
             });

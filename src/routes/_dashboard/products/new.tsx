@@ -1,4 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    useNavigate,
+    useRouter,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import ProductForm, {
@@ -41,6 +45,7 @@ export const Route = createFileRoute("/_dashboard/products/new")({
 
 function NewProductPage() {
     const navigate = useNavigate();
+    const router = useRouter();
     const categories = Route.useLoaderData();
     const categoryOptions = buildCategoryHierarchy(categories);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,6 +57,7 @@ function NewProductPage() {
                 data: formData,
             });
             toast.success("Product created.");
+            await router.invalidate();
             await navigate({ to: "/products" });
             setIsSubmitting(false);
         } catch (error) {
