@@ -1,6 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
+import { useReducer } from "react";
 import toast from "react-hot-toast";
 import {
     AlertDialog,
@@ -66,6 +66,33 @@ const ConfirmActionButton = ({
     </AlertDialog>
 );
 
+interface SecuritySettingsPageState {
+    confirmPassword: string;
+    currentPassword: string;
+    isSubmittingEmail: boolean;
+    isSubmittingPassword: boolean;
+    newEmail: string;
+    newPassword: string;
+    revokingToken: string | null;
+}
+
+type SecuritySettingsPageAction =
+    | Partial<SecuritySettingsPageState>
+    | ((
+          state: SecuritySettingsPageState
+      ) => Partial<SecuritySettingsPageState>);
+
+const securitySettingsPageReducer = (
+    state: SecuritySettingsPageState,
+    action: SecuritySettingsPageAction
+): SecuritySettingsPageState => {
+    const patch = typeof action === "function" ? action(state) : action;
+    return {
+        ...state,
+        ...patch,
+    };
+};
+
 export const Route = createFileRoute("/_dashboard/settings/security")({
     component: SecuritySettingsPage,
     loader: async () => {
@@ -86,37 +113,41 @@ function SecuritySettingsPage() {
     const router = useRouter();
     const { currentSessionToken, sessions, user } = Route.useLoaderData();
 
-    const [currentPassword, setCurrentPassword] = useState("");
-    const [newPassword, setNewPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [newEmail, setNewEmail] = useState("");
-    const [isSubmittingPassword, setIsSubmittingPassword] = useState(false);
-    const [isSubmittingEmail, setIsSubmittingEmail] = useState(false);
-    const [revokingToken, setRevokingToken] = useState<string | null>(null);
+    const [state, setState] = useReducer(securitySettingsPageReducer, {
+        confirmPassword: "",
+        currentPassword: "",
+        isSubmittingEmail: false,
+        isSubmittingPassword: false,
+        newEmail: "",
+        newPassword: "",
+        revokingToken: null,
+    });
 
     const handleChangePassword = async () => {
-        if (newPassword !== confirmPassword) {
+        if (state.newPassword !== state.confirmPassword) {
             toast.error("New password and confirmation do not match.");
             return;
         }
 
         try {
-            setIsSubmittingPassword(true);
+            setState({ isSubmittingPassword: true });
             await changeCurrentUserPassword({
                 data: {
-                    currentPassword,
-                    newPassword,
+                    currentPassword: state.currentPassword,
+                    newPassword: state.newPassword,
                     revokeOtherSessions: true,
                 },
             });
             toast.success("Password changed successfully.");
-            setCurrentPassword("");
-            setNewPassword("");
-            setConfirmPassword("");
+            setState({
+                confirmPassword: "",
+                currentPassword: "",
+                newPassword: "",
+            });
             await router.invalidate();
-            setIsSubmittingPassword(false);
+            setState({ isSubmittingPassword: false });
         } catch (error) {
-            setIsSubmittingPassword(false);
+            setState({ isSubmittingPassword: false });
             const message =
                 error instanceof Error
                     ? error.message
@@ -127,16 +158,16 @@ function SecuritySettingsPage() {
 
     const handleRequestEmailChange = async () => {
         try {
-            setIsSubmittingEmail(true);
+            setState({ isSubmittingEmail: true });
             await requestCurrentUserEmailChange({
                 data: {
-                    newEmail,
+                    newEmail: state.newEmail,
                 },
             });
             toast.success("Verification email sent to confirm email change.");
-            setIsSubmittingEmail(false);
+            setState({ isSubmittingEmail: false });
         } catch (error) {
-            setIsSubmittingEmail(false);
+            setState({ isSubmittingEmail: false });
             const message =
                 error instanceof Error
                     ? error.message
@@ -147,13 +178,13 @@ function SecuritySettingsPage() {
 
     const handleRevokeSession = async (token: string) => {
         try {
-            setRevokingToken(token);
+            setState({ revokingToken: token });
             await revokeCurrentUserSession({ data: { token } });
             toast.success("Session revoked.");
             await router.invalidate();
-            setRevokingToken(null);
+            setState({ revokingToken: null });
         } catch (error) {
-            setRevokingToken(null);
+            setState({ revokingToken: null });
             const message =
                 error instanceof Error
                     ? error.message
@@ -178,10 +209,10 @@ function SecuritySettingsPage() {
                     <Input
                         id="current-password"
                         onChange={(event) =>
-                            setCurrentPassword(event.target.value)
+                            setState({ currentPassword: event.target.value })
                         }
                         type="password"
-                        value={currentPassword}
+                        value={state.currentPassword}
                     />
                 </div>
 
@@ -189,9 +220,11 @@ function SecuritySettingsPage() {
                     <Label htmlFor="new-password">New Password</Label>
                     <Input
                         id="new-password"
-                        onChange={(event) => setNewPassword(event.target.value)}
+                        onChange={(event) =>
+                            setState({ newPassword: event.target.value })
+                        }
                         type="password"
-                        value={newPassword}
+                        value={state.newPassword}
                     />
                 </div>
 
@@ -202,18 +235,20 @@ function SecuritySettingsPage() {
                     <Input
                         id="confirm-password"
                         onChange={(event) =>
-                            setConfirmPassword(event.target.value)
+                            setState({ confirmPassword: event.target.value })
                         }
                         type="password"
-                        value={confirmPassword}
+                        value={state.confirmPassword}
                     />
                 </div>
 
                 <Button
-                    disabled={isSubmittingPassword}
+                    disabled={state.isSubmittingPassword}
                     onClick={handleChangePassword}
                 >
-                    {isSubmittingPassword ? "Updating..." : "Update Password"}
+                    {state.isSubmittingPassword
+                        ? "Updating..."
+                        : "Update Password"}
                 </Button>
             </section>
 
@@ -230,18 +265,25 @@ function SecuritySettingsPage() {
                     <Label htmlFor="new-email">New Email Address</Label>
                     <Input
                         id="new-email"
-                        onChange={(event) => setNewEmail(event.target.value)}
+                        onChange={(event) =>
+                            setState({ newEmail: event.target.value })
+                        }
                         placeholder={`Current: ${user.email}`}
                         type="email"
-                        value={newEmail}
+                        value={state.newEmail}
                     />
                 </div>
 
                 <Button
-                    disabled={isSubmittingEmail || newEmail.trim().length === 0}
+                    disabled={
+                        state.isSubmittingEmail ||
+                        state.newEmail.trim().length === 0
+                    }
                     onClick={handleRequestEmailChange}
                 >
-                    {isSubmittingEmail ? "Sending..." : "Request Email Change"}
+                    {state.isSubmittingEmail
+                        ? "Sending..."
+                        : "Request Email Change"}
                 </Button>
             </section>
 
@@ -257,7 +299,8 @@ function SecuritySettingsPage() {
                 <div className="space-y-2">
                     {sessions.map((session) => {
                         const isCurrent = session.token === currentSessionToken;
-                        const isRevoking = revokingToken === session.token;
+                        const isRevoking =
+                            state.revokingToken === session.token;
 
                         return (
                             <div

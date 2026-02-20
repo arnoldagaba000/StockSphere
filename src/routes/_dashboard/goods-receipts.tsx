@@ -49,6 +49,10 @@ const createEmptyLineInput = (
     serialNumber: "",
 });
 
+type GoodsReceiptList = Awaited<ReturnType<typeof getGoodsReceipts>>;
+type PurchaseOrderList = Awaited<ReturnType<typeof getPurchaseOrders>>;
+type WarehouseList = Awaited<ReturnType<typeof getWarehouses>>;
+
 interface GoodsReceiptsState {
     isLoadingOrder: boolean;
     isSubmitting: boolean;
@@ -96,6 +100,306 @@ const goodsReceiptsReducer = (
             },
         },
     };
+};
+
+interface PostGoodsReceiptCardProps {
+    isLoadingOrder: boolean;
+    isSubmitting: boolean;
+    lineInputs: ReceiptLineInputMap;
+    onPatchState: (patch: Partial<GoodsReceiptsState>) => void;
+    onReceive: () => void;
+    onUpdateLineInput: (
+        productId: string,
+        patch: Partial<ReceiptLineInput>
+    ) => void;
+    purchaseOrderId: string;
+    receivableOrders: PurchaseOrderList;
+    selectedOrderDetail: PurchaseOrderDetail | null;
+    warehouseId: string;
+    warehouses: WarehouseList;
+}
+
+const PostGoodsReceiptCard = ({
+    isLoadingOrder,
+    isSubmitting,
+    lineInputs,
+    onPatchState,
+    onReceive,
+    onUpdateLineInput,
+    purchaseOrderId,
+    receivableOrders,
+    selectedOrderDetail,
+    warehouseId,
+    warehouses,
+}: PostGoodsReceiptCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Post Goods Receipt</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label>Purchase Order</Label>
+                        <Select
+                            onValueChange={(value) => {
+                                const nextPurchaseOrderId = value ?? "";
+                                onPatchState({
+                                    purchaseOrderId: nextPurchaseOrderId,
+                                });
+                                if (!nextPurchaseOrderId) {
+                                    onPatchState({
+                                        lineInputs: {},
+                                        selectedOrderDetail: null,
+                                    });
+                                }
+                            }}
+                            value={purchaseOrderId}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select order" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {receivableOrders.map((order) => (
+                                    <SelectItem key={order.id} value={order.id}>
+                                        {order.orderNumber} -{" "}
+                                        {order.supplier.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Warehouse</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onPatchState({
+                                    warehouseId: value ?? "",
+                                })
+                            }
+                            value={warehouseId}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select warehouse" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {warehouses.map((warehouse) => (
+                                    <SelectItem
+                                        key={warehouse.id}
+                                        value={warehouse.id}
+                                    >
+                                        {warehouse.code} - {warehouse.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                {isLoadingOrder ? (
+                    <p className="text-muted-foreground text-sm">
+                        Loading order lines...
+                    </p>
+                ) : null}
+
+                {selectedOrderDetail ? (
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>SKU</TableHead>
+                                <TableHead>Outstanding</TableHead>
+                                <TableHead>Receive Qty</TableHead>
+                                <TableHead>Batch</TableHead>
+                                <TableHead>Serial</TableHead>
+                                <TableHead>Expiry</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {selectedOrderDetail.items.map((item) => {
+                                const outstanding = Math.max(
+                                    0,
+                                    item.quantity - item.receivedQuantity
+                                );
+                                const input =
+                                    lineInputs[item.productId] ??
+                                    createEmptyLineInput(
+                                        item.productId,
+                                        outstanding
+                                    );
+
+                                return (
+                                    <TableRow key={item.id}>
+                                        <TableCell>
+                                            {item.product.sku}
+                                        </TableCell>
+                                        <TableCell>{outstanding}</TableCell>
+                                        <TableCell>
+                                            <Input
+                                                onChange={(event) =>
+                                                    onUpdateLineInput(
+                                                        item.productId,
+                                                        {
+                                                            quantity:
+                                                                event.target
+                                                                    .value,
+                                                        }
+                                                    )
+                                                }
+                                                type="number"
+                                                value={input.quantity}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                onChange={(event) =>
+                                                    onUpdateLineInput(
+                                                        item.productId,
+                                                        {
+                                                            batchNumber:
+                                                                event.target
+                                                                    .value,
+                                                        }
+                                                    )
+                                                }
+                                                value={input.batchNumber}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                onChange={(event) =>
+                                                    onUpdateLineInput(
+                                                        item.productId,
+                                                        {
+                                                            serialNumber:
+                                                                event.target
+                                                                    .value,
+                                                        }
+                                                    )
+                                                }
+                                                value={input.serialNumber}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Input
+                                                onChange={(event) =>
+                                                    onUpdateLineInput(
+                                                        item.productId,
+                                                        {
+                                                            expiryDate:
+                                                                event.target
+                                                                    .value,
+                                                        }
+                                                    )
+                                                }
+                                                type="date"
+                                                value={input.expiryDate}
+                                            />
+                                        </TableCell>
+                                    </TableRow>
+                                );
+                            })}
+                        </TableBody>
+                    </Table>
+                ) : null}
+
+                <Button
+                    disabled={
+                        isSubmitting || !selectedOrderDetail || !warehouseId
+                    }
+                    onClick={onReceive}
+                >
+                    {isSubmitting ? "Posting..." : "Post Receipt"}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface ReceiptHistoryCardProps {
+    isVoidingId: string | null;
+    onPatchState: (patch: Partial<GoodsReceiptsState>) => void;
+    onVoidReceipt: (receiptId: string) => void;
+    receipts: GoodsReceiptList;
+    voidReason: string;
+}
+
+const ReceiptHistoryCard = ({
+    isVoidingId,
+    onPatchState,
+    onVoidReceipt,
+    receipts,
+    voidReason,
+}: ReceiptHistoryCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Receipt History</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="mb-3 grid gap-2 md:max-w-md">
+                    <Label htmlFor="void-reason">Void Reason</Label>
+                    <Input
+                        id="void-reason"
+                        onChange={(event) =>
+                            onPatchState({
+                                voidReason: event.target.value,
+                            })
+                        }
+                        placeholder="Reason required to reverse a receipt"
+                        value={voidReason}
+                    />
+                </div>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Receipt #</TableHead>
+                            <TableHead>Purchase Order</TableHead>
+                            <TableHead>Supplier</TableHead>
+                            <TableHead>Lines</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">
+                                Actions
+                            </TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {receipts.map((receipt) => (
+                            <TableRow key={receipt.id}>
+                                <TableCell>{receipt.receiptNumber}</TableCell>
+                                <TableCell>
+                                    {receipt.purchaseOrder?.orderNumber ?? "—"}
+                                </TableCell>
+                                <TableCell>
+                                    {receipt.purchaseOrder?.supplier.name ??
+                                        "—"}
+                                </TableCell>
+                                <TableCell>{receipt.items.length}</TableCell>
+                                <TableCell>
+                                    {receipt.isVoided ? "Voided" : "Posted"}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    {receipt.isVoided ? null : (
+                                        <Button
+                                            disabled={
+                                                isVoidingId === receipt.id
+                                            }
+                                            onClick={() =>
+                                                onVoidReceipt(receipt.id)
+                                            }
+                                            size="sm"
+                                            variant="destructive"
+                                        >
+                                            Void
+                                        </Button>
+                                    )}
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
 };
 
 export const Route = createFileRoute("/_dashboard/goods-receipts")({
@@ -301,264 +605,31 @@ function GoodsReceiptsPage() {
                 </p>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Post Goods Receipt</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label>Purchase Order</Label>
-                            <Select
-                                onValueChange={(value) => {
-                                    const nextPurchaseOrderId = value ?? "";
-                                    patchState({
-                                        purchaseOrderId: nextPurchaseOrderId,
-                                    });
-                                    if (!nextPurchaseOrderId) {
-                                        patchState({
-                                            lineInputs: {},
-                                            selectedOrderDetail: null,
-                                        });
-                                    }
-                                }}
-                                value={purchaseOrderId}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select order" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {receivableOrders.map((order) => (
-                                        <SelectItem
-                                            key={order.id}
-                                            value={order.id}
-                                        >
-                                            {order.orderNumber} -{" "}
-                                            {order.supplier.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Warehouse</Label>
-                            <Select
-                                onValueChange={(value) =>
-                                    patchState({
-                                        warehouseId: value ?? "",
-                                    })
-                                }
-                                value={warehouseId}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select warehouse" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {warehouses.map((warehouse) => (
-                                        <SelectItem
-                                            key={warehouse.id}
-                                            value={warehouse.id}
-                                        >
-                                            {warehouse.code} - {warehouse.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
+            <PostGoodsReceiptCard
+                isLoadingOrder={isLoadingOrder}
+                isSubmitting={isSubmitting}
+                lineInputs={lineInputs}
+                onPatchState={patchState}
+                onReceive={() => {
+                    handleReceive().catch(() => undefined);
+                }}
+                onUpdateLineInput={updateLineInput}
+                purchaseOrderId={purchaseOrderId}
+                receivableOrders={receivableOrders}
+                selectedOrderDetail={selectedOrderDetail}
+                warehouseId={warehouseId}
+                warehouses={warehouses}
+            />
 
-                    {isLoadingOrder ? (
-                        <p className="text-muted-foreground text-sm">
-                            Loading order lines...
-                        </p>
-                    ) : null}
-
-                    {selectedOrderDetail ? (
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>SKU</TableHead>
-                                    <TableHead>Outstanding</TableHead>
-                                    <TableHead>Receive Qty</TableHead>
-                                    <TableHead>Batch</TableHead>
-                                    <TableHead>Serial</TableHead>
-                                    <TableHead>Expiry</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {selectedOrderDetail.items.map((item) => {
-                                    const outstanding = Math.max(
-                                        0,
-                                        item.quantity - item.receivedQuantity
-                                    );
-                                    const input =
-                                        lineInputs[item.productId] ??
-                                        createEmptyLineInput(
-                                            item.productId,
-                                            outstanding
-                                        );
-
-                                    return (
-                                        <TableRow key={item.id}>
-                                            <TableCell>
-                                                {item.product.sku}
-                                            </TableCell>
-                                            <TableCell>{outstanding}</TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    onChange={(event) =>
-                                                        updateLineInput(
-                                                            item.productId,
-                                                            {
-                                                                quantity:
-                                                                    event.target
-                                                                        .value,
-                                                            }
-                                                        )
-                                                    }
-                                                    type="number"
-                                                    value={input.quantity}
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    onChange={(event) =>
-                                                        updateLineInput(
-                                                            item.productId,
-                                                            {
-                                                                batchNumber:
-                                                                    event.target
-                                                                        .value,
-                                                            }
-                                                        )
-                                                    }
-                                                    value={input.batchNumber}
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    onChange={(event) =>
-                                                        updateLineInput(
-                                                            item.productId,
-                                                            {
-                                                                serialNumber:
-                                                                    event.target
-                                                                        .value,
-                                                            }
-                                                        )
-                                                    }
-                                                    value={input.serialNumber}
-                                                />
-                                            </TableCell>
-                                            <TableCell>
-                                                <Input
-                                                    onChange={(event) =>
-                                                        updateLineInput(
-                                                            item.productId,
-                                                            {
-                                                                expiryDate:
-                                                                    event.target
-                                                                        .value,
-                                                            }
-                                                        )
-                                                    }
-                                                    type="date"
-                                                    value={input.expiryDate}
-                                                />
-                                            </TableCell>
-                                        </TableRow>
-                                    );
-                                })}
-                            </TableBody>
-                        </Table>
-                    ) : null}
-
-                    <Button
-                        disabled={
-                            isSubmitting || !selectedOrderDetail || !warehouseId
-                        }
-                        onClick={handleReceive}
-                    >
-                        {isSubmitting ? "Posting..." : "Post Receipt"}
-                    </Button>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Receipt History</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="mb-3 grid gap-2 md:max-w-md">
-                        <Label htmlFor="void-reason">Void Reason</Label>
-                        <Input
-                            id="void-reason"
-                            onChange={(event) =>
-                                patchState({
-                                    voidReason: event.target.value,
-                                })
-                            }
-                            placeholder="Reason required to reverse a receipt"
-                            value={voidReason}
-                        />
-                    </div>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Receipt #</TableHead>
-                                <TableHead>Purchase Order</TableHead>
-                                <TableHead>Supplier</TableHead>
-                                <TableHead>Lines</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">
-                                    Actions
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {receipts.map((receipt) => (
-                                <TableRow key={receipt.id}>
-                                    <TableCell>
-                                        {receipt.receiptNumber}
-                                    </TableCell>
-                                    <TableCell>
-                                        {receipt.purchaseOrder?.orderNumber ??
-                                            "—"}
-                                    </TableCell>
-                                    <TableCell>
-                                        {receipt.purchaseOrder?.supplier.name ??
-                                            "—"}
-                                    </TableCell>
-                                    <TableCell>
-                                        {receipt.items.length}
-                                    </TableCell>
-                                    <TableCell>
-                                        {receipt.isVoided ? "Voided" : "Posted"}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        {receipt.isVoided ? null : (
-                                            <Button
-                                                disabled={
-                                                    isVoidingId === receipt.id
-                                                }
-                                                onClick={() =>
-                                                    handleVoidReceipt(
-                                                        receipt.id
-                                                    )
-                                                }
-                                                size="sm"
-                                                variant="destructive"
-                                            >
-                                                Void
-                                            </Button>
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+            <ReceiptHistoryCard
+                isVoidingId={isVoidingId}
+                onPatchState={patchState}
+                onVoidReceipt={(receiptId) => {
+                    handleVoidReceipt(receiptId).catch(() => undefined);
+                }}
+                receipts={receipts}
+                voidReason={voidReason}
+            />
         </section>
     );
 }

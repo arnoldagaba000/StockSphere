@@ -166,6 +166,483 @@ const triggerBrowserDownload = (filename: string, content: string): void => {
     URL.revokeObjectURL(objectUrl);
 };
 
+interface ProductMetricsProps {
+    analytics: ProductsLoaderData["analytics"];
+}
+
+const ProductMetrics = ({ analytics }: ProductMetricsProps) => {
+    return (
+        <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-lg border p-3">
+                <p className="text-muted-foreground text-xs">Total Products</p>
+                <p className="font-semibold text-2xl">
+                    {analytics.totalProducts}
+                </p>
+            </div>
+            <div className="rounded-lg border p-3">
+                <p className="text-muted-foreground text-xs">Active</p>
+                <p className="font-semibold text-2xl">
+                    {analytics.activeProducts}
+                </p>
+            </div>
+            <div className="rounded-lg border p-3">
+                <p className="text-muted-foreground text-xs">Inactive</p>
+                <p className="font-semibold text-2xl">
+                    {analytics.inactiveProducts}
+                </p>
+            </div>
+            <div className="rounded-lg border p-3">
+                <p className="text-muted-foreground text-xs">
+                    Estimated Stock Value
+                </p>
+                <p className="font-semibold text-2xl">
+                    {formatCurrencyFromMinorUnits(analytics.stockValueMinor)}
+                </p>
+            </div>
+        </div>
+    );
+};
+
+const ProductsHeader = () => {
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h1 className="font-semibold text-2xl">Products</h1>
+                <p className="text-muted-foreground text-sm">
+                    Manage your catalog and inventory metadata.
+                </p>
+            </div>
+            <Button nativeButton={false} render={<Link to="/products/new" />}>
+                New Product
+            </Button>
+        </div>
+    );
+};
+
+interface ProductFiltersProps {
+    applyFilters: () => void;
+    categoryOptions: ReturnType<typeof buildCategoryHierarchy>;
+    categoryValue: string;
+    includeDescendants: boolean;
+    isFiltering: boolean;
+    maxPriceValue: string;
+    minPriceValue: string;
+    searchValue: string;
+    setState: (action: ProductsPageAction) => void;
+    statusValue: ProductStatusFilter;
+    trackingBatchValue: TrackingFilter;
+    trackingExpiryValue: TrackingFilter;
+    trackingSerialValue: TrackingFilter;
+}
+
+const ProductFilters = ({
+    applyFilters,
+    categoryOptions,
+    categoryValue,
+    includeDescendants,
+    isFiltering,
+    maxPriceValue,
+    minPriceValue,
+    searchValue,
+    setState,
+    statusValue,
+    trackingBatchValue,
+    trackingExpiryValue,
+    trackingSerialValue,
+}: ProductFiltersProps) => {
+    return (
+        <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+            <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="product-search">Search</Label>
+                <Input
+                    id="product-search"
+                    onChange={(event) =>
+                        setState({ searchValue: event.target.value })
+                    }
+                    placeholder="Search by SKU, name, or barcode"
+                    value={searchValue}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                    onValueChange={(value) =>
+                        setState({
+                            statusValue: toStatusFilter(value),
+                        })
+                    }
+                    value={statusValue}
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="all">All</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <Label>Category</Label>
+                <Select
+                    onValueChange={(nextValue) =>
+                        setState({ categoryValue: nextValue ?? "all" })
+                    }
+                    value={categoryValue}
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All categories</SelectItem>
+                        {categoryOptions.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                                {category.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <Label>Min Selling Price</Label>
+                <Input
+                    min={0}
+                    onChange={(event) =>
+                        setState({ minPriceValue: event.target.value })
+                    }
+                    step={1}
+                    type="number"
+                    value={minPriceValue}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label>Max Selling Price</Label>
+                <Input
+                    min={0}
+                    onChange={(event) =>
+                        setState({ maxPriceValue: event.target.value })
+                    }
+                    step={1}
+                    type="number"
+                    value={maxPriceValue}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label>Track By Batch</Label>
+                <Select
+                    onValueChange={(value) =>
+                        setState({
+                            trackingBatchValue: toTrackingFilter(value),
+                        })
+                    }
+                    value={trackingBatchValue}
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <Label>Track By Serial</Label>
+                <Select
+                    onValueChange={(value) =>
+                        setState({
+                            trackingSerialValue: toTrackingFilter(value),
+                        })
+                    }
+                    value={trackingSerialValue}
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <Label>Track By Expiry</Label>
+                <Select
+                    onValueChange={(value) =>
+                        setState({
+                            trackingExpiryValue: toTrackingFilter(value),
+                        })
+                    }
+                    value={trackingExpiryValue}
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">All</SelectItem>
+                        <SelectItem value="yes">Yes</SelectItem>
+                        <SelectItem value="no">No</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="md:col-span-4">
+                <Label className="mb-2 block">Category Filter Scope</Label>
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        checked={includeDescendants}
+                        onCheckedChange={(checked) =>
+                            setState({
+                                includeDescendants: Boolean(checked),
+                            })
+                        }
+                    />
+                    <span className="text-sm">
+                        Include descendant categories
+                    </span>
+                </div>
+            </div>
+            <div className="md:col-span-4">
+                <Button disabled={isFiltering} onClick={applyFilters}>
+                    {isFiltering ? "Filtering..." : "Apply Filters"}
+                </Button>
+            </div>
+        </div>
+    );
+};
+
+interface ProductBulkActionsProps {
+    bulkAction: BulkAction;
+    bulkCategoryId: string;
+    categoryOptions: ReturnType<typeof buildCategoryHierarchy>;
+    isBulkRunning: boolean;
+    runBulkAction: () => void;
+    selectedProductsCount: number;
+    setState: (action: ProductsPageAction) => void;
+}
+
+const ProductBulkActions = ({
+    bulkAction,
+    bulkCategoryId,
+    categoryOptions,
+    isBulkRunning,
+    runBulkAction,
+    selectedProductsCount,
+    setState,
+}: ProductBulkActionsProps) => {
+    return (
+        <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+            <div className="space-y-2 md:col-span-2">
+                <Label>Bulk Action</Label>
+                <Select
+                    onValueChange={(value) =>
+                        setState({ bulkAction: toBulkAction(value) })
+                    }
+                    value={bulkAction}
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="markInactive">
+                            Mark Inactive
+                        </SelectItem>
+                        <SelectItem value="activate">Activate</SelectItem>
+                        <SelectItem value="assignCategory">
+                            Assign Category
+                        </SelectItem>
+                        <SelectItem value="exportCsv">Export CSV</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+                <Label>Target Category (assign only)</Label>
+                <Select
+                    onValueChange={(value) =>
+                        setState({ bulkCategoryId: value ?? "none" })
+                    }
+                    value={bulkCategoryId}
+                >
+                    <SelectTrigger>
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="none">Select category</SelectItem>
+                        {categoryOptions.map((category) => (
+                            <SelectItem key={category.id} value={category.id}>
+                                {category.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="flex items-center gap-2 md:col-span-4">
+                <Button
+                    disabled={isBulkRunning || selectedProductsCount === 0}
+                    onClick={runBulkAction}
+                >
+                    {isBulkRunning
+                        ? "Running..."
+                        : `Run Bulk Action (${selectedProductsCount})`}
+                </Button>
+                <span className="text-muted-foreground text-sm">
+                    Selected: {selectedProductsCount}
+                </span>
+            </div>
+        </div>
+    );
+};
+
+interface ProductTableProps {
+    allVisibleSelected: boolean;
+    categoryNameById: Map<string, string>;
+    deletingProductId: string | null;
+    onSoftDelete: (productId: string) => void;
+    selectedProductIds: string[];
+    setState: (action: ProductsPageAction) => void;
+    visibleProducts: ProductListItem[];
+}
+
+const ProductTable = ({
+    allVisibleSelected,
+    categoryNameById,
+    deletingProductId,
+    onSoftDelete,
+    selectedProductIds,
+    setState,
+    visibleProducts,
+}: ProductTableProps) => {
+    return (
+        <div className="overflow-hidden rounded-lg border">
+            <Table>
+                <TableHeader>
+                    <TableRow>
+                        <TableHead className="w-10">
+                            <Checkbox
+                                checked={allVisibleSelected}
+                                onCheckedChange={(checked) =>
+                                    setState({
+                                        selectedProductIds: checked
+                                            ? visibleProducts.map(
+                                                  (product) => product.id
+                                              )
+                                            : [],
+                                    })
+                                }
+                            />
+                        </TableHead>
+                        <TableHead>Name</TableHead>
+                        <TableHead>SKU</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Selling Price</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {visibleProducts.length === 0 ? (
+                        <TableRow>
+                            <TableCell className="text-center" colSpan={7}>
+                                No products found.
+                            </TableCell>
+                        </TableRow>
+                    ) : (
+                        visibleProducts.map((product) => (
+                            <TableRow key={product.id}>
+                                <TableCell>
+                                    <Checkbox
+                                        checked={selectedProductIds.includes(
+                                            product.id
+                                        )}
+                                        onCheckedChange={(checked) =>
+                                            setState((currentState) => ({
+                                                selectedProductIds: checked
+                                                    ? [
+                                                          ...currentState.selectedProductIds,
+                                                          product.id,
+                                                      ]
+                                                    : currentState.selectedProductIds.filter(
+                                                          (id) =>
+                                                              id !== product.id
+                                                      ),
+                                            }))
+                                        }
+                                    />
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                    {product.name}
+                                </TableCell>
+                                <TableCell>{product.sku}</TableCell>
+                                <TableCell>
+                                    {product.categoryId
+                                        ? (categoryNameById.get(
+                                              product.categoryId
+                                          ) ?? "Unknown")
+                                        : "—"}
+                                </TableCell>
+                                <TableCell>
+                                    {formatCurrencyFromMinorUnits(
+                                        product.sellingPrice
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    <Badge
+                                        variant={
+                                            product.isActive
+                                                ? "secondary"
+                                                : "outline"
+                                        }
+                                    >
+                                        {product.isActive
+                                            ? "Active"
+                                            : "Inactive"}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex justify-end gap-2">
+                                        <Button
+                                            render={
+                                                <Link
+                                                    params={{
+                                                        productId: product.id,
+                                                    }}
+                                                    to="/products/$productId"
+                                                />
+                                            }
+                                            size="sm"
+                                            variant="outline"
+                                        >
+                                            Edit
+                                        </Button>
+                                        <Button
+                                            disabled={
+                                                deletingProductId ===
+                                                    product.id ||
+                                                !product.isActive
+                                            }
+                                            onClick={() =>
+                                                onSoftDelete(product.id)
+                                            }
+                                            size="sm"
+                                            variant="outline"
+                                        >
+                                            {deletingProductId === product.id
+                                                ? "Saving..."
+                                                : "Mark Inactive"}
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))
+                    )}
+                </TableBody>
+            </Table>
+        </div>
+    );
+};
+
 function ProductsPage() {
     const router = useRouter();
     const { analytics, categories, products } = Route.useLoaderData();
@@ -337,414 +814,47 @@ function ProductsPage() {
 
     return (
         <section className="w-full space-y-4">
-            <div className="grid gap-3 md:grid-cols-4">
-                <div className="rounded-lg border p-3">
-                    <p className="text-muted-foreground text-xs">
-                        Total Products
-                    </p>
-                    <p className="font-semibold text-2xl">
-                        {analytics.totalProducts}
-                    </p>
-                </div>
-                <div className="rounded-lg border p-3">
-                    <p className="text-muted-foreground text-xs">Active</p>
-                    <p className="font-semibold text-2xl">
-                        {analytics.activeProducts}
-                    </p>
-                </div>
-                <div className="rounded-lg border p-3">
-                    <p className="text-muted-foreground text-xs">Inactive</p>
-                    <p className="font-semibold text-2xl">
-                        {analytics.inactiveProducts}
-                    </p>
-                </div>
-                <div className="rounded-lg border p-3">
-                    <p className="text-muted-foreground text-xs">
-                        Estimated Stock Value
-                    </p>
-                    <p className="font-semibold text-2xl">
-                        {formatCurrencyFromMinorUnits(
-                            analytics.stockValueMinor
-                        )}
-                    </p>
-                </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                    <h1 className="font-semibold text-2xl">Products</h1>
-                    <p className="text-muted-foreground text-sm">
-                        Manage your catalog and inventory metadata.
-                    </p>
-                </div>
-                <Button
-                    nativeButton={false}
-                    render={<Link to="/products/new" />}
-                >
-                    New Product
-                </Button>
-            </div>
-
-            <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
-                <div className="space-y-2 md:col-span-2">
-                    <Label htmlFor="product-search">Search</Label>
-                    <Input
-                        id="product-search"
-                        onChange={(event) =>
-                            setState({ searchValue: event.target.value })
-                        }
-                        placeholder="Search by SKU, name, or barcode"
-                        value={searchValue}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label>Status</Label>
-                    <Select
-                        onValueChange={(value) =>
-                            setState({
-                                statusValue: toStatusFilter(value),
-                            })
-                        }
-                        value={statusValue}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="active">Active</SelectItem>
-                            <SelectItem value="inactive">Inactive</SelectItem>
-                            <SelectItem value="all">All</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label>Category</Label>
-                    <Select
-                        onValueChange={(nextValue) =>
-                            setState({ categoryValue: nextValue ?? "all" })
-                        }
-                        value={categoryValue}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All categories</SelectItem>
-                            {categoryOptions.map((category) => (
-                                <SelectItem
-                                    key={category.id}
-                                    value={category.id}
-                                >
-                                    {category.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label>Min Selling Price</Label>
-                    <Input
-                        min={0}
-                        onChange={(event) =>
-                            setState({ minPriceValue: event.target.value })
-                        }
-                        step={1}
-                        type="number"
-                        value={minPriceValue}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label>Max Selling Price</Label>
-                    <Input
-                        min={0}
-                        onChange={(event) =>
-                            setState({ maxPriceValue: event.target.value })
-                        }
-                        step={1}
-                        type="number"
-                        value={maxPriceValue}
-                    />
-                </div>
-                <div className="space-y-2">
-                    <Label>Track By Batch</Label>
-                    <Select
-                        onValueChange={(value) =>
-                            setState({
-                                trackingBatchValue: toTrackingFilter(value),
-                            })
-                        }
-                        value={trackingBatchValue}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All</SelectItem>
-                            <SelectItem value="yes">Yes</SelectItem>
-                            <SelectItem value="no">No</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label>Track By Serial</Label>
-                    <Select
-                        onValueChange={(value) =>
-                            setState({
-                                trackingSerialValue: toTrackingFilter(value),
-                            })
-                        }
-                        value={trackingSerialValue}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All</SelectItem>
-                            <SelectItem value="yes">Yes</SelectItem>
-                            <SelectItem value="no">No</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2">
-                    <Label>Track By Expiry</Label>
-                    <Select
-                        onValueChange={(value) =>
-                            setState({
-                                trackingExpiryValue: toTrackingFilter(value),
-                            })
-                        }
-                        value={trackingExpiryValue}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="all">All</SelectItem>
-                            <SelectItem value="yes">Yes</SelectItem>
-                            <SelectItem value="no">No</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="md:col-span-4">
-                    <Label className="mb-2 block">Category Filter Scope</Label>
-                    <div className="flex items-center gap-2">
-                        <Checkbox
-                            checked={includeDescendants}
-                            onCheckedChange={(checked) =>
-                                setState({
-                                    includeDescendants: Boolean(checked),
-                                })
-                            }
-                        />
-                        <span className="text-sm">
-                            Include descendant categories
-                        </span>
-                    </div>
-                </div>
-                <div className="md:col-span-4">
-                    <Button disabled={isFiltering} onClick={applyFilters}>
-                        {isFiltering ? "Filtering..." : "Apply Filters"}
-                    </Button>
-                </div>
-            </div>
-
-            <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
-                <div className="space-y-2 md:col-span-2">
-                    <Label>Bulk Action</Label>
-                    <Select
-                        onValueChange={(value) =>
-                            setState({ bulkAction: toBulkAction(value) })
-                        }
-                        value={bulkAction}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="markInactive">
-                                Mark Inactive
-                            </SelectItem>
-                            <SelectItem value="activate">Activate</SelectItem>
-                            <SelectItem value="assignCategory">
-                                Assign Category
-                            </SelectItem>
-                            <SelectItem value="exportCsv">
-                                Export CSV
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                    <Label>Target Category (assign only)</Label>
-                    <Select
-                        onValueChange={(value) =>
-                            setState({ bulkCategoryId: value ?? "none" })
-                        }
-                        value={bulkCategoryId}
-                    >
-                        <SelectTrigger>
-                            <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="none">
-                                Select category
-                            </SelectItem>
-                            {categoryOptions.map((category) => (
-                                <SelectItem
-                                    key={category.id}
-                                    value={category.id}
-                                >
-                                    {category.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <div className="flex items-center gap-2 md:col-span-4">
-                    <Button
-                        disabled={isBulkRunning || selectedProductsCount === 0}
-                        onClick={runBulkAction}
-                    >
-                        {isBulkRunning
-                            ? "Running..."
-                            : `Run Bulk Action (${selectedProductsCount})`}
-                    </Button>
-                    <span className="text-muted-foreground text-sm">
-                        Selected: {selectedProductsCount}
-                    </span>
-                </div>
-            </div>
-
-            <div className="overflow-hidden rounded-lg border">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead className="w-10">
-                                <Checkbox
-                                    checked={allVisibleSelected}
-                                    onCheckedChange={(checked) =>
-                                        setState({
-                                            selectedProductIds: checked
-                                                ? visibleProducts.map(
-                                                      (product) => product.id
-                                                  )
-                                                : [],
-                                        })
-                                    }
-                                />
-                            </TableHead>
-                            <TableHead>Name</TableHead>
-                            <TableHead>SKU</TableHead>
-                            <TableHead>Category</TableHead>
-                            <TableHead>Selling Price</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {visibleProducts.length === 0 ? (
-                            <TableRow>
-                                <TableCell className="text-center" colSpan={7}>
-                                    No products found.
-                                </TableCell>
-                            </TableRow>
-                        ) : (
-                            visibleProducts.map((product) => (
-                                <TableRow key={product.id}>
-                                    <TableCell>
-                                        <Checkbox
-                                            checked={selectedProductIds.includes(
-                                                product.id
-                                            )}
-                                            onCheckedChange={(checked) =>
-                                                setState((currentState) => ({
-                                                    selectedProductIds: checked
-                                                        ? [
-                                                              ...currentState.selectedProductIds,
-                                                              product.id,
-                                                          ]
-                                                        : currentState.selectedProductIds.filter(
-                                                              (id) =>
-                                                                  id !==
-                                                                  product.id
-                                                          ),
-                                                }))
-                                            }
-                                        />
-                                    </TableCell>
-                                    <TableCell className="font-medium">
-                                        {product.name}
-                                    </TableCell>
-                                    <TableCell>{product.sku}</TableCell>
-                                    <TableCell>
-                                        {product.categoryId
-                                            ? (categoryNameById.get(
-                                                  product.categoryId
-                                              ) ?? "Unknown")
-                                            : "—"}
-                                    </TableCell>
-                                    <TableCell>
-                                        {formatCurrencyFromMinorUnits(
-                                            product.sellingPrice
-                                        )}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            variant={
-                                                product.isActive
-                                                    ? "secondary"
-                                                    : "outline"
-                                            }
-                                        >
-                                            {product.isActive
-                                                ? "Active"
-                                                : "Inactive"}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
-                                            <Button
-                                                render={
-                                                    <Link
-                                                        params={{
-                                                            productId:
-                                                                product.id,
-                                                        }}
-                                                        to="/products/$productId"
-                                                    />
-                                                }
-                                                size="sm"
-                                                variant="outline"
-                                            >
-                                                Edit
-                                            </Button>
-                                            <Button
-                                                disabled={
-                                                    deletingProductId ===
-                                                        product.id ||
-                                                    !product.isActive
-                                                }
-                                                onClick={() =>
-                                                    handleSoftDelete(product.id)
-                                                }
-                                                size="sm"
-                                                variant="outline"
-                                            >
-                                                {deletingProductId ===
-                                                product.id
-                                                    ? "Saving..."
-                                                    : "Mark Inactive"}
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))
-                        )}
-                    </TableBody>
-                </Table>
-            </div>
+            <ProductMetrics analytics={analytics} />
+            <ProductsHeader />
+            <ProductFilters
+                applyFilters={() => {
+                    applyFilters().catch(() => undefined);
+                }}
+                categoryOptions={categoryOptions}
+                categoryValue={categoryValue}
+                includeDescendants={includeDescendants}
+                isFiltering={isFiltering}
+                maxPriceValue={maxPriceValue}
+                minPriceValue={minPriceValue}
+                searchValue={searchValue}
+                setState={setState}
+                statusValue={statusValue}
+                trackingBatchValue={trackingBatchValue}
+                trackingExpiryValue={trackingExpiryValue}
+                trackingSerialValue={trackingSerialValue}
+            />
+            <ProductBulkActions
+                bulkAction={bulkAction}
+                bulkCategoryId={bulkCategoryId}
+                categoryOptions={categoryOptions}
+                isBulkRunning={isBulkRunning}
+                runBulkAction={() => {
+                    runBulkAction().catch(() => undefined);
+                }}
+                selectedProductsCount={selectedProductsCount}
+                setState={setState}
+            />
+            <ProductTable
+                allVisibleSelected={allVisibleSelected}
+                categoryNameById={categoryNameById}
+                deletingProductId={deletingProductId}
+                onSoftDelete={(productId) => {
+                    handleSoftDelete(productId).catch(() => undefined);
+                }}
+                selectedProductIds={selectedProductIds}
+                setState={setState}
+                visibleProducts={visibleProducts}
+            />
         </section>
     );
 }

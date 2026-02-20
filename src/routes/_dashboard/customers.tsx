@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,28 +52,376 @@ const toOptional = (value: string): string | null => {
     return trimmedValue.length > 0 ? trimmedValue : null;
 };
 
+type CustomerListItem = Awaited<ReturnType<typeof getCustomers>>[number];
+
+interface CustomersPageState {
+    editingCustomerId: string | null;
+    form: CustomerFormState;
+    isRowBusyId: string | null;
+    isSubmitting: boolean;
+    list: CustomerListItem[];
+    pendingDeleteCustomerId: string | null;
+    search: string;
+    statusFilter: "all" | "active" | "inactive";
+}
+
+type CustomersPageAction =
+    | Partial<CustomersPageState>
+    | ((state: CustomersPageState) => Partial<CustomersPageState>);
+
+const customersPageReducer = (
+    state: CustomersPageState,
+    action: CustomersPageAction
+): CustomersPageState => {
+    const patch = typeof action === "function" ? action(state) : action;
+    return { ...state, ...patch };
+};
+
 export const Route = createFileRoute("/_dashboard/customers")({
     component: CustomersPage,
     loader: () => getCustomers({ data: {} }),
 });
 
+interface CustomerFormProps {
+    editingCustomer: CustomerListItem | undefined;
+    form: CustomerFormState;
+    isSubmitting: boolean;
+    onFormFieldChange: (field: keyof CustomerFormState, value: string) => void;
+    onResetForm: () => void;
+    onSaveClick: () => void;
+}
+
+const CustomerForm = ({
+    editingCustomer,
+    form,
+    isSubmitting,
+    onFormFieldChange,
+    onResetForm,
+    onSaveClick,
+}: CustomerFormProps) => {
+    const saveButtonLabel = (() => {
+        if (isSubmitting) {
+            return "Saving...";
+        }
+        if (editingCustomer) {
+            return "Save Changes";
+        }
+        return "Create Customer";
+    })();
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>
+                    {editingCustomer ? "Edit Customer" : "Create Customer"}
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-3">
+                {editingCustomer ? null : (
+                    <div className="space-y-2">
+                        <Label htmlFor="customer-code">Code</Label>
+                        <Input
+                            id="customer-code"
+                            onChange={(event) =>
+                                onFormFieldChange(
+                                    "code",
+                                    event.target.value.toUpperCase()
+                                )
+                            }
+                            placeholder="CUS-0001"
+                            value={form.code}
+                        />
+                    </div>
+                )}
+                <div className="space-y-2">
+                    <Label htmlFor="customer-name">Name</Label>
+                    <Input
+                        id="customer-name"
+                        onChange={(event) =>
+                            onFormFieldChange("name", event.target.value)
+                        }
+                        placeholder="Customer Name"
+                        value={form.name}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-email">Email</Label>
+                    <Input
+                        id="customer-email"
+                        onChange={(event) =>
+                            onFormFieldChange("email", event.target.value)
+                        }
+                        placeholder="client@example.com"
+                        type="email"
+                        value={form.email}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-phone">Phone</Label>
+                    <Input
+                        id="customer-phone"
+                        onChange={(event) =>
+                            onFormFieldChange("phone", event.target.value)
+                        }
+                        placeholder="+256..."
+                        value={form.phone}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-terms">Payment Terms</Label>
+                    <Input
+                        id="customer-terms"
+                        onChange={(event) =>
+                            onFormFieldChange(
+                                "paymentTerms",
+                                event.target.value
+                            )
+                        }
+                        placeholder="NET 30"
+                        value={form.paymentTerms}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-credit">Credit Limit (UGX)</Label>
+                    <Input
+                        id="customer-credit"
+                        min={0}
+                        onChange={(event) =>
+                            onFormFieldChange("creditLimit", event.target.value)
+                        }
+                        placeholder="0"
+                        type="number"
+                        value={form.creditLimit}
+                    />
+                </div>
+                <div className="flex gap-2 md:col-span-3">
+                    <Button
+                        disabled={
+                            isSubmitting ||
+                            form.name.trim().length === 0 ||
+                            (!editingCustomer && form.code.trim().length === 0)
+                        }
+                        onClick={onSaveClick}
+                        type="button"
+                    >
+                        {saveButtonLabel}
+                    </Button>
+                    {editingCustomer ? (
+                        <Button
+                            onClick={onResetForm}
+                            type="button"
+                            variant="outline"
+                        >
+                            Cancel Edit
+                        </Button>
+                    ) : null}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface CustomersTableProps {
+    filteredCustomers: CustomerListItem[];
+    isRowBusyId: string | null;
+    onDeleteCustomer: (customerId: string) => void;
+    onEditCustomer: (customerId: string) => void;
+    onSearchChange: (value: string) => void;
+    onStatusFilterChange: (value: "all" | "active" | "inactive" | null) => void;
+    onToggleActive: (customerId: string) => void;
+    pendingDeleteCustomerId: string | null;
+    search: string;
+    statusFilter: "all" | "active" | "inactive";
+}
+
+const CustomersTable = ({
+    filteredCustomers,
+    isRowBusyId,
+    onDeleteCustomer,
+    onEditCustomer,
+    onSearchChange,
+    onStatusFilterChange,
+    onToggleActive,
+    pendingDeleteCustomerId,
+    search,
+    statusFilter,
+}: CustomersTableProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Customer Directory</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="customer-search">Search</Label>
+                        <Input
+                            id="customer-search"
+                            onChange={(event) =>
+                                onSearchChange(event.target.value)
+                            }
+                            placeholder="Search by code, name, email, phone"
+                            value={search}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Status</Label>
+                        <Select
+                            onValueChange={onStatusFilterChange}
+                            value={statusFilter}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Status" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="inactive">
+                                    Inactive
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Contact</TableHead>
+                            <TableHead className="text-right">
+                                Credit Limit
+                            </TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {filteredCustomers.length === 0 ? (
+                            <TableRow>
+                                <TableCell
+                                    className="text-muted-foreground"
+                                    colSpan={6}
+                                >
+                                    No customers found.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            filteredCustomers.map((customer) => (
+                                <TableRow key={customer.id}>
+                                    <TableCell>{customer.code}</TableCell>
+                                    <TableCell>{customer.name}</TableCell>
+                                    <TableCell>
+                                        <div className="text-sm">
+                                            <div>{customer.email ?? "-"}</div>
+                                            <div className="text-muted-foreground">
+                                                {customer.phone ?? "-"}
+                                            </div>
+                                        </div>
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        {(
+                                            customer.creditLimit ?? 0
+                                        ).toLocaleString()}
+                                    </TableCell>
+                                    <TableCell>
+                                        <Badge
+                                            variant={
+                                                customer.isActive
+                                                    ? "secondary"
+                                                    : "outline"
+                                            }
+                                        >
+                                            {customer.isActive
+                                                ? "Active"
+                                                : "Inactive"}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        <div className="flex gap-2">
+                                            <Button
+                                                onClick={() =>
+                                                    onEditCustomer(customer.id)
+                                                }
+                                                size="sm"
+                                                type="button"
+                                                variant="outline"
+                                            >
+                                                Edit
+                                            </Button>
+                                            <Button
+                                                disabled={
+                                                    isRowBusyId === customer.id
+                                                }
+                                                onClick={() =>
+                                                    onToggleActive(customer.id)
+                                                }
+                                                size="sm"
+                                                type="button"
+                                                variant="outline"
+                                            >
+                                                {customer.isActive
+                                                    ? "Deactivate"
+                                                    : "Activate"}
+                                            </Button>
+                                            <Button
+                                                disabled={
+                                                    isRowBusyId === customer.id
+                                                }
+                                                onClick={() =>
+                                                    onDeleteCustomer(
+                                                        customer.id
+                                                    )
+                                                }
+                                                size="sm"
+                                                type="button"
+                                                variant={
+                                                    pendingDeleteCustomerId ===
+                                                    customer.id
+                                                        ? "destructive"
+                                                        : "outline"
+                                                }
+                                            >
+                                                {pendingDeleteCustomerId ===
+                                                customer.id
+                                                    ? "Confirm"
+                                                    : "Delete"}
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
 function CustomersPage() {
     const customers = Route.useLoaderData();
-
-    const [list, setList] = useState(customers);
-    const [form, setForm] = useState<CustomerFormState>(emptyForm);
-    const [editingCustomerId, setEditingCustomerId] = useState<string | null>(
-        null
-    );
-    const [pendingDeleteCustomerId, setPendingDeleteCustomerId] = useState<
-        string | null
-    >(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isRowBusyId, setIsRowBusyId] = useState<string | null>(null);
-    const [statusFilter, setStatusFilter] = useState<
-        "all" | "active" | "inactive"
-    >("all");
-    const [search, setSearch] = useState("");
+    const [state, setState] = useReducer(customersPageReducer, {
+        editingCustomerId: null,
+        form: emptyForm,
+        isRowBusyId: null,
+        isSubmitting: false,
+        list: customers,
+        pendingDeleteCustomerId: null,
+        search: "",
+        statusFilter: "all" as "all" | "active" | "inactive",
+    });
+    const {
+        editingCustomerId,
+        form,
+        isRowBusyId,
+        isSubmitting,
+        list,
+        pendingDeleteCustomerId,
+        search,
+        statusFilter,
+    } = state;
 
     const editingCustomer = useMemo(
         () => list.find((customer) => customer.id === editingCustomerId),
@@ -108,19 +456,18 @@ function CustomersPage() {
 
     const reload = async () => {
         const fresh = await getCustomers({ data: {} });
-        setList(fresh);
+        setState({ list: fresh });
     };
 
     const updateForm = (
         field: keyof CustomerFormState,
         value: string
     ): void => {
-        setForm((current) => ({ ...current, [field]: value }));
+        setState((prev) => ({ form: { ...prev.form, [field]: value } }));
     };
 
     const resetForm = (): void => {
-        setEditingCustomerId(null);
-        setForm(emptyForm);
+        setState({ editingCustomerId: null, form: emptyForm });
     };
 
     const loadCustomerIntoForm = (customerId: string): void => {
@@ -129,17 +476,19 @@ function CustomersPage() {
             return;
         }
 
-        setEditingCustomerId(customer.id);
-        setForm({
-            code: customer.code,
-            creditLimit:
-                customer.creditLimit !== null
-                    ? String(customer.creditLimit)
-                    : "",
-            email: customer.email ?? "",
-            name: customer.name,
-            paymentTerms: customer.paymentTerms ?? "",
-            phone: customer.phone ?? "",
+        setState({
+            editingCustomerId: customer.id,
+            form: {
+                code: customer.code,
+                creditLimit:
+                    customer.creditLimit !== null
+                        ? String(customer.creditLimit)
+                        : "",
+                email: customer.email ?? "",
+                name: customer.name,
+                paymentTerms: customer.paymentTerms ?? "",
+                phone: customer.phone ?? "",
+            },
         });
     };
 
@@ -154,7 +503,7 @@ function CustomersPage() {
                 : null;
 
         try {
-            setIsSubmitting(true);
+            setState({ isSubmitting: true });
 
             if (editingCustomerId) {
                 await updateCustomer({
@@ -175,7 +524,7 @@ function CustomersPage() {
             } else {
                 if (form.code.trim().length === 0) {
                     toast.error("Customer code is required.");
-                    setIsSubmitting(false);
+                    setState({ isSubmitting: false });
                     return;
                 }
 
@@ -199,9 +548,9 @@ function CustomersPage() {
 
             resetForm();
             await reload();
-            setIsSubmitting(false);
+            setState({ isSubmitting: false });
         } catch (error) {
-            setIsSubmitting(false);
+            setState({ isSubmitting: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -220,7 +569,7 @@ function CustomersPage() {
             : "Customer activated.";
 
         try {
-            setIsRowBusyId(customer.id);
+            setState({ isRowBusyId: customer.id });
             await setCustomerActive({
                 data: {
                     customerId: customer.id,
@@ -229,9 +578,9 @@ function CustomersPage() {
             });
             toast.success(successMessage);
             await reload();
-            setIsRowBusyId(null);
+            setState({ isRowBusyId: null });
         } catch (error) {
-            setIsRowBusyId(null);
+            setState({ isRowBusyId: null });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -242,22 +591,22 @@ function CustomersPage() {
 
     const handleDeleteCustomer = async (customerId: string) => {
         if (pendingDeleteCustomerId !== customerId) {
-            setPendingDeleteCustomerId(customerId);
+            setState({ pendingDeleteCustomerId: customerId });
             return;
         }
 
         try {
-            setIsRowBusyId(customerId);
+            setState({ isRowBusyId: customerId });
             await deleteCustomer({ data: { customerId } });
             toast.success("Customer deleted.");
-            setPendingDeleteCustomerId(null);
+            setState({ pendingDeleteCustomerId: null });
             if (editingCustomerId === customerId) {
                 resetForm();
             }
             await reload();
-            setIsRowBusyId(null);
+            setState({ isRowBusyId: null });
         } catch (error) {
-            setIsRowBusyId(null);
+            setState({ isRowBusyId: null });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -270,16 +619,6 @@ function CustomersPage() {
         handleSaveCustomer().catch(() => undefined);
     };
 
-    const saveButtonLabel = (() => {
-        if (isSubmitting) {
-            return "Saving...";
-        }
-        if (editingCustomer) {
-            return "Save Changes";
-        }
-        return "Create Customer";
-    })();
-
     return (
         <section className="w-full space-y-4">
             <div>
@@ -289,286 +628,38 @@ function CustomersPage() {
                 </p>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>
-                        {editingCustomer ? "Edit Customer" : "Create Customer"}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-3">
-                    {editingCustomer ? null : (
-                        <div className="space-y-2">
-                            <Label htmlFor="customer-code">Code</Label>
-                            <Input
-                                id="customer-code"
-                                onChange={(event) =>
-                                    updateForm(
-                                        "code",
-                                        event.target.value.toUpperCase()
-                                    )
-                                }
-                                placeholder="CUS-0001"
-                                value={form.code}
-                            />
-                        </div>
-                    )}
-                    <div className="space-y-2">
-                        <Label htmlFor="customer-name">Name</Label>
-                        <Input
-                            id="customer-name"
-                            onChange={(event) =>
-                                updateForm("name", event.target.value)
-                            }
-                            placeholder="Customer Name"
-                            value={form.name}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="customer-email">Email</Label>
-                        <Input
-                            id="customer-email"
-                            onChange={(event) =>
-                                updateForm("email", event.target.value)
-                            }
-                            placeholder="client@example.com"
-                            type="email"
-                            value={form.email}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="customer-phone">Phone</Label>
-                        <Input
-                            id="customer-phone"
-                            onChange={(event) =>
-                                updateForm("phone", event.target.value)
-                            }
-                            placeholder="+256..."
-                            value={form.phone}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="customer-terms">Payment Terms</Label>
-                        <Input
-                            id="customer-terms"
-                            onChange={(event) =>
-                                updateForm("paymentTerms", event.target.value)
-                            }
-                            placeholder="NET 30"
-                            value={form.paymentTerms}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="customer-credit">
-                            Credit Limit (UGX)
-                        </Label>
-                        <Input
-                            id="customer-credit"
-                            min={0}
-                            onChange={(event) =>
-                                updateForm("creditLimit", event.target.value)
-                            }
-                            placeholder="0"
-                            type="number"
-                            value={form.creditLimit}
-                        />
-                    </div>
-                    <div className="flex gap-2 md:col-span-3">
-                        <Button
-                            disabled={
-                                isSubmitting ||
-                                form.name.trim().length === 0 ||
-                                (!editingCustomer &&
-                                    form.code.trim().length === 0)
-                            }
-                            onClick={handleSaveCustomerClick}
-                            type="button"
-                        >
-                            {saveButtonLabel}
-                        </Button>
-                        {editingCustomer ? (
-                            <Button
-                                onClick={resetForm}
-                                type="button"
-                                variant="outline"
-                            >
-                                Cancel Edit
-                            </Button>
-                        ) : null}
-                    </div>
-                </CardContent>
-            </Card>
+            <CustomerForm
+                editingCustomer={editingCustomer}
+                form={form}
+                isSubmitting={isSubmitting}
+                onFormFieldChange={updateForm}
+                onResetForm={resetForm}
+                onSaveClick={handleSaveCustomerClick}
+            />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Customer Directory</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div className="space-y-2">
-                            <Label htmlFor="customer-search">Search</Label>
-                            <Input
-                                id="customer-search"
-                                onChange={(event) =>
-                                    setSearch(event.target.value)
-                                }
-                                placeholder="Search by code, name, email, phone"
-                                value={search}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Status</Label>
-                            <Select
-                                onValueChange={(value) =>
-                                    setStatusFilter(
-                                        (value ?? "all") as
-                                            | "all"
-                                            | "active"
-                                            | "inactive"
-                                    )
-                                }
-                                value={statusFilter}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All</SelectItem>
-                                    <SelectItem value="active">
-                                        Active
-                                    </SelectItem>
-                                    <SelectItem value="inactive">
-                                        Inactive
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    </div>
-
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Code</TableHead>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Contact</TableHead>
-                                <TableHead className="text-right">
-                                    Credit Limit
-                                </TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredCustomers.length === 0 ? (
-                                <TableRow>
-                                    <TableCell
-                                        className="text-muted-foreground"
-                                        colSpan={6}
-                                    >
-                                        No customers found.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                filteredCustomers.map((customer) => (
-                                    <TableRow key={customer.id}>
-                                        <TableCell>{customer.code}</TableCell>
-                                        <TableCell>{customer.name}</TableCell>
-                                        <TableCell>
-                                            <div className="text-sm">
-                                                <div>
-                                                    {customer.email ?? "-"}
-                                                </div>
-                                                <div className="text-muted-foreground">
-                                                    {customer.phone ?? "-"}
-                                                </div>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {(
-                                                customer.creditLimit ?? 0
-                                            ).toLocaleString()}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge
-                                                variant={
-                                                    customer.isActive
-                                                        ? "secondary"
-                                                        : "outline"
-                                                }
-                                            >
-                                                {customer.isActive
-                                                    ? "Active"
-                                                    : "Inactive"}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    onClick={() =>
-                                                        loadCustomerIntoForm(
-                                                            customer.id
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    type="button"
-                                                    variant="outline"
-                                                >
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    disabled={
-                                                        isRowBusyId ===
-                                                        customer.id
-                                                    }
-                                                    onClick={() => {
-                                                        handleToggleActive(
-                                                            customer.id
-                                                        ).catch(
-                                                            () => undefined
-                                                        );
-                                                    }}
-                                                    size="sm"
-                                                    type="button"
-                                                    variant="outline"
-                                                >
-                                                    {customer.isActive
-                                                        ? "Deactivate"
-                                                        : "Activate"}
-                                                </Button>
-                                                <Button
-                                                    disabled={
-                                                        isRowBusyId ===
-                                                        customer.id
-                                                    }
-                                                    onClick={() => {
-                                                        handleDeleteCustomer(
-                                                            customer.id
-                                                        ).catch(
-                                                            () => undefined
-                                                        );
-                                                    }}
-                                                    size="sm"
-                                                    type="button"
-                                                    variant={
-                                                        pendingDeleteCustomerId ===
-                                                        customer.id
-                                                            ? "destructive"
-                                                            : "outline"
-                                                    }
-                                                >
-                                                    {pendingDeleteCustomerId ===
-                                                    customer.id
-                                                        ? "Confirm"
-                                                        : "Delete"}
-                                                </Button>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+            <CustomersTable
+                filteredCustomers={filteredCustomers}
+                isRowBusyId={isRowBusyId}
+                onDeleteCustomer={(customerId) => {
+                    handleDeleteCustomer(customerId).catch(() => undefined);
+                }}
+                onEditCustomer={loadCustomerIntoForm}
+                onSearchChange={(value) => setState({ search: value })}
+                onStatusFilterChange={(value) =>
+                    setState({
+                        statusFilter: (value ?? "all") as
+                            | "all"
+                            | "active"
+                            | "inactive",
+                    })
+                }
+                onToggleActive={(customerId) => {
+                    handleToggleActive(customerId).catch(() => undefined);
+                }}
+                pendingDeleteCustomerId={pendingDeleteCustomerId}
+                search={search}
+                statusFilter={statusFilter}
+            />
         </section>
     );
 }
