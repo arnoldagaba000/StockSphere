@@ -9,7 +9,9 @@ import toast from "react-hot-toast";
 import { executeMobileOperation } from "@/components/features/mobile/mobile-operations";
 import {
     flushQueuedMobileOperations,
-    getQueuedMobileOpsCount,
+    getQueuedMobileOperations,
+    removeQueuedMobileOperation,
+    type StoredQueuedMobileOperation,
 } from "@/components/features/mobile/offline-ops-queue";
 import { Button } from "@/components/ui/button";
 
@@ -21,18 +23,35 @@ function MobileLayout() {
     const router = useRouter();
     const [syncState, setSyncState] = useReducer(
         (
-            state: { isSyncing: boolean; pendingCount: number },
-            patch: Partial<{ isSyncing: boolean; pendingCount: number }>
+            state: {
+                isSyncing: boolean;
+                pendingCount: number;
+                queuedOperations: StoredQueuedMobileOperation[];
+            },
+            patch: Partial<{
+                isSyncing: boolean;
+                pendingCount: number;
+                queuedOperations: StoredQueuedMobileOperation[];
+            }>
         ) => ({ ...state, ...patch }),
         {
             isSyncing: false,
             pendingCount: 0,
+            queuedOperations: [],
         }
     );
 
-    useEffect(() => {
-        setSyncState({ pendingCount: getQueuedMobileOpsCount() });
+    const refreshQueueState = useCallback(() => {
+        const queuedOperations = getQueuedMobileOperations();
+        setSyncState({
+            pendingCount: queuedOperations.length,
+            queuedOperations,
+        });
     }, []);
+
+    useEffect(() => {
+        refreshQueueState();
+    }, [refreshQueueState]);
 
     const runSync = useCallback(
         async (showToast = true) => {
@@ -40,7 +59,7 @@ function MobileLayout() {
                 return;
             }
             if (!navigator.onLine) {
-                setSyncState({ pendingCount: getQueuedMobileOpsCount() });
+                refreshQueueState();
                 return;
             }
 
@@ -49,10 +68,8 @@ function MobileLayout() {
                 const result = await flushQueuedMobileOperations(
                     executeMobileOperation
                 );
-                setSyncState({
-                    isSyncing: false,
-                    pendingCount: result.failed,
-                });
+                setSyncState({ isSyncing: false });
+                refreshQueueState();
 
                 if (result.processed > 0) {
                     await router.invalidate();
@@ -62,17 +79,20 @@ function MobileLayout() {
                         `Synced ${result.processed} queued mobile action(s).`
                     );
                 }
+                if (showToast && result.failed > 0) {
+                    toast.error(
+                        `${result.failed} queued action(s) still failing.`
+                    );
+                }
             } catch {
-                setSyncState({
-                    isSyncing: false,
-                    pendingCount: getQueuedMobileOpsCount(),
-                });
+                setSyncState({ isSyncing: false });
+                refreshQueueState();
                 if (showToast) {
                     toast.error("Failed to sync queued actions.");
                 }
             }
         },
-        [router, syncState.isSyncing]
+        [refreshQueueState, router, syncState.isSyncing]
     );
 
     useEffect(() => {
@@ -80,7 +100,7 @@ function MobileLayout() {
             runSync(true).catch(() => undefined);
         };
         const onQueueChange = () => {
-            setSyncState({ pendingCount: getQueuedMobileOpsCount() });
+            refreshQueueState();
         };
 
         window.addEventListener("online", onOnline);
@@ -93,7 +113,12 @@ function MobileLayout() {
                 onQueueChange
             );
         };
-    }, [runSync]);
+    }, [refreshQueueState, runSync]);
+
+    const handleRemoveQueuedOperation = (operationId: string) => {
+        removeQueuedMobileOperation(operationId);
+        refreshQueueState();
+    };
 
     return (
         <section className="w-full space-y-4">
@@ -129,10 +154,81 @@ function MobileLayout() {
                 </Button>
             </div>
 
+            {syncState.queuedOperations.length > 0 ? (
+                <div className="space-y-2 rounded-md border p-3">
+                    <p className="font-medium text-sm">Queued Actions</p>
+                    <div className="space-y-2">
+                        {syncState.queuedOperations.map((operation) => (
+                            <div
+                                className="rounded-md border px-2 py-2 text-xs"
+                                key={operation.id}
+                            >
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="font-medium">
+                                        {operation.type} ·{" "}
+                                        {new Date(
+                                            operation.createdAt
+                                        ).toLocaleString()}
+                                    </p>
+                                    <Button
+                                        onClick={() =>
+                                            handleRemoveQueuedOperation(
+                                                operation.id
+                                            )
+                                        }
+                                        size="sm"
+                                        type="button"
+                                        variant="ghost"
+                                    >
+                                        Remove
+                                    </Button>
+                                </div>
+                                <p className="text-muted-foreground">
+                                    {formatQueuedOperation(operation)}
+                                </p>
+                                {operation.retryCount > 0 ? (
+                                    <p className="text-destructive">
+                                        Retries: {operation.retryCount} · Last
+                                        error:{" "}
+                                        {operation.lastError ??
+                                            "Unknown sync error"}
+                                    </p>
+                                ) : null}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : null}
+
             <Outlet />
         </section>
     );
 }
+
+const formatQueuedOperation = (
+    operation: StoredQueuedMobileOperation
+): string => {
+    if (operation.type === "RECEIVE") {
+        const payload = operation.payload as {
+            productId: string;
+            quantity: number;
+            warehouseId: string;
+        };
+        return `Product ${payload.productId.slice(0, 8)}... · qty ${payload.quantity} · wh ${payload.warehouseId.slice(0, 8)}...`;
+    }
+
+    if (operation.type === "PICK") {
+        const payload = operation.payload as { salesOrderId: string };
+        return `Sales order ${payload.salesOrderId.slice(0, 8)}...`;
+    }
+
+    const payload = operation.payload as {
+        quantity: number;
+        stockItemId: string;
+        toWarehouseId: string;
+    };
+    return `Stock ${payload.stockItemId.slice(0, 8)}... · qty ${payload.quantity} · to ${payload.toWarehouseId.slice(0, 8)}...`;
+};
 
 function MobileNavLink({ label, to }: { label: string; to: string }) {
     return (

@@ -5,11 +5,26 @@ import type {
 
 const MOBILE_OPS_QUEUE_KEY = "mobile_ops_queue_v1";
 
+export interface StoredQueuedMobileOperation
+    extends QueuedMobileOperation<MobileOperationPayload> {
+    lastError: string | null;
+    retryCount: number;
+}
+
 const canUseStorage = (): boolean => {
     return typeof window !== "undefined" && typeof localStorage !== "undefined";
 };
 
-const readQueue = (): QueuedMobileOperation<MobileOperationPayload>[] => {
+const normalizeOperation = (
+    operation: QueuedMobileOperation<MobileOperationPayload> &
+        Partial<StoredQueuedMobileOperation>
+): StoredQueuedMobileOperation => ({
+    ...operation,
+    lastError: operation.lastError ?? null,
+    retryCount: operation.retryCount ?? 0,
+});
+
+const readQueue = (): StoredQueuedMobileOperation[] => {
     if (!canUseStorage()) {
         return [];
     }
@@ -22,16 +37,15 @@ const readQueue = (): QueuedMobileOperation<MobileOperationPayload>[] => {
     try {
         const parsed = JSON.parse(
             rawQueue
-        ) as QueuedMobileOperation<MobileOperationPayload>[];
-        return Array.isArray(parsed) ? parsed : [];
+        ) as (QueuedMobileOperation<MobileOperationPayload> &
+            Partial<StoredQueuedMobileOperation>)[];
+        return Array.isArray(parsed) ? parsed.map(normalizeOperation) : [];
     } catch {
         return [];
     }
 };
 
-const writeQueue = (
-    queue: QueuedMobileOperation<MobileOperationPayload>[]
-): void => {
+const writeQueue = (queue: StoredQueuedMobileOperation[]): void => {
     if (!canUseStorage()) {
         return;
     }
@@ -40,12 +54,13 @@ const writeQueue = (
     window.dispatchEvent(new Event("mobile-ops-queue-changed"));
 };
 
-export const getQueuedMobileOpsCount = (): number => readQueue().length;
+export const getQueuedMobileOperations = (): StoredQueuedMobileOperation[] =>
+    readQueue();
 
 export const queueMobileOperation = (
     operation: QueuedMobileOperation<MobileOperationPayload>
 ): void => {
-    writeQueue([...readQueue(), operation]);
+    writeQueue([...readQueue(), normalizeOperation(operation)]);
 };
 
 export const isLikelyNetworkError = (error: unknown): boolean => {
@@ -70,6 +85,14 @@ export const isLikelyNetworkError = (error: unknown): boolean => {
     );
 };
 
+const getErrorMessage = (error: unknown): string => {
+    if (error instanceof Error && error.message.trim().length > 0) {
+        return error.message;
+    }
+
+    return "Unknown error during sync.";
+};
+
 interface FlushResult {
     failed: number;
     processed: number;
@@ -86,17 +109,25 @@ export const flushQueuedMobileOperations = async (
     }
 
     let processed = 0;
-    const remaining: QueuedMobileOperation<MobileOperationPayload>[] = [];
+    const remaining: StoredQueuedMobileOperation[] = [];
 
     for (const operation of initialQueue) {
         try {
             await execute(operation);
             processed += 1;
-        } catch {
-            remaining.push(operation);
+        } catch (error: unknown) {
+            remaining.push({
+                ...operation,
+                lastError: getErrorMessage(error),
+                retryCount: operation.retryCount + 1,
+            });
         }
     }
 
     writeQueue(remaining);
     return { failed: remaining.length, processed };
+};
+
+export const removeQueuedMobileOperation = (operationId: string): void => {
+    writeQueue(readQueue().filter((operation) => operation.id !== operationId));
 };
