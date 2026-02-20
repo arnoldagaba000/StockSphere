@@ -6,6 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
+import {
     Select,
     SelectContent,
     SelectItem,
@@ -46,8 +54,11 @@ interface LocationsPageState {
     isSubmitting: boolean;
     isUpdatingId: string | null;
     locations: Awaited<ReturnType<typeof getLocations>>;
+    locationsPage: number;
+    locationsPageSize: number;
     name: string;
     type: LocationType;
+    viewWarehouseId: string;
     warehouseId: string;
 }
 
@@ -197,28 +208,77 @@ interface LocationListCardProps {
     isLoadingLocations: boolean;
     isUpdatingId: string | null;
     locations: Awaited<ReturnType<typeof getLocations>>;
+    locationsPage: number;
+    locationsPageSize: number;
     onArchive: (locationId: string) => void;
+    onChangePage: (page: number) => void;
+    onChangeViewWarehouse: (warehouseId: string) => void;
     onToggleActive: (locationId: string, isActive: boolean) => void;
     onToggleType: (locationId: string, type: LocationType) => void;
+    viewWarehouseId: string;
+    warehouses: WarehousesData;
 }
 
 const LocationListCard = ({
     isLoadingLocations,
     isUpdatingId,
     locations,
+    locationsPage,
+    locationsPageSize,
     onArchive,
+    onChangePage,
+    onChangeViewWarehouse,
     onToggleActive,
     onToggleType,
+    viewWarehouseId,
+    warehouses,
 }: LocationListCardProps) => {
+    const totalPages = Math.max(
+        1,
+        Math.ceil(locations.length / locationsPageSize)
+    );
+    const startIndex = (locationsPage - 1) * locationsPageSize;
+    const paginatedLocations = locations.slice(
+        startIndex,
+        startIndex + locationsPageSize
+    );
+
     return (
         <Card>
             <CardHeader>
                 <CardTitle>Location List</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
+                <div className="space-y-2 md:max-w-sm">
+                    <Label>View Warehouse</Label>
+                    <Select
+                        onValueChange={(value) =>
+                            onChangeViewWarehouse(
+                                value && value !== "all" ? value : ""
+                            )
+                        }
+                        value={viewWarehouseId || "all"}
+                    >
+                        <SelectTrigger>
+                            <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All warehouses</SelectItem>
+                            {warehouses.map((warehouse) => (
+                                <SelectItem
+                                    key={warehouse.id}
+                                    value={warehouse.id}
+                                >
+                                    {warehouse.code} - {warehouse.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                </div>
                 <Table>
                     <TableHeader>
                         <TableRow>
+                            <TableHead>Warehouse</TableHead>
                             <TableHead>Code</TableHead>
                             <TableHead>Name</TableHead>
                             <TableHead>Type</TableHead>
@@ -233,7 +293,7 @@ const LocationListCard = ({
                             <TableRow>
                                 <TableCell
                                     className="text-muted-foreground"
-                                    colSpan={5}
+                                    colSpan={6}
                                 >
                                     <div className="space-y-2">
                                         <Skeleton className="h-4 w-48" />
@@ -246,15 +306,18 @@ const LocationListCard = ({
                             <TableRow>
                                 <TableCell
                                     className="text-muted-foreground"
-                                    colSpan={5}
+                                    colSpan={6}
                                 >
-                                    No locations found for this warehouse.
+                                    No locations found for this view.
                                 </TableCell>
                             </TableRow>
                         ) : null}
-                        {!isLoadingLocations && locations.length > 0
-                            ? locations.map((location) => (
+                        {!isLoadingLocations && paginatedLocations.length > 0
+                            ? paginatedLocations.map((location) => (
                                   <TableRow key={location.id}>
+                                      <TableCell>
+                                          {location.warehouse.code}
+                                      </TableCell>
                                       <TableCell>{location.code}</TableCell>
                                       <TableCell>{location.name}</TableCell>
                                       <TableCell>{location.type}</TableCell>
@@ -319,6 +382,49 @@ const LocationListCard = ({
                             : null}
                     </TableBody>
                 </Table>
+                {locations.length > locationsPageSize ? (
+                    <Pagination>
+                        <PaginationContent>
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    className={
+                                        locationsPage <= 1
+                                            ? "pointer-events-none opacity-50"
+                                            : ""
+                                    }
+                                    href="#"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        if (locationsPage > 1) {
+                                            onChangePage(locationsPage - 1);
+                                        }
+                                    }}
+                                />
+                            </PaginationItem>
+                            <PaginationItem>
+                                <PaginationLink href="#" isActive>
+                                    Page {locationsPage} of {totalPages}
+                                </PaginationLink>
+                            </PaginationItem>
+                            <PaginationItem>
+                                <PaginationNext
+                                    className={
+                                        locationsPage >= totalPages
+                                            ? "pointer-events-none opacity-50"
+                                            : ""
+                                    }
+                                    href="#"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        if (locationsPage < totalPages) {
+                                            onChangePage(locationsPage + 1);
+                                        }
+                                    }}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
+                ) : null}
             </CardContent>
         </Card>
     );
@@ -339,8 +445,11 @@ function LocationsPage() {
         isSubmitting: false,
         isUpdatingId: null,
         locations: [],
+        locationsPage: 1,
+        locationsPageSize: 10,
         name: "",
         type: "STANDARD",
+        viewWarehouseId: "",
         warehouseId: initialWarehouseId,
     });
     const {
@@ -350,26 +459,28 @@ function LocationsPage() {
         isSubmitting,
         isUpdatingId,
         locations,
+        locationsPage,
+        locationsPageSize,
         name,
         type,
+        viewWarehouseId,
         warehouseId,
     } = state;
 
-    const loadLocations = useCallback(async (nextWarehouseId: string) => {
-        if (!nextWarehouseId) {
-            patchState({ locations: [] });
-            return;
-        }
-
+    const loadLocations = useCallback(async (nextWarehouseId?: string) => {
         try {
             await Promise.resolve();
             patchState({ isLoadingLocations: true });
             const result = await getLocations({
-                data: { warehouseId: nextWarehouseId },
+                data: {
+                    includeInactive: true,
+                    warehouseId: nextWarehouseId || undefined,
+                },
             });
             patchState({
                 isLoadingLocations: false,
                 locations: result,
+                locationsPage: 1,
             });
         } catch (error) {
             patchState({ isLoadingLocations: false });
@@ -382,18 +493,14 @@ function LocationsPage() {
     }, []);
 
     useEffect(() => {
-        if (!warehouseId) {
-            return;
-        }
-
         const timeoutId = window.setTimeout(() => {
-            loadLocations(warehouseId).catch(() => undefined);
+            loadLocations(viewWarehouseId).catch(() => undefined);
         }, 0);
 
         return () => {
             window.clearTimeout(timeoutId);
         };
-    }, [warehouseId, loadLocations]);
+    }, [viewWarehouseId, loadLocations]);
 
     const resetForm = () => {
         patchState({
@@ -525,8 +632,16 @@ function LocationsPage() {
                 isLoadingLocations={isLoadingLocations}
                 isUpdatingId={isUpdatingId}
                 locations={locations}
+                locationsPage={locationsPage}
+                locationsPageSize={locationsPageSize}
                 onArchive={(locationId) => {
                     handleArchive(locationId).catch(() => undefined);
+                }}
+                onChangePage={(page) => {
+                    patchState({ locationsPage: page });
+                }}
+                onChangeViewWarehouse={(nextWarehouseId) => {
+                    patchState({ viewWarehouseId: nextWarehouseId });
                 }}
                 onToggleActive={(locationId, isActiveValue) => {
                     handleToggleActive(locationId, isActiveValue).catch(
@@ -538,6 +653,8 @@ function LocationsPage() {
                         () => undefined
                     );
                 }}
+                viewWarehouseId={viewWarehouseId}
+                warehouses={warehouses}
             />
         </section>
     );

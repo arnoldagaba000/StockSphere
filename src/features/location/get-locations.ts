@@ -10,7 +10,7 @@ export const getLocations = createServerFn({ method: "GET" })
         (input: {
             includeInactive?: boolean;
             type?: LocationType;
-            warehouseId: string;
+            warehouseId?: string;
         }) => input
     )
     .middleware([authMiddleware])
@@ -20,9 +20,17 @@ export const getLocations = createServerFn({ method: "GET" })
         }
 
         return await prisma.location.findMany({
+            include: {
+                warehouse: {
+                    select: {
+                        code: true,
+                        name: true,
+                    },
+                },
+            },
             where: {
                 deletedAt: null,
-                warehouseId: data.warehouseId,
+                ...(data.warehouseId ? { warehouseId: data.warehouseId } : {}),
                 ...(!data.includeInactive && { isActive: true }),
                 ...(data.type && { type: data.type }),
             },

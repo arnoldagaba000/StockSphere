@@ -140,21 +140,39 @@ const toBulkAction = (value: string | null): BulkAction => {
 export const Route = createFileRoute("/_dashboard/products/")({
     component: ProductsPage,
     loader: async (): Promise<ProductsLoaderData> => {
-        const [productsResponse, categories, analytics, financialSettings] =
-            await Promise.all([
-                getProducts({
-                    data: {},
-                }),
-                getCategories(),
-                getProductAnalytics(),
-                getFinancialSettings(),
-            ]);
+        const [
+            activeProductsResponse,
+            inactiveProductsResponse,
+            categories,
+            analytics,
+            financialSettings,
+        ] = await Promise.all([
+            getProducts({
+                data: { isActive: true },
+            }),
+            getProducts({
+                data: { isActive: false },
+            }),
+            getCategories(),
+            getProductAnalytics(),
+            getFinancialSettings(),
+        ]);
+
+        const mergedProductsMap = new Map<string, ProductListItem>();
+        for (const product of activeProductsResponse.products) {
+            mergedProductsMap.set(product.id, product);
+        }
+        for (const product of inactiveProductsResponse.products) {
+            mergedProductsMap.set(product.id, product);
+        }
 
         return {
             analytics,
             categories,
             financialSettings,
-            products: productsResponse.products,
+            products: [...mergedProductsMap.values()].sort((left, right) =>
+                left.name.localeCompare(right.name)
+            ),
         };
     },
 });
@@ -673,7 +691,7 @@ function ProductsPage() {
         minPriceValue: "",
         searchValue: "",
         selectedProductIds: [],
-        statusValue: "active" as ProductStatusFilter,
+        statusValue: "all" as ProductStatusFilter,
         trackingBatchValue: "all" as TrackingFilter,
         trackingExpiryValue: "all" as TrackingFilter,
         trackingSerialValue: "all" as TrackingFilter,

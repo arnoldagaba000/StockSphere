@@ -467,6 +467,11 @@ function GoodsReceiptsPage() {
             return;
         }
 
+        dispatch({
+            patch: { isLoadingOrder: true },
+            type: "patch",
+        });
+
         getPurchaseOrderDetail({
             data: { purchaseOrderId },
         })
@@ -535,10 +540,10 @@ function GoodsReceiptsPage() {
                     expiryDate: input?.expiryDate
                         ? new Date(input.expiryDate)
                         : null,
-                    locationId: null,
                     productId: orderItem.productId,
                     quantity,
                     serialNumber: input?.serialNumber?.trim() || null,
+                    unitCost: null,
                     warehouseId,
                 };
             })
@@ -553,11 +558,9 @@ function GoodsReceiptsPage() {
             patchState({ isSubmitting: true });
             await receiveGoods({
                 data: {
-                    idempotencyKey: crypto.randomUUID(),
                     items: receiptItems,
                     notes: null,
                     purchaseOrderId: selectedOrderDetail.id,
-                    receivedDate: new Date(),
                 },
             });
             toast.success("Goods receipt posted.");
