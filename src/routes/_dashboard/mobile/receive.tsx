@@ -2,6 +2,14 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
 import { BarcodeScanner } from "@/components/features/mobile/barcode-scanner";
+import {
+    executeMobileOperation,
+    type MobileReceivePayload,
+} from "@/components/features/mobile/mobile-operations";
+import {
+    isLikelyNetworkError,
+    queueMobileOperation,
+} from "@/components/features/mobile/offline-ops-queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +22,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
-import { receiveGoods } from "@/features/inventory/receive-goods";
 import { getProducts } from "@/features/products/get-products";
 
 interface ReceivePageState {
@@ -86,24 +93,20 @@ function MobileReceivePage() {
         const normalizedBatchNumber = state.batchNumber || null;
         const normalizedUnitCost =
             state.unitCost.trim().length > 0 ? Number(state.unitCost) : null;
+        const operationPayload: MobileReceivePayload = {
+            batchNumber: normalizedBatchNumber,
+            productId: state.productId,
+            quantity,
+            unitCost: normalizedUnitCost,
+            warehouseId: state.warehouseId,
+        };
 
         setState({ isSubmitting: true });
-        await receiveGoods({
-            data: {
-                items: [
-                    {
-                        batchNumber: normalizedBatchNumber,
-                        expiryDate: null,
-                        productId: state.productId,
-                        quantity,
-                        unitCost: normalizedUnitCost,
-                    },
-                ],
-                locationId: null,
-                notes: "Posted via mobile receive",
-                purchaseOrderId: null,
-                warehouseId: state.warehouseId,
-            },
+        await executeMobileOperation({
+            createdAt: new Date().toISOString(),
+            id: crypto.randomUUID(),
+            payload: operationPayload,
+            type: "RECEIVE",
         })
             .then(async () => {
                 toast.success("Goods received.");
@@ -117,6 +120,16 @@ function MobileReceivePage() {
             })
             .catch((error: unknown) => {
                 setState({ isSubmitting: false });
+                if (isLikelyNetworkError(error)) {
+                    queueMobileOperation({
+                        createdAt: new Date().toISOString(),
+                        id: crypto.randomUUID(),
+                        payload: operationPayload,
+                        type: "RECEIVE",
+                    });
+                    toast.success("Offline. Receipt queued for retry.");
+                    return;
+                }
                 toast.error(
                     error instanceof Error ? error.message : "Receive failed."
                 );

@@ -1,6 +1,14 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
+import {
+    executeMobileOperation,
+    type MobileTransferPayload,
+} from "@/components/features/mobile/mobile-operations";
+import {
+    isLikelyNetworkError,
+    queueMobileOperation,
+} from "@/components/features/mobile/offline-ops-queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { getStock } from "@/features/inventory/get-stock";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
-import { transferStock } from "@/features/inventory/transfer-stock";
 
 interface TransferPageState {
     isSubmitting: boolean;
@@ -70,17 +77,19 @@ function MobileTransferPage() {
             toast.error("Quantity must be greater than zero.");
             return;
         }
+        const operationPayload: MobileTransferPayload = {
+            quantity,
+            stockItemId: state.stockItemId,
+            toWarehouseId: state.toWarehouseId,
+        };
 
         try {
             setState({ isSubmitting: true });
-            await transferStock({
-                data: {
-                    notes: "Posted via mobile transfer",
-                    quantity,
-                    stockItemId: state.stockItemId,
-                    toLocationId: null,
-                    toWarehouseId: state.toWarehouseId,
-                },
+            await executeMobileOperation({
+                createdAt: new Date().toISOString(),
+                id: crypto.randomUUID(),
+                payload: operationPayload,
+                type: "TRANSFER",
             });
             toast.success("Stock transferred.");
             setState({
@@ -90,6 +99,16 @@ function MobileTransferPage() {
             await router.invalidate();
         } catch (error) {
             setState({ isSubmitting: false });
+            if (isLikelyNetworkError(error)) {
+                queueMobileOperation({
+                    createdAt: new Date().toISOString(),
+                    id: crypto.randomUUID(),
+                    payload: operationPayload,
+                    type: "TRANSFER",
+                });
+                toast.success("Offline. Transfer queued for retry.");
+                return;
+            }
             toast.error(
                 error instanceof Error ? error.message : "Transfer failed."
             );
