@@ -798,8 +798,11 @@ model StockMovement {
   inventoryTransaction InventoryTransaction? @relation("TransactionMovements", fields: [inventoryTransactionId], references: [id], onDelete: Cascade)
 
   @@index([productId])
+  @@index([productId, createdAt])
   @@index([fromWarehouseId])
+  @@index([fromWarehouseId, createdAt])
   @@index([toWarehouseId])
+  @@index([toWarehouseId, createdAt])
   @@map("stock_movements")
 }
 

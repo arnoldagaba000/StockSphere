@@ -1,3 +1,4 @@
+import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
@@ -45,16 +46,28 @@ const reportsPageReducer = (
     ...action,
 });
 
+const dashboardMetricsQueryOptions = queryOptions({
+    queryFn: () => getDashboardMetrics(),
+    queryKey: ["reports-dashboard-metrics"],
+    staleTime: 5 * 60 * 1000,
+});
+
 export const Route = createFileRoute("/_dashboard/reports")({
     component: ReportsPage,
-    loader: async () => {
-        const metrics = await getDashboardMetrics();
+    loader: async ({ context }) => {
+        const metrics = await context.queryClient.ensureQueryData(
+            dashboardMetricsQueryOptions
+        );
         return { metrics };
     },
 });
 
 function ReportsPage() {
-    const { metrics } = Route.useLoaderData();
+    const { metrics: loaderMetrics } = Route.useLoaderData();
+    const { data: metrics } = useSuspenseQuery({
+        ...dashboardMetricsQueryOptions,
+        initialData: loaderMetrics,
+    });
 
     const [state, setState] = useReducer(
         reportsPageReducer,

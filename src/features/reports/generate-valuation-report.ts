@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { prisma } from "@/db";
 import { toNumber } from "@/features/inventory/helpers";
+import { Prisma } from "@/generated/prisma/client";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
@@ -52,6 +53,33 @@ export const generateValuationReport = createServerFn({ method: "POST" })
             ],
         });
 
+        const categoryFilter = data.categoryId
+            ? Prisma.sql`AND p."categoryId" = ${data.categoryId}`
+            : Prisma.empty;
+        const warehouseFilter = data.warehouseId
+            ? Prisma.sql`AND si."warehouseId" = ${data.warehouseId}`
+            : Prisma.empty;
+        const quantityFilter = data.includeZeroQuantity
+            ? Prisma.empty
+            : Prisma.sql`AND si.quantity > 0`;
+
+        const totals = await prisma.$queryRaw<
+            Array<{
+                total_quantity: Prisma.Decimal | null;
+                total_value: number | null;
+            }>
+        >(Prisma.sql`
+            SELECT
+                COALESCE(SUM(si.quantity), 0) AS total_quantity,
+                COALESCE(SUM(si.quantity * COALESCE(si."unitCost", 0)), 0)::float8 AS total_value
+            FROM "stock_items" si
+            JOIN "products" p ON p.id = si."productId"
+            WHERE si.status = 'AVAILABLE'
+            ${warehouseFilter}
+            ${quantityFilter}
+            ${categoryFilter}
+        `);
+
         const rows = stockItems.map((item) => {
             const quantity = toNumber(item.quantity);
             const reservedQuantity = toNumber(item.reservedQuantity);
@@ -84,12 +112,9 @@ export const generateValuationReport = createServerFn({ method: "POST" })
             generatedAt: new Date().toISOString(),
             generatedBy: context.session.user.email,
             itemsBelowReorder: rows.filter((row) => row.isBelowReorder).length,
-            totalQuantity: rows.reduce((sum, row) => sum + row.quantity, 0),
+            totalQuantity: toNumber(totals[0]?.total_quantity ?? 0),
             totalUniqueProducts: new Set(rows.map((row) => row.sku)).size,
-            totalValueMinor: rows.reduce(
-                (sum, row) => sum + row.totalValueMinor,
-                0
-            ),
+            totalValueMinor: Math.round(totals[0]?.total_value ?? 0),
         };
 
         if (data.format === "json") {
