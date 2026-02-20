@@ -159,6 +159,72 @@ const isUniqueConstraintError = (error: unknown): boolean =>
     "code" in error &&
     (error as { code?: string }).code === "P2002";
 
+const validateSerialNumbersUniqueness = async (
+    items: Array<{ serialNumber?: string | null | undefined }>
+): Promise<void> => {
+    const serialNumbers = items
+        .map((item) => item.serialNumber?.trim())
+        .filter((serialNumber): serialNumber is string =>
+            Boolean(serialNumber)
+        );
+
+    if (serialNumbers.length === 0) {
+        return;
+    }
+
+    const existingSerials = await prisma.stockItem.findMany({
+        where: { serialNumber: { in: serialNumbers } },
+        select: {
+            serialNumber: true,
+            product: { select: { name: true } },
+        },
+    });
+
+    if (existingSerials.length > 0) {
+        const duplicates = existingSerials
+            .map((serial) => `${serial.serialNumber} (${serial.product.name})`)
+            .join(", ");
+        throw new Error(
+            `The following serial numbers already exist in the system: ${duplicates}.`
+        );
+    }
+};
+
+const validateReceiptExpiryDates = ({
+    items,
+    order,
+}: {
+    items: Array<{
+        expiryDate?: Date | null | undefined;
+        productId: string;
+    }>;
+    order: PurchaseOrderWithItems;
+}): void => {
+    const now = new Date();
+    const tenYearsFromNow = new Date();
+    tenYearsFromNow.setFullYear(now.getFullYear() + 10);
+
+    for (const item of items) {
+        const orderItem = order.items.find(
+            (entry) => entry.productId === item.productId
+        );
+        if (!(orderItem?.product.trackByExpiry && item.expiryDate)) {
+            continue;
+        }
+
+        if (item.expiryDate <= now) {
+            throw new Error(
+                `Expiry date for "${orderItem.product.name}" is in the past.`
+            );
+        }
+        if (item.expiryDate > tenYearsFromNow) {
+            throw new Error(
+                `Expiry date for "${orderItem.product.name}" is more than 10 years away. Please verify the date.`
+            );
+        }
+    }
+};
+
 export const receiveGoods = createServerFn({ method: "POST" })
     .inputValidator(goodsReceiptSchema)
     .middleware([authMiddleware])
@@ -235,6 +301,12 @@ export const receiveGoods = createServerFn({ method: "POST" })
 
             validateReceiptItemAgainstOrder({ item, order: purchaseOrder });
         }
+
+        await validateSerialNumbersUniqueness(data.items);
+        validateReceiptExpiryDates({
+            items: data.items,
+            order: purchaseOrder,
+        });
 
         const receiptNumber = generateGoodsReceiptNumber(data.idempotencyKey);
 
