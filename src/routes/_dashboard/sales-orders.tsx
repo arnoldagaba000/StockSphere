@@ -177,9 +177,10 @@ export const Route = createFileRoute("/_dashboard/sales-orders")({
     },
 });
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: page coordinates multiple workflows (create/filter/detail/shipment) in one route component.
-function SalesOrdersPage() {
-    const { customers, initialSalesOrders, products } = Route.useLoaderData();
+const useSalesOrdersPageController = (
+    loaderData: ReturnType<typeof Route.useLoaderData>
+) => {
+    const { customers, initialSalesOrders, products } = loaderData;
     const [state, patchState] = useReducer(salesOrdersPageReducer, {
         cancelReason: "",
         customerId: customers[0]?.id ?? "",
@@ -786,6 +787,133 @@ function SalesOrdersPage() {
 
     const salesOrders: SalesOrderListItem[] = salesOrdersResponse.orders;
 
+    return {
+        addLineItem,
+        cancelReason,
+        customerId,
+        customers,
+        draftLines,
+        draftNotes,
+        draftRequiredDate,
+        draftShippingAddress,
+        draftShippingCost,
+        draftTaxAmount,
+        handleSaveDraft,
+        isActionBusyId,
+        isCreating,
+        isLoadingDetail,
+        isLoadingOrders,
+        isSavingDraft,
+        isShipping,
+        items,
+        listFilters,
+        loadSalesOrders,
+        onCancelOrderClick,
+        onConfirmOrderClick,
+        onCreateSalesOrderClick,
+        onDeleteDraftClick,
+        onLoadOrderDetailClick,
+        onMarkDeliveredClick,
+        onShipOrderClick,
+        products,
+        removeLineItem,
+        requiredDate,
+        salesOrders,
+        salesOrdersResponse,
+        selectedOrderDetail,
+        setCancelReason,
+        setCustomerId,
+        setDraftLines,
+        setDraftNotes,
+        setDraftRequiredDate,
+        setDraftShippingAddress,
+        setDraftShippingCost,
+        setDraftTaxAmount,
+        setListFilters,
+        setRequiredDate,
+        setShipmentCarrier,
+        setShipmentTrackingNumber,
+        setShippingAddress,
+        setShippingCost,
+        setTaxAmount,
+        shipmentCarrier,
+        shipmentLines,
+        shipmentTrackingNumber,
+        shippingAddress,
+        shippingCost,
+        subtotal,
+        taxAmount,
+        total,
+        updateLineItem,
+        updateShipmentLine,
+    };
+};
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: render function composes multiple UI workflows in one page view.
+function renderSalesOrdersPage(
+    controller: ReturnType<typeof useSalesOrdersPageController>
+) {
+    const {
+        addLineItem,
+        cancelReason,
+        customerId,
+        customers,
+        draftLines,
+        draftNotes,
+        draftRequiredDate,
+        draftShippingAddress,
+        draftShippingCost,
+        draftTaxAmount,
+        handleSaveDraft,
+        isActionBusyId,
+        isCreating,
+        isLoadingDetail,
+        isLoadingOrders,
+        isSavingDraft,
+        isShipping,
+        items,
+        listFilters,
+        loadSalesOrders,
+        onCancelOrderClick,
+        onConfirmOrderClick,
+        onCreateSalesOrderClick,
+        onDeleteDraftClick,
+        onLoadOrderDetailClick,
+        onMarkDeliveredClick,
+        onShipOrderClick,
+        products,
+        removeLineItem,
+        requiredDate,
+        salesOrders,
+        salesOrdersResponse,
+        selectedOrderDetail,
+        setCancelReason,
+        setCustomerId,
+        setDraftLines,
+        setDraftNotes,
+        setDraftRequiredDate,
+        setDraftShippingAddress,
+        setDraftShippingCost,
+        setDraftTaxAmount,
+        setListFilters,
+        setRequiredDate,
+        setShipmentCarrier,
+        setShipmentTrackingNumber,
+        setShippingAddress,
+        setShippingCost,
+        setTaxAmount,
+        shipmentCarrier,
+        shipmentLines,
+        shipmentTrackingNumber,
+        shippingAddress,
+        shippingCost,
+        subtotal,
+        taxAmount,
+        total,
+        updateLineItem,
+        updateShipmentLine,
+    } = controller;
+
     return (
         <section className="w-full space-y-4">
             <div>
@@ -813,14 +941,19 @@ function SalesOrdersPage() {
                                     <SelectValue placeholder="Select customer" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {customers.map((customer) => (
-                                        <SelectItem
-                                            key={customer.id}
-                                            value={customer.id}
-                                        >
-                                            {customer.name} ({customer.code})
-                                        </SelectItem>
-                                    ))}
+                                    {customers.map(
+                                        (
+                                            customer: (typeof customers)[number]
+                                        ) => (
+                                            <SelectItem
+                                                key={customer.id}
+                                                value={customer.id}
+                                            >
+                                                {customer.name} ({customer.code}
+                                                )
+                                            </SelectItem>
+                                        )
+                                    )}
                                 </SelectContent>
                             </Select>
                         </div>
@@ -895,14 +1028,19 @@ function SalesOrdersPage() {
                                         <SelectValue placeholder="Product" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {products.map((product) => (
-                                            <SelectItem
-                                                key={product.id}
-                                                value={product.id}
-                                            >
-                                                {product.name} ({product.sku})
-                                            </SelectItem>
-                                        ))}
+                                        {products.map(
+                                            (
+                                                product: (typeof products)[number]
+                                            ) => (
+                                                <SelectItem
+                                                    key={product.id}
+                                                    value={product.id}
+                                                >
+                                                    {product.name} (
+                                                    {product.sku})
+                                                </SelectItem>
+                                            )
+                                        )}
                                     </SelectContent>
                                 </Select>
                                 <Input
@@ -1037,14 +1175,16 @@ function SalesOrdersPage() {
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="">All Customers</SelectItem>
-                                {customers.map((customer) => (
-                                    <SelectItem
-                                        key={customer.id}
-                                        value={customer.id}
-                                    >
-                                        {customer.name}
-                                    </SelectItem>
-                                ))}
+                                {customers.map(
+                                    (customer: (typeof customers)[number]) => (
+                                        <SelectItem
+                                            key={customer.id}
+                                            value={customer.id}
+                                        >
+                                            {customer.name}
+                                        </SelectItem>
+                                    )
+                                )}
                             </SelectContent>
                         </Select>
                         <Input
@@ -1385,7 +1525,9 @@ function SalesOrdersPage() {
                                                         </SelectTrigger>
                                                         <SelectContent>
                                                             {products.map(
-                                                                (product) => (
+                                                                (
+                                                                    product: (typeof products)[number]
+                                                                ) => (
                                                                     <SelectItem
                                                                         key={
                                                                             product.id
@@ -1658,4 +1800,10 @@ function SalesOrdersPage() {
             ) : null}
         </section>
     );
+}
+
+function SalesOrdersPage() {
+    const loaderData = Route.useLoaderData();
+    const controller = useSalesOrdersPageController(loaderData);
+    return renderSalesOrdersPage(controller);
 }
