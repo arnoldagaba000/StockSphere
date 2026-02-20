@@ -83,43 +83,44 @@ function MobileReceivePage() {
             toast.error("Quantity must be greater than zero.");
             return;
         }
+        const normalizedBatchNumber = state.batchNumber || null;
+        const normalizedUnitCost =
+            state.unitCost.trim().length > 0 ? Number(state.unitCost) : null;
 
-        try {
-            setState({ isSubmitting: true });
-            await receiveGoods({
-                data: {
-                    items: [
-                        {
-                            batchNumber: state.batchNumber || null,
-                            expiryDate: null,
-                            productId: state.productId,
-                            quantity,
-                            unitCost:
-                                state.unitCost.trim().length > 0
-                                    ? Number(state.unitCost)
-                                    : null,
-                        },
-                    ],
-                    locationId: null,
-                    notes: "Posted via mobile receive",
-                    purchaseOrderId: null,
-                    warehouseId: state.warehouseId,
-                },
+        setState({ isSubmitting: true });
+        await receiveGoods({
+            data: {
+                items: [
+                    {
+                        batchNumber: normalizedBatchNumber,
+                        expiryDate: null,
+                        productId: state.productId,
+                        quantity,
+                        unitCost: normalizedUnitCost,
+                    },
+                ],
+                locationId: null,
+                notes: "Posted via mobile receive",
+                purchaseOrderId: null,
+                warehouseId: state.warehouseId,
+            },
+        })
+            .then(async () => {
+                toast.success("Goods received.");
+                setState({
+                    batchNumber: "",
+                    isSubmitting: false,
+                    quantity: "1",
+                    unitCost: "",
+                });
+                await router.invalidate();
+            })
+            .catch((error: unknown) => {
+                setState({ isSubmitting: false });
+                toast.error(
+                    error instanceof Error ? error.message : "Receive failed."
+                );
             });
-            toast.success("Goods received.");
-            setState({
-                batchNumber: "",
-                isSubmitting: false,
-                quantity: "1",
-                unitCost: "",
-            });
-            await router.invalidate();
-        } catch (error) {
-            setState({ isSubmitting: false });
-            toast.error(
-                error instanceof Error ? error.message : "Receive failed."
-            );
-        }
     };
 
     return (

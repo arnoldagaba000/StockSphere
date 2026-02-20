@@ -109,48 +109,61 @@ export function BarcodeScanner({
             });
             return;
         }
+        const BarcodeDetectorImpl = getBarcodeDetectorConstructor();
+        if (!BarcodeDetectorImpl) {
+            setState({
+                error: "Camera barcode scanning is not supported here.",
+            });
+            return;
+        }
 
-        try {
-            setState({ error: null, isStarting: true });
-            const BarcodeDetectorImpl = getBarcodeDetectorConstructor();
-            if (!BarcodeDetectorImpl) {
-                throw new Error("BarcodeDetector unavailable.");
-            }
-
-            const stream = await navigator.mediaDevices.getUserMedia({
+        setState({ error: null, isStarting: true });
+        await navigator.mediaDevices
+            .getUserMedia({
                 audio: false,
                 video: { facingMode: "environment" },
-            });
-            streamRef.current = stream;
-            videoRef.current.srcObject = stream;
-            await videoRef.current.play();
-
-            detectorRef.current = new BarcodeDetectorImpl({
-                formats: ["ean_13", "ean_8", "code_128", "qr_code", "upc_a"],
-            });
-
-            intervalRef.current = window.setInterval(async () => {
-                if (!(videoRef.current && detectorRef.current)) {
-                    return;
+            })
+            .then(async (stream) => {
+                streamRef.current = stream;
+                if (!videoRef.current) {
+                    throw new Error("Video element unavailable.");
                 }
-                const barcodes = await detectorRef.current.detect(
-                    videoRef.current
-                );
-                const value = barcodes[0]?.rawValue?.trim();
-                if (value) {
-                    onDetected(value);
-                    stopScanning();
-                }
-            }, SCAN_INTERVAL_MS);
+                videoRef.current.srcObject = stream;
+                await videoRef.current.play();
 
-            setState({ isStarting: false, isStreaming: true });
-        } catch {
-            stopScanning();
-            setState({
-                error: "Unable to access camera. Use manual barcode entry instead.",
-                isStarting: false,
+                detectorRef.current = new BarcodeDetectorImpl({
+                    formats: [
+                        "ean_13",
+                        "ean_8",
+                        "code_128",
+                        "qr_code",
+                        "upc_a",
+                    ],
+                });
+
+                intervalRef.current = window.setInterval(async () => {
+                    if (!(videoRef.current && detectorRef.current)) {
+                        return;
+                    }
+                    const barcodes = await detectorRef.current.detect(
+                        videoRef.current
+                    );
+                    const value = barcodes[0]?.rawValue?.trim();
+                    if (value) {
+                        onDetected(value);
+                        stopScanning();
+                    }
+                }, SCAN_INTERVAL_MS);
+
+                setState({ isStarting: false, isStreaming: true });
+            })
+            .catch(() => {
+                stopScanning();
+                setState({
+                    error: "Unable to access camera. Use manual barcode entry instead.",
+                    isStarting: false,
+                });
             });
-        }
     };
 
     return (
