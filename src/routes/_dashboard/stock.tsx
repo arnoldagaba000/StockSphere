@@ -25,19 +25,19 @@ import { adjustStock } from "@/features/inventory/adjust-stock";
 import { approveAdjustment } from "@/features/inventory/approve-adjustment";
 import { createInitialStock } from "@/features/inventory/create-initial-stock";
 import { submitCycleCount } from "@/features/inventory/cycle-count";
+import { getBatchTraceability } from "@/features/inventory/get-batch-traceability";
+import { getExpiryAlerts as getExpiryAlertsReport } from "@/features/inventory/get-expiry-alerts";
 import {
     getInventoryKpis,
     getInventoryValuationReport,
 } from "@/features/inventory/get-inventory-reports";
 import { getMovementHistory } from "@/features/inventory/get-movement-history";
 import { getPutawaySuggestions } from "@/features/inventory/get-putaway-suggestions";
+import { getSerialHistory } from "@/features/inventory/get-serial-history";
 import { getStock } from "@/features/inventory/get-stock";
-import { getTrackingHistory } from "@/features/inventory/get-tracking-history";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
-import {
-    getExpiryAlerts,
-    updateStockExpiryStatus,
-} from "@/features/inventory/manage-expiry";
+import { updateStockExpiryStatus } from "@/features/inventory/manage-expiry";
+import { moveToQuarantine } from "@/features/inventory/quarantine-stock";
 import { receiveGoods } from "@/features/inventory/receive-goods";
 import { rejectAdjustment } from "@/features/inventory/reject-adjustment";
 import {
@@ -56,6 +56,9 @@ const formatQuantity = (value: number): string =>
 type StockData = Awaited<ReturnType<typeof getStock>>;
 type ValuationData = Awaited<ReturnType<typeof getInventoryValuationReport>>;
 type MovementHistoryData = Awaited<ReturnType<typeof getMovementHistory>>;
+type BatchTraceabilityData = Awaited<ReturnType<typeof getBatchTraceability>>;
+type SerialHistoryData = Awaited<ReturnType<typeof getSerialHistory>>;
+type ExpiryAlertsData = Awaited<ReturnType<typeof getExpiryAlertsReport>>;
 type StockItem = StockData["stockItems"][number];
 type Product = Awaited<ReturnType<typeof getProducts>>["products"][number];
 type Warehouse = Awaited<ReturnType<typeof getWarehouses>>[number];
@@ -81,6 +84,7 @@ interface StockPageState {
     entryQuantity: string;
     entryUnitCost: string;
     entryWarehouseId: string;
+    expiryAlerts: ExpiryAlertsData;
     movementHistory: MovementHistoryData | null;
     movementPage: string;
     movementProductId: string;
@@ -90,6 +94,9 @@ interface StockPageState {
     reserveQuantity: string;
     selectedStockItemId: string;
     stockData: StockData;
+    traceabilityData: BatchTraceabilityData | null;
+    quarantineReason: string;
+    serialHistoryData: SerialHistoryData | null;
     trackingBatch: string;
     trackingSerial: string;
     transferQuantity: string;
@@ -470,13 +477,20 @@ interface StockTrackingCardProps {
     entryProductId: string;
     entryQuantity: string;
     entryWarehouseId: string;
+    expiryAlerts: ExpiryAlertsData;
+    onLoadBatchTraceability: () => Promise<void>;
+    onLoadExpiryAlerts: () => Promise<void>;
+    onLoadSerialHistory: () => Promise<void>;
     runAction: (
         work: () => Promise<unknown>,
         successMessage: string
     ) => Promise<void>;
+    quarantineReason: string;
     selectedItem: StockItem | undefined;
     selectedStockItemId: string;
+    serialHistoryData: SerialHistoryData | null;
     setState: (action: StockPageAction) => void;
+    traceabilityData: BatchTraceabilityData | null;
     trackingBatch: string;
     trackingSerial: string;
 }
@@ -485,10 +499,17 @@ const StockTrackingCard = ({
     entryProductId,
     entryQuantity,
     entryWarehouseId,
+    expiryAlerts,
+    onLoadBatchTraceability,
+    onLoadExpiryAlerts,
+    onLoadSerialHistory,
     runAction,
+    quarantineReason,
     selectedItem,
     selectedStockItemId,
+    serialHistoryData,
     setState,
+    traceabilityData,
     trackingBatch,
     trackingSerial,
 }: StockTrackingCardProps) => {
@@ -510,48 +531,47 @@ const StockTrackingCard = ({
                 />
                 <div className="flex items-end">
                     <Button
-                        onClick={() =>
-                            runAction(
-                                () =>
-                                    getTrackingHistory({
-                                        data: {
-                                            batchNumber:
-                                                trackingBatch || undefined,
-                                            serialNumber:
-                                                trackingSerial || undefined,
-                                        },
-                                    }),
-                                "Tracking history loaded."
-                            )
-                        }
+                        onClick={() => {
+                            onLoadSerialHistory().catch(() => undefined);
+                        }}
                         variant="outline"
                     >
-                        Search Tracking
+                        Search Serial
                     </Button>
                 </div>
+                <div className="flex items-end">
+                    <Button
+                        onClick={() => {
+                            onLoadBatchTraceability().catch(() => undefined);
+                        }}
+                        variant="outline"
+                    >
+                        Trace Batch
+                    </Button>
+                </div>
+                <FieldInput
+                    label="Quarantine Reason"
+                    onChange={(value) => setState({ quarantineReason: value })}
+                    value={quarantineReason}
+                />
                 <div className="flex flex-wrap gap-2 md:col-span-3">
                     <Button
-                        onClick={() =>
-                            runAction(
-                                () =>
-                                    getExpiryAlerts({
-                                        data: { withinDays: 30 },
-                                    }),
-                                "Expiry alerts loaded."
-                            )
-                        }
+                        onClick={() => {
+                            onLoadExpiryAlerts().catch(() => undefined);
+                        }}
                         variant="outline"
                     >
                         Refresh Expiry Alerts
                     </Button>
                     <Button
-                        disabled={!selectedItem}
+                        disabled={!(selectedItem && quarantineReason.trim())}
                         onClick={() =>
                             runAction(
                                 () =>
-                                    updateStockExpiryStatus({
+                                    moveToQuarantine({
                                         data: {
-                                            operation: "QUARANTINE",
+                                            quarantineLocationId: null,
+                                            reason: quarantineReason.trim(),
                                             stockItemId: selectedStockItemId,
                                         },
                                     }),
@@ -606,6 +626,73 @@ const StockTrackingCard = ({
                         Generate Putaway Suggestions
                     </Button>
                 </div>
+                {expiryAlerts.length > 0 ? (
+                    <div className="md:col-span-3">
+                        <p className="font-medium text-sm">
+                            Expiry Alerts ({expiryAlerts.length})
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Top alert: {expiryAlerts[0]?.product.sku} -{" "}
+                            {expiryAlerts[0]?.daysUntilExpiry} days
+                        </p>
+                        <div className="mt-2 space-y-1 text-xs">
+                            {expiryAlerts.slice(0, 5).map((alert) => (
+                                <p key={alert.id}>
+                                    {alert.product.sku} |{" "}
+                                    {alert.location?.code ?? "NO-LOC"} |{" "}
+                                    {alert.daysUntilExpiry} days |{" "}
+                                    {formatQuantity(alert.availableQuantity)}{" "}
+                                    available
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+                {serialHistoryData ? (
+                    <div className="md:col-span-3">
+                        <p className="font-medium text-sm">
+                            Serial History ({serialHistoryData.serialNumber})
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Movements:{" "}
+                            {serialHistoryData.movementHistory.length}
+                        </p>
+                        <div className="mt-2 space-y-1 text-xs">
+                            {serialHistoryData.movementHistory
+                                .slice(0, 5)
+                                .map((movement) => (
+                                    <p key={movement.id}>
+                                        {new Date(
+                                            movement.createdAt
+                                        ).toLocaleDateString()}{" "}
+                                        | {movement.type} |{" "}
+                                        {formatQuantity(movement.quantity)}
+                                    </p>
+                                ))}
+                        </div>
+                    </div>
+                ) : null}
+                {traceabilityData ? (
+                    <div className="md:col-span-3">
+                        <p className="font-medium text-sm">
+                            Batch Traceability ({traceabilityData.batchNumber})
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Received:{" "}
+                            {formatQuantity(
+                                traceabilityData.summary.totalReceived
+                            )}{" "}
+                            | Shipped:{" "}
+                            {formatQuantity(
+                                traceabilityData.summary.totalShipped
+                            )}{" "}
+                            | On Hand:{" "}
+                            {formatQuantity(
+                                traceabilityData.summary.totalOnHand
+                            )}
+                        </p>
+                    </div>
+                ) : null}
             </CardContent>
         </Card>
     );
@@ -877,6 +964,7 @@ function StockPage() {
         entryQuantity: "",
         entryUnitCost: "",
         entryWarehouseId: warehouses[0]?.id ?? "",
+        expiryAlerts: [],
         movementHistory: null,
         movementPage: "1",
         movementProductId: "",
@@ -884,14 +972,84 @@ function StockPage() {
         movementWarehouseId: "",
         releaseQuantity: "",
         reserveQuantity: "",
+        quarantineReason: "",
         selectedStockItemId: "",
+        serialHistoryData: null,
         stockData: initialStock,
+        traceabilityData: null,
         trackingBatch: "",
         trackingSerial: "",
         transferQuantity: "",
         transferWarehouseId: warehouses[0]?.id ?? "",
         valuation: initialValuation,
     });
+
+    const loadExpiryAlerts = async () => {
+        try {
+            const expiryAlerts = await getExpiryAlertsReport({
+                data: {
+                    daysAhead: 30,
+                    warehouseId:
+                        state.entryWarehouseId.length > 0
+                            ? state.entryWarehouseId
+                            : undefined,
+                },
+            });
+            setState({ expiryAlerts });
+            toast.success("Expiry alerts loaded.");
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load expiry alerts."
+            );
+        }
+    };
+
+    const loadSerialHistory = async () => {
+        if (state.trackingSerial.trim().length === 0) {
+            toast.error("Enter a serial number.");
+            return;
+        }
+        try {
+            const serialHistoryData = await getSerialHistory({
+                data: {
+                    serialNumber: state.trackingSerial.trim(),
+                },
+            });
+            setState({ serialHistoryData });
+            toast.success("Serial history loaded.");
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load serial history."
+            );
+        }
+    };
+
+    const loadBatchTraceability = async () => {
+        if (state.trackingBatch.trim().length === 0 || !state.entryProductId) {
+            toast.error("Select product and enter a batch number.");
+            return;
+        }
+        try {
+            const traceabilityData = await getBatchTraceability({
+                data: {
+                    batchNumber: state.trackingBatch.trim(),
+                    productId: state.entryProductId,
+                },
+            });
+            setState({ traceabilityData });
+            toast.success("Batch traceability loaded.");
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load batch traceability."
+            );
+        }
+    };
 
     const loadMovementHistory = async () => {
         const movementType =
@@ -1031,10 +1189,17 @@ function StockPage() {
                 entryProductId={state.entryProductId}
                 entryQuantity={state.entryQuantity}
                 entryWarehouseId={state.entryWarehouseId}
+                expiryAlerts={state.expiryAlerts}
+                onLoadBatchTraceability={loadBatchTraceability}
+                onLoadExpiryAlerts={loadExpiryAlerts}
+                onLoadSerialHistory={loadSerialHistory}
+                quarantineReason={state.quarantineReason}
                 runAction={runAction}
                 selectedItem={selectedItem}
                 selectedStockItemId={state.selectedStockItemId}
+                serialHistoryData={state.serialHistoryData}
                 setState={setState}
+                traceabilityData={state.traceabilityData}
                 trackingBatch={state.trackingBatch}
                 trackingSerial={state.trackingSerial}
             />
