@@ -86,6 +86,257 @@ const suppliersPageReducer = (
     };
 };
 
+interface SupplierFormCardProps {
+    editingSupplier: SupplierRecord | undefined;
+    form: SupplierFormState;
+    isSubmitting: boolean;
+    onCancelEdit: () => void;
+    onSaveSupplier: () => void;
+    onUpdateFormField: (field: keyof SupplierFormState, value: string) => void;
+}
+
+const SupplierFormCard = ({
+    editingSupplier,
+    form,
+    isSubmitting,
+    onCancelEdit,
+    onSaveSupplier,
+    onUpdateFormField,
+}: SupplierFormCardProps) => {
+    const saveButtonLabel = (() => {
+        if (isSubmitting) {
+            return "Saving...";
+        }
+        if (editingSupplier) {
+            return "Save Changes";
+        }
+        return "Create Supplier";
+    })();
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>
+                    {editingSupplier ? "Edit Supplier" : "Create Supplier"}
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-3">
+                {editingSupplier ? null : (
+                    <div className="space-y-2">
+                        <Label htmlFor="supplier-code">Code</Label>
+                        <Input
+                            id="supplier-code"
+                            onChange={(event) =>
+                                onUpdateFormField(
+                                    "code",
+                                    event.target.value.toUpperCase()
+                                )
+                            }
+                            placeholder="SUP-0001"
+                            value={form.code}
+                        />
+                    </div>
+                )}
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-name">Name</Label>
+                    <Input
+                        id="supplier-name"
+                        onChange={(event) =>
+                            onUpdateFormField("name", event.target.value)
+                        }
+                        placeholder="Supplier Name"
+                        value={form.name}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-contact">Contact Person</Label>
+                    <Input
+                        id="supplier-contact"
+                        onChange={(event) =>
+                            onUpdateFormField(
+                                "contactPerson",
+                                event.target.value
+                            )
+                        }
+                        value={form.contactPerson}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-email">Email</Label>
+                    <Input
+                        id="supplier-email"
+                        onChange={(event) =>
+                            onUpdateFormField("email", event.target.value)
+                        }
+                        type="email"
+                        value={form.email}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-phone">Phone</Label>
+                    <Input
+                        id="supplier-phone"
+                        onChange={(event) =>
+                            onUpdateFormField("phone", event.target.value)
+                        }
+                        value={form.phone}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-payment">Payment Terms</Label>
+                    <Input
+                        id="supplier-payment"
+                        onChange={(event) =>
+                            onUpdateFormField(
+                                "paymentTerms",
+                                event.target.value
+                            )
+                        }
+                        placeholder="Net 30"
+                        value={form.paymentTerms}
+                    />
+                </div>
+                <div className="flex gap-2 md:col-span-3">
+                    <Button
+                        disabled={
+                            isSubmitting ||
+                            (!editingSupplier &&
+                                form.code.trim().length === 0) ||
+                            form.name.trim().length === 0
+                        }
+                        onClick={onSaveSupplier}
+                    >
+                        {saveButtonLabel}
+                    </Button>
+                    {editingSupplier ? (
+                        <Button onClick={onCancelEdit} variant="outline">
+                            Cancel Edit
+                        </Button>
+                    ) : null}
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface SupplierListCardProps {
+    isRowBusyId: string | null;
+    onDeleteSupplier: (supplier: SupplierRecord) => void;
+    onEditSupplier: (supplier: SupplierRecord) => void;
+    onToggleSupplierActive: (supplier: SupplierRecord) => void;
+    pendingDeleteSupplierId: string | null;
+    suppliers: SupplierRecord[];
+}
+
+const SupplierListCard = ({
+    isRowBusyId,
+    onDeleteSupplier,
+    onEditSupplier,
+    onToggleSupplierActive,
+    pendingDeleteSupplierId,
+    suppliers,
+}: SupplierListCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Supplier List</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Contact</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Products</TableHead>
+                            <TableHead>POs</TableHead>
+                            <TableHead className="text-right">
+                                Actions
+                            </TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {suppliers.map((supplier) => (
+                            <TableRow key={supplier.id}>
+                                <TableCell>{supplier.code}</TableCell>
+                                <TableCell>{supplier.name}</TableCell>
+                                <TableCell>
+                                    {supplier.contactPerson ?? "—"}
+                                </TableCell>
+                                <TableCell>
+                                    <Badge
+                                        variant={
+                                            supplier.isActive
+                                                ? "default"
+                                                : "secondary"
+                                        }
+                                    >
+                                        {supplier.isActive
+                                            ? "Active"
+                                            : "Inactive"}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    {supplier._count.products}
+                                </TableCell>
+                                <TableCell>
+                                    {supplier._count.purchaseOrders}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                        <Button
+                                            disabled={
+                                                isRowBusyId === supplier.id
+                                            }
+                                            onClick={() =>
+                                                onEditSupplier(supplier)
+                                            }
+                                            size="sm"
+                                            variant="outline"
+                                        >
+                                            Edit
+                                        </Button>
+                                        <Button
+                                            disabled={
+                                                isRowBusyId === supplier.id
+                                            }
+                                            onClick={() =>
+                                                onToggleSupplierActive(supplier)
+                                            }
+                                            size="sm"
+                                            variant="outline"
+                                        >
+                                            {supplier.isActive
+                                                ? "Deactivate"
+                                                : "Activate"}
+                                        </Button>
+                                        <Button
+                                            disabled={
+                                                isRowBusyId === supplier.id
+                                            }
+                                            onClick={() =>
+                                                onDeleteSupplier(supplier)
+                                            }
+                                            size="sm"
+                                            variant="destructive"
+                                        >
+                                            {pendingDeleteSupplierId ===
+                                            supplier.id
+                                                ? "Confirm Delete"
+                                                : "Delete"}
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
 export const Route = createFileRoute("/_dashboard/suppliers")({
     component: SuppliersPage,
     loader: () => getSuppliers({ data: { includeInactive: true } }),
@@ -266,16 +517,6 @@ function SuppliersPage() {
         }
     };
 
-    const getSaveButtonLabel = (): string => {
-        if (isSubmitting) {
-            return "Saving...";
-        }
-        if (editingSupplier) {
-            return "Save Changes";
-        }
-        return "Create Supplier";
-    };
-
     return (
         <section className="w-full space-y-4">
             <div>
@@ -286,229 +527,29 @@ function SuppliersPage() {
                 </p>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>
-                        {editingSupplier ? "Edit Supplier" : "Create Supplier"}
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-3">
-                    {editingSupplier ? null : (
-                        <div className="space-y-2">
-                            <Label htmlFor="supplier-code">Code</Label>
-                            <Input
-                                id="supplier-code"
-                                onChange={(event) =>
-                                    updateFormField(
-                                        "code",
-                                        event.target.value.toUpperCase()
-                                    )
-                                }
-                                placeholder="SUP-0001"
-                                value={form.code}
-                            />
-                        </div>
-                    )}
-                    <div className="space-y-2">
-                        <Label htmlFor="supplier-name">Name</Label>
-                        <Input
-                            id="supplier-name"
-                            onChange={(event) =>
-                                updateFormField("name", event.target.value)
-                            }
-                            placeholder="Supplier Name"
-                            value={form.name}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="supplier-contact">Contact Person</Label>
-                        <Input
-                            id="supplier-contact"
-                            onChange={(event) =>
-                                updateFormField(
-                                    "contactPerson",
-                                    event.target.value
-                                )
-                            }
-                            value={form.contactPerson}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="supplier-email">Email</Label>
-                        <Input
-                            id="supplier-email"
-                            onChange={(event) =>
-                                updateFormField("email", event.target.value)
-                            }
-                            type="email"
-                            value={form.email}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="supplier-phone">Phone</Label>
-                        <Input
-                            id="supplier-phone"
-                            onChange={(event) =>
-                                updateFormField("phone", event.target.value)
-                            }
-                            value={form.phone}
-                        />
-                    </div>
-                    <div className="space-y-2">
-                        <Label htmlFor="supplier-payment">Payment Terms</Label>
-                        <Input
-                            id="supplier-payment"
-                            onChange={(event) =>
-                                updateFormField(
-                                    "paymentTerms",
-                                    event.target.value
-                                )
-                            }
-                            placeholder="Net 30"
-                            value={form.paymentTerms}
-                        />
-                    </div>
-                    <div className="flex gap-2 md:col-span-3">
-                        <Button
-                            disabled={
-                                isSubmitting ||
-                                (!editingSupplier &&
-                                    form.code.trim().length === 0) ||
-                                form.name.trim().length === 0
-                            }
-                            onClick={handleSaveSupplier}
-                        >
-                            {getSaveButtonLabel()}
-                        </Button>
-                        {editingSupplier ? (
-                            <Button onClick={resetForm} variant="outline">
-                                Cancel Edit
-                            </Button>
-                        ) : null}
-                    </div>
-                </CardContent>
-            </Card>
+            <SupplierFormCard
+                editingSupplier={editingSupplier}
+                form={form}
+                isSubmitting={isSubmitting}
+                onCancelEdit={resetForm}
+                onSaveSupplier={() => {
+                    handleSaveSupplier().catch(() => undefined);
+                }}
+                onUpdateFormField={updateFormField}
+            />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Supplier List</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Code</TableHead>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Contact</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Products</TableHead>
-                                <TableHead>POs</TableHead>
-                                <TableHead className="text-right">
-                                    Actions
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {suppliers.map((supplier) => (
-                                <TableRow key={supplier.id}>
-                                    <TableCell>{supplier.code}</TableCell>
-                                    <TableCell>{supplier.name}</TableCell>
-                                    <TableCell>
-                                        {supplier.contactPerson ?? "—"}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            variant={
-                                                supplier.isActive
-                                                    ? "default"
-                                                    : "secondary"
-                                            }
-                                        >
-                                            {supplier.isActive
-                                                ? "Active"
-                                                : "Inactive"}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        {supplier._count.products}
-                                    </TableCell>
-                                    <TableCell>
-                                        {supplier._count.purchaseOrders}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex flex-wrap justify-end gap-2">
-                                            <Button
-                                                disabled={
-                                                    isRowBusyId === supplier.id
-                                                }
-                                                onClick={() =>
-                                                    loadSupplierIntoForm(
-                                                        supplier
-                                                    )
-                                                }
-                                                size="sm"
-                                                variant="outline"
-                                            >
-                                                Edit
-                                            </Button>
-                                            <Button
-                                                disabled={
-                                                    isRowBusyId === supplier.id
-                                                }
-                                                onClick={() =>
-                                                    handleToggleSupplierActive(
-                                                        supplier
-                                                    )
-                                                }
-                                                size="sm"
-                                                variant="outline"
-                                            >
-                                                {supplier.isActive
-                                                    ? "Deactivate"
-                                                    : "Activate"}
-                                            </Button>
-                                            {pendingDeleteSupplierId ===
-                                            supplier.id ? (
-                                                <Button
-                                                    disabled={
-                                                        isRowBusyId ===
-                                                        supplier.id
-                                                    }
-                                                    onClick={() =>
-                                                        handleDeleteSupplier(
-                                                            supplier
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="destructive"
-                                                >
-                                                    Confirm Delete
-                                                </Button>
-                                            ) : (
-                                                <Button
-                                                    disabled={
-                                                        isRowBusyId ===
-                                                        supplier.id
-                                                    }
-                                                    onClick={() =>
-                                                        handleDeleteSupplier(
-                                                            supplier
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="destructive"
-                                                >
-                                                    Delete
-                                                </Button>
-                                            )}
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+            <SupplierListCard
+                isRowBusyId={isRowBusyId}
+                onDeleteSupplier={(supplier) => {
+                    handleDeleteSupplier(supplier).catch(() => undefined);
+                }}
+                onEditSupplier={loadSupplierIntoForm}
+                onToggleSupplierActive={(supplier) => {
+                    handleToggleSupplierActive(supplier).catch(() => undefined);
+                }}
+                pendingDeleteSupplierId={pendingDeleteSupplierId}
+                suppliers={suppliers}
+            />
         </section>
     );
 }
