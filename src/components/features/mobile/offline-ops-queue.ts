@@ -15,6 +15,26 @@ const canUseStorage = (): boolean => {
     return typeof window !== "undefined" && typeof localStorage !== "undefined";
 };
 
+const requestBackgroundSync = async (): Promise<void> => {
+    if (typeof window === "undefined") {
+        return;
+    }
+    if (!("serviceWorker" in navigator)) {
+        return;
+    }
+
+    const registration = await navigator.serviceWorker.ready;
+    const registrationWithSync = registration as ServiceWorkerRegistration & {
+        sync?: { register: (tag: string) => Promise<void> };
+    };
+
+    if (!registrationWithSync.sync?.register) {
+        return;
+    }
+
+    await registrationWithSync.sync.register("mobile-ops-sync");
+};
+
 const normalizeOperation = (
     operation: QueuedMobileOperation<MobileOperationPayload> &
         Partial<StoredQueuedMobileOperation>
@@ -52,6 +72,7 @@ const writeQueue = (queue: StoredQueuedMobileOperation[]): void => {
 
     localStorage.setItem(MOBILE_OPS_QUEUE_KEY, JSON.stringify(queue));
     window.dispatchEvent(new Event("mobile-ops-queue-changed"));
+    requestBackgroundSync().catch(() => undefined);
 };
 
 export const getQueuedMobileOperations = (): StoredQueuedMobileOperation[] =>

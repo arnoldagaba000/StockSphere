@@ -102,15 +102,30 @@ function MobileLayout() {
         const onQueueChange = () => {
             refreshQueueState();
         };
+        const onServiceWorkerMessage = (event: MessageEvent) => {
+            const data = event.data as { type?: string } | undefined;
+            if (data?.type !== "mobile-ops-sync-request") {
+                return;
+            }
+            runSync(false).catch(() => undefined);
+        };
 
         window.addEventListener("online", onOnline);
         window.addEventListener("mobile-ops-queue-changed", onQueueChange);
+        navigator.serviceWorker?.addEventListener(
+            "message",
+            onServiceWorkerMessage
+        );
         runSync(false).catch(() => undefined);
         return () => {
             window.removeEventListener("online", onOnline);
             window.removeEventListener(
                 "mobile-ops-queue-changed",
                 onQueueChange
+            );
+            navigator.serviceWorker?.removeEventListener(
+                "message",
+                onServiceWorkerMessage
             );
         };
     }, [refreshQueueState, runSync]);

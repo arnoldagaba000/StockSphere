@@ -109,3 +109,19 @@ self.addEventListener("fetch", (event) => {
             )
     );
 });
+
+self.addEventListener("sync", (event) => {
+    if (event.tag !== "mobile-ops-sync") {
+        return;
+    }
+
+    event.waitUntil(
+        self.clients
+            .matchAll({ includeUncontrolled: true, type: "window" })
+            .then((clients) => {
+                for (const client of clients) {
+                    client.postMessage({ type: "mobile-ops-sync-request" });
+                }
+            })
+    );
+});
