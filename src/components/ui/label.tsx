@@ -4,10 +4,13 @@ import type * as React from "react";
 
 import { cn } from "@/lib/utils";
 
-function Label({ className, ...props }: React.ComponentProps<"label">) {
+interface LabelProps extends React.ComponentProps<"div"> {
+    htmlFor?: string;
+}
+
+function Label({ className, htmlFor: _htmlFor, ...props }: LabelProps) {
     return (
-        // biome-ignore lint/a11y/noLabelWithoutControl: association is provided at callsites via htmlFor or wrapped controls.
-        <label
+        <div
             className={cn(
                 "flex select-none items-center gap-2 font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50 group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50",
                 className
