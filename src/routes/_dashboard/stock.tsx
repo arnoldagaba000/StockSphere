@@ -27,15 +27,12 @@ import { createInitialStock } from "@/features/inventory/create-initial-stock";
 import { submitCycleCount } from "@/features/inventory/cycle-count";
 import { getBatchTraceability } from "@/features/inventory/get-batch-traceability";
 import { getExpiryAlerts as getExpiryAlertsReport } from "@/features/inventory/get-expiry-alerts";
-import {
-    getInventoryKpis,
-    getInventoryValuationReport,
-} from "@/features/inventory/get-inventory-reports";
+import { getInventoryValuationReport } from "@/features/inventory/get-inventory-reports";
 import { getMovementHistory } from "@/features/inventory/get-movement-history";
 import { getPutawaySuggestions } from "@/features/inventory/get-putaway-suggestions";
 import { getSerialHistory } from "@/features/inventory/get-serial-history";
 import { getStock } from "@/features/inventory/get-stock";
-import { getWarehouses } from "@/features/inventory/get-warehouses";
+import { getStockBootstrap } from "@/features/inventory/get-stock-bootstrap";
 import { updateStockExpiryStatus } from "@/features/inventory/manage-expiry";
 import { moveToQuarantine } from "@/features/inventory/quarantine-stock";
 import { receiveGoods } from "@/features/inventory/receive-goods";
@@ -45,7 +42,6 @@ import {
     reserveStock,
 } from "@/features/inventory/reserve-stock";
 import { transferStock } from "@/features/inventory/transfer-stock";
-import { getProducts } from "@/features/products/get-products";
 
 const TRAILING_ZEROES_REGEX = /\.?0+$/;
 const formatQuantity = (value: number): string =>
@@ -59,10 +55,11 @@ type MovementHistoryData = Awaited<ReturnType<typeof getMovementHistory>>;
 type BatchTraceabilityData = Awaited<ReturnType<typeof getBatchTraceability>>;
 type SerialHistoryData = Awaited<ReturnType<typeof getSerialHistory>>;
 type ExpiryAlertsData = Awaited<ReturnType<typeof getExpiryAlertsReport>>;
-type InventoryKpis = Awaited<ReturnType<typeof getInventoryKpis>>;
+type StockBootstrapData = Awaited<ReturnType<typeof getStockBootstrap>>;
+type InventoryKpis = StockBootstrapData["kpis"];
 type StockItem = StockData["stockItems"][number];
-type Product = Awaited<ReturnType<typeof getProducts>>["products"][number];
-type Warehouse = Awaited<ReturnType<typeof getWarehouses>>[number];
+type Product = StockBootstrapData["products"][number];
+type Warehouse = StockBootstrapData["warehouses"][number];
 type MovementHistoryItem = MovementHistoryData["movements"][number];
 
 const MOVEMENT_TYPE_OPTIONS = [
@@ -91,13 +88,13 @@ interface StockPageState {
     movementProductId: string;
     movementType: string;
     movementWarehouseId: string;
+    quarantineReason: string;
     releaseQuantity: string;
     reserveQuantity: string;
     selectedStockItemId: string;
+    serialHistoryData: SerialHistoryData | null;
     stockData: StockData;
     traceabilityData: BatchTraceabilityData | null;
-    quarantineReason: string;
-    serialHistoryData: SerialHistoryData | null;
     trackingBatch: string;
     trackingSerial: string;
     transferQuantity: string;
@@ -117,25 +114,26 @@ const stockPageReducer = (
     return { ...state, ...patch };
 };
 
+const loadStockBootstrapWithRetry = async (): Promise<StockBootstrapData> => {
+    try {
+        return await getStockBootstrap();
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (!message.includes("action is not a function")) {
+            throw error;
+        }
+
+        await new Promise((resolve) => {
+            setTimeout(resolve, 120);
+        });
+        return await getStockBootstrap();
+    }
+};
+
 export const Route = createFileRoute("/_dashboard/stock")({
     component: StockPage,
     loader: async () => {
-        const [warehouses, productsResult, initialStock, kpis, valuation] =
-            await Promise.all([
-                getWarehouses({ data: {} }),
-                getProducts({ data: { pageSize: 200 } }),
-                getStock({ data: { pageSize: 150 } }),
-                getInventoryKpis({ data: { withinDays: 30 } }),
-                getInventoryValuationReport({ data: {} }),
-            ]);
-
-        return {
-            initialStock,
-            initialValuation: valuation,
-            kpis,
-            products: productsResult.products,
-            warehouses,
-        };
+        return await loadStockBootstrapWithRetry();
     },
 });
 
@@ -482,11 +480,11 @@ interface StockTrackingCardProps {
     onLoadBatchTraceability: () => Promise<void>;
     onLoadExpiryAlerts: () => Promise<void>;
     onLoadSerialHistory: () => Promise<void>;
+    quarantineReason: string;
     runAction: (
         work: () => Promise<unknown>,
         successMessage: string
     ) => Promise<void>;
-    quarantineReason: string;
     selectedItem: StockItem | undefined;
     selectedStockItemId: string;
     serialHistoryData: SerialHistoryData | null;
