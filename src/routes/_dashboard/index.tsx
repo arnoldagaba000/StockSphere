@@ -79,6 +79,20 @@ const YAxis = lazy(async () => {
     return { default: module.YAxis };
 });
 
+type DashboardMetrics = Awaited<ReturnType<typeof getDashboardMetrics>>;
+
+interface QueueDistributionItem {
+    colorClass: string;
+    key: string;
+    label: string;
+    value: number;
+}
+
+interface TrendPoint {
+    dateLabel: string;
+    valueMajor: number;
+}
+
 export const Route = createFileRoute("/_dashboard/")({
     component: HomePage,
     loader: async ({ context }) => {
@@ -112,14 +126,8 @@ function HomePage() {
     const stockValueDelta = latestTrend
         ? latestTrend.totalValueMinor - (previousTrend?.totalValueMinor ?? 0)
         : 0;
-    const stockValueDeltaClassName = toDeltaTextClassName(stockValueDelta);
-    const stockValueDeltaSign = toDeltaSign(stockValueDelta);
 
-    const lowStockSeverity = toHealthSeverity(metrics.lowStockAlerts);
-    const expiringSeverity = toHealthSeverity(metrics.expiringIn30Days);
-    const trendChart = useElementSize<HTMLDivElement>();
-    const queueChart = useElementSize<HTMLDivElement>();
-    const trendData = metrics.inventoryTrend.map((item) => ({
+    const trendData: TrendPoint[] = metrics.inventoryTrend.map((item) => ({
         dateLabel: new Intl.DateTimeFormat("en-US", {
             day: "numeric",
             month: "short",
@@ -127,7 +135,8 @@ function HomePage() {
         }).format(new Date(item.date)),
         valueMajor: item.totalValueMinor / 100,
     }));
-    const queueDistribution = [
+
+    const queueDistribution: QueueDistributionItem[] = [
         {
             colorClass: "fill-amber-500",
             key: "pendingPurchaseOrders",
@@ -152,11 +161,13 @@ function HomePage() {
             label: "Expiring in 30 Days",
             value: metrics.expiringIn30Days,
         },
-    ] as const;
+    ];
+
     const queueTotal = queueDistribution.reduce(
         (total, item) => total + item.value,
         0
     );
+
     const lastUpdatedAt = new Date(dataUpdatedAt)
         .toISOString()
         .slice(0, 16)
@@ -164,348 +175,419 @@ function HomePage() {
 
     return (
         <section className="space-y-6">
-            <header className="space-y-3">
-                <div className="rounded-xl border bg-linear-to-br from-background to-muted/40 p-5">
-                    <h1 className="font-semibold text-2xl">Dashboard</h1>
-                    <p className="mt-1 text-muted-foreground text-sm">
-                        Real-time operating snapshot for inventory, order flow,
-                        and stock health.
-                    </p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                        <Badge variant="outline">
-                            <Clock3Icon className="mr-1 h-3.5 w-3.5" />
-                            Last refresh: {lastUpdatedAt} UTC
-                        </Badge>
-                        <Badge variant="secondary">
-                            <ActivityIcon className="mr-1 h-3.5 w-3.5" />
-                            Snapshot: live cache (5 min)
-                        </Badge>
-                    </div>
-                </div>
-            </header>
+            <DashboardHero lastUpdatedAt={lastUpdatedAt} />
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <MetricCard
-                    icon={<DollarSignIcon className="h-4 w-4" />}
-                    label="Stock Value"
-                    trendLabel={
-                        stockValueDelta === 0
-                            ? "No change from previous snapshot"
-                            : `${stockValueDelta > 0 ? "+" : "-"}${formatCurrencyFromMinorUnits(
-                                  Math.abs(stockValueDelta),
-                                  currencyCode
-                              )} vs previous snapshot`
-                    }
-                    trendTone={toDeltaTone(stockValueDelta)}
-                    value={formatCurrencyFromMinorUnits(
-                        metrics.totalStockValueMinor,
-                        currencyCode
-                    )}
+            <MetricsOverview
+                currencyCode={currencyCode}
+                metrics={metrics}
+                stockValueDelta={stockValueDelta}
+            />
+
+            <div className="grid gap-5 lg:grid-cols-3">
+                <InventoryTrendCard
+                    currencyCode={currencyCode}
+                    latestValueMinor={latestTrend?.totalValueMinor ?? 0}
+                    stockValueDelta={stockValueDelta}
+                    trendData={trendData}
                 />
-                <MetricCard
-                    icon={<PackageIcon className="h-4 w-4" />}
-                    label="Units In Stock"
-                    trendLabel={`${Intl.NumberFormat().format(
-                        metrics.recentMovementsLast7Days
-                    )} movements in last 7 days`}
-                    value={Intl.NumberFormat().format(
-                        metrics.totalUnitsInStock
-                    )}
-                />
-                <MetricCard
-                    icon={<TruckIcon className="h-4 w-4" />}
-                    label="Pending Purchase Orders"
-                    trendLabel="Inbound supply queue"
-                    value={String(metrics.pendingPurchaseOrders)}
-                />
-                <MetricCard
-                    icon={<ShoppingCartIcon className="h-4 w-4" />}
-                    label="Pending Sales Orders"
-                    trendLabel="Outbound fulfillment queue"
-                    value={String(metrics.pendingSalesOrders)}
+                <QueueDistributionCard
+                    queueDistribution={queueDistribution}
+                    queueTotal={queueTotal}
                 />
             </div>
 
             <div className="grid gap-5 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2">
-                            <ActivityIcon className="h-4 w-4 text-muted-foreground" />
-                            Inventory Value Trend (30 days)
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        {trendData.length > 0 ? (
-                            <div
-                                className="h-72 w-full min-w-0 rounded-md border bg-muted/20 p-2"
-                                ref={trendChart.ref}
-                            >
-                                {trendChart.size.height > 0 &&
-                                trendChart.size.width > 0 ? (
-                                    <Suspense fallback={<ChartLoadingState />}>
-                                        <AreaChart
-                                            data={trendData}
-                                            height={trendChart.size.height}
-                                            width={trendChart.size.width}
-                                        >
-                                            <defs>
-                                                <linearGradient
-                                                    id="inventoryValueGradient"
-                                                    x1="0"
-                                                    x2="0"
-                                                    y1="0"
-                                                    y2="1"
-                                                >
-                                                    <stop
-                                                        offset="5%"
-                                                        stopColor="hsl(var(--primary))"
-                                                        stopOpacity={0.3}
-                                                    />
-                                                    <stop
-                                                        offset="95%"
-                                                        stopColor="hsl(var(--primary))"
-                                                        stopOpacity={0}
-                                                    />
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis
-                                                dataKey="dateLabel"
-                                                tickMargin={8}
-                                            />
-                                            <YAxis
-                                                tickFormatter={(value) =>
-                                                    Intl.NumberFormat("en-US", {
-                                                        notation: "compact",
-                                                    }).format(value)
-                                                }
-                                            />
-                                            <Tooltip
-                                                formatter={(value) =>
-                                                    formatCurrencyFromMinorUnits(
-                                                        Math.round(
-                                                            Number(value) * 100
-                                                        ),
-                                                        currencyCode
-                                                    )
-                                                }
-                                            />
-                                            <Area
-                                                dataKey="valueMajor"
-                                                fill="url(#inventoryValueGradient)"
-                                                stroke="hsl(var(--primary))"
-                                                strokeWidth={2}
-                                                type="monotone"
-                                            />
-                                        </AreaChart>
-                                    </Suspense>
-                                ) : null}
-                            </div>
-                        ) : (
-                            <EmptyChartMessage />
-                        )}
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                            <span className="text-muted-foreground">
-                                Latest value:{" "}
-                                {formatCurrencyFromMinorUnits(
-                                    latestTrend?.totalValueMinor ?? 0,
-                                    currencyCode
-                                )}
-                            </span>
-                            <span className={stockValueDeltaClassName}>
-                                <TrendIcon
-                                    className="mr-1 inline h-3.5 w-3.5 align-[-2px]"
-                                    tone={toDeltaTone(stockValueDelta)}
-                                />
-                                {stockValueDeltaSign}
-                                {formatCurrencyFromMinorUnits(
-                                    Math.abs(stockValueDelta),
-                                    currencyCode
-                                )}{" "}
-                                vs previous snapshot
-                            </span>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2">
-                            <AlertTriangleIcon className="h-4 w-4 text-muted-foreground" />
-                            Queue Distribution
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div
-                            className="h-52 w-full min-w-0"
-                            ref={queueChart.ref}
-                        >
-                            {queueChart.size.height > 0 &&
-                            queueChart.size.width > 0 ? (
-                                <Suspense fallback={<ChartLoadingState />}>
-                                    <PieChart
-                                        height={queueChart.size.height}
-                                        width={queueChart.size.width}
-                                    >
-                                        <Pie
-                                            cx="50%"
-                                            cy="50%"
-                                            data={queueDistribution}
-                                            dataKey="value"
-                                            innerRadius={48}
-                                            nameKey="label"
-                                            outerRadius={72}
-                                        >
-                                            {queueDistribution.map((entry) => (
-                                                <Cell
-                                                    className={entry.colorClass}
-                                                    key={entry.key}
-                                                />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip />
-                                    </PieChart>
-                                </Suspense>
-                            ) : null}
-                        </div>
-                        <div className="space-y-2">
-                            {queueDistribution.map((item) => (
-                                <div
-                                    className="space-y-1 text-xs"
-                                    key={item.key}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-muted-foreground">
-                                            {item.label}
-                                        </span>
-                                        <span className="font-medium">
-                                            {item.value}
-                                        </span>
-                                    </div>
-                                    <div className="h-1.5 rounded-full bg-muted">
-                                        <div
-                                            className={`h-full rounded-full ${item.colorClass.replace("fill-", "bg-")}`}
-                                            style={{
-                                                width: `${queueTotal === 0 ? 0 : Math.round((item.value / queueTotal) * 100)}%`,
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                        <p className="text-muted-foreground text-xs">
-                            Total active items in queue: {queueTotal}
-                        </p>
-                    </CardContent>
-                </Card>
+                <InventoryHealthCard metrics={metrics} />
+                <QuickActionsCard />
             </div>
 
-            <div className="grid gap-5 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                    <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2">
-                            <AlertTriangleIcon className="h-4 w-4 text-muted-foreground" />
-                            Inventory Health
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-4 sm:grid-cols-3">
-                        <HealthRow
-                            label="Low Stock Alerts"
-                            severity={lowStockSeverity}
-                            value={metrics.lowStockAlerts}
-                        />
-                        <HealthRow
-                            label="Expiring in 30 Days"
-                            severity={expiringSeverity}
-                            value={metrics.expiringIn30Days}
-                        />
-                        <HealthRow
-                            label="Recent Movements (7d)"
-                            severity="healthy"
-                            value={metrics.recentMovementsLast7Days}
-                        />
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardTitle className="flex items-center gap-2">
-                            <ActivityIcon className="h-4 w-4 text-muted-foreground" />
-                            Quick Actions
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="grid gap-3">
-                        <Button
-                            className="justify-start"
-                            nativeButton={false}
-                            render={<Link to="/stock" />}
-                            variant="outline"
-                        >
-                            Open Stock Operations
-                        </Button>
-                        <Button
-                            className="justify-start"
-                            nativeButton={false}
-                            render={<Link to="/reports" />}
-                            variant="outline"
-                        >
-                            View Reports
-                        </Button>
-                        <Button
-                            className="justify-start"
-                            nativeButton={false}
-                            render={<Link to="/settings/system" />}
-                            variant="outline"
-                        >
-                            Configure System
-                        </Button>
-                        <Button
-                            className="justify-start"
-                            nativeButton={false}
-                            render={<Link to="/profile" />}
-                            variant="outline"
-                        >
-                            My Profile
-                        </Button>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <Card>
-                <CardHeader className="pb-2">
-                    <CardTitle className="flex items-center gap-2">
-                        <Clock3Icon className="h-4 w-4 text-muted-foreground" />
-                        Operational Queue
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                    <QueueCard
-                        description="Orders waiting supplier confirmation or receipt workflow."
-                        href="/purchase-orders"
-                        label="Purchase Orders"
-                        value={metrics.pendingPurchaseOrders}
-                    />
-                    <QueueCard
-                        description="Customer orders waiting picking, shipping, or fulfillment."
-                        href="/sales-orders"
-                        label="Sales Orders"
-                        value={metrics.pendingSalesOrders}
-                    />
-                    <QueueCard
-                        description="Items approaching or below their configured reorder point."
-                        href="/stock"
-                        label="Low Stock Items"
-                        value={metrics.lowStockAlerts}
-                    />
-                    <QueueCard
-                        description="Lots and batches with upcoming expiry within the next 30 days."
-                        href="/reports"
-                        label="Expiring Soon"
-                        value={metrics.expiringIn30Days}
-                    />
-                </CardContent>
-            </Card>
+            <OperationalQueueCard metrics={metrics} />
         </section>
+    );
+}
+
+function DashboardHero({ lastUpdatedAt }: { lastUpdatedAt: string }) {
+    return (
+        <header className="space-y-3">
+            <div className="rounded-xl border bg-linear-to-br from-background to-muted/40 p-5">
+                <h1 className="font-semibold text-2xl">Dashboard</h1>
+                <p className="mt-1 text-muted-foreground text-sm">
+                    Real-time operating snapshot for inventory, order flow, and
+                    stock health.
+                </p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <Badge variant="outline">
+                        <Clock3Icon className="mr-1 h-3.5 w-3.5" />
+                        Last refresh: {lastUpdatedAt} UTC
+                    </Badge>
+                    <Badge variant="secondary">
+                        <ActivityIcon className="mr-1 h-3.5 w-3.5" />
+                        Snapshot: live cache (5 min)
+                    </Badge>
+                </div>
+            </div>
+        </header>
+    );
+}
+
+function MetricsOverview({
+    currencyCode,
+    metrics,
+    stockValueDelta,
+}: {
+    currencyCode: string;
+    metrics: DashboardMetrics;
+    stockValueDelta: number;
+}) {
+    return (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MetricCard
+                icon={<DollarSignIcon className="h-4 w-4" />}
+                label="Stock Value"
+                trendLabel={
+                    stockValueDelta === 0
+                        ? "No change from previous snapshot"
+                        : `${stockValueDelta > 0 ? "+" : "-"}${formatCurrencyFromMinorUnits(
+                              Math.abs(stockValueDelta),
+                              currencyCode
+                          )} vs previous snapshot`
+                }
+                trendTone={toDeltaTone(stockValueDelta)}
+                value={formatCurrencyFromMinorUnits(
+                    metrics.totalStockValueMinor,
+                    currencyCode
+                )}
+            />
+            <MetricCard
+                icon={<PackageIcon className="h-4 w-4" />}
+                label="Units In Stock"
+                trendLabel={`${Intl.NumberFormat().format(
+                    metrics.recentMovementsLast7Days
+                )} movements in last 7 days`}
+                value={Intl.NumberFormat().format(metrics.totalUnitsInStock)}
+            />
+            <MetricCard
+                icon={<TruckIcon className="h-4 w-4" />}
+                label="Pending Purchase Orders"
+                trendLabel="Inbound supply queue"
+                value={String(metrics.pendingPurchaseOrders)}
+            />
+            <MetricCard
+                icon={<ShoppingCartIcon className="h-4 w-4" />}
+                label="Pending Sales Orders"
+                trendLabel="Outbound fulfillment queue"
+                value={String(metrics.pendingSalesOrders)}
+            />
+        </div>
+    );
+}
+
+function InventoryTrendCard({
+    currencyCode,
+    latestValueMinor,
+    stockValueDelta,
+    trendData,
+}: {
+    currencyCode: string;
+    latestValueMinor: number;
+    stockValueDelta: number;
+    trendData: TrendPoint[];
+}) {
+    const trendChart = useElementSize<HTMLDivElement>();
+    const stockValueDeltaClassName = toDeltaTextClassName(stockValueDelta);
+    const stockValueDeltaSign = toDeltaSign(stockValueDelta);
+
+    return (
+        <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                    <ActivityIcon className="h-4 w-4 text-muted-foreground" />
+                    Inventory Value Trend (30 days)
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {trendData.length > 0 ? (
+                    <div
+                        className="h-72 w-full min-w-0 rounded-md border bg-muted/20 p-2"
+                        ref={trendChart.ref}
+                    >
+                        {trendChart.size.height > 0 &&
+                        trendChart.size.width > 0 ? (
+                            <Suspense fallback={<ChartLoadingState />}>
+                                <AreaChart
+                                    data={trendData}
+                                    height={trendChart.size.height}
+                                    width={trendChart.size.width}
+                                >
+                                    <defs>
+                                        <linearGradient
+                                            id="inventoryValueGradient"
+                                            x1="0"
+                                            x2="0"
+                                            y1="0"
+                                            y2="1"
+                                        >
+                                            <stop
+                                                offset="5%"
+                                                stopColor="hsl(var(--primary))"
+                                                stopOpacity={0.3}
+                                            />
+                                            <stop
+                                                offset="95%"
+                                                stopColor="hsl(var(--primary))"
+                                                stopOpacity={0}
+                                            />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis dataKey="dateLabel" tickMargin={8} />
+                                    <YAxis
+                                        tickFormatter={(value) =>
+                                            Intl.NumberFormat("en-US", {
+                                                notation: "compact",
+                                            }).format(value)
+                                        }
+                                    />
+                                    <Tooltip
+                                        formatter={(value) =>
+                                            formatCurrencyFromMinorUnits(
+                                                Math.round(Number(value) * 100),
+                                                currencyCode
+                                            )
+                                        }
+                                    />
+                                    <Area
+                                        dataKey="valueMajor"
+                                        fill="url(#inventoryValueGradient)"
+                                        stroke="hsl(var(--primary))"
+                                        strokeWidth={2}
+                                        type="monotone"
+                                    />
+                                </AreaChart>
+                            </Suspense>
+                        ) : null}
+                    </div>
+                ) : (
+                    <EmptyChartMessage />
+                )}
+                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                    <span className="text-muted-foreground">
+                        Latest value:{" "}
+                        {formatCurrencyFromMinorUnits(
+                            latestValueMinor,
+                            currencyCode
+                        )}
+                    </span>
+                    <span className={stockValueDeltaClassName}>
+                        <TrendIcon
+                            className="mr-1 inline h-3.5 w-3.5 align-[-2px]"
+                            tone={toDeltaTone(stockValueDelta)}
+                        />
+                        {stockValueDeltaSign}
+                        {formatCurrencyFromMinorUnits(
+                            Math.abs(stockValueDelta),
+                            currencyCode
+                        )}{" "}
+                        vs previous snapshot
+                    </span>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function QueueDistributionCard({
+    queueDistribution,
+    queueTotal,
+}: {
+    queueDistribution: QueueDistributionItem[];
+    queueTotal: number;
+}) {
+    const queueChart = useElementSize<HTMLDivElement>();
+
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                    <AlertTriangleIcon className="h-4 w-4 text-muted-foreground" />
+                    Queue Distribution
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="h-52 w-full min-w-0" ref={queueChart.ref}>
+                    {queueChart.size.height > 0 && queueChart.size.width > 0 ? (
+                        <Suspense fallback={<ChartLoadingState />}>
+                            <PieChart
+                                height={queueChart.size.height}
+                                width={queueChart.size.width}
+                            >
+                                <Pie
+                                    cx="50%"
+                                    cy="50%"
+                                    data={queueDistribution}
+                                    dataKey="value"
+                                    innerRadius={48}
+                                    nameKey="label"
+                                    outerRadius={72}
+                                >
+                                    {queueDistribution.map((entry) => (
+                                        <Cell
+                                            className={entry.colorClass}
+                                            key={entry.key}
+                                        />
+                                    ))}
+                                </Pie>
+                                <Tooltip />
+                            </PieChart>
+                        </Suspense>
+                    ) : null}
+                </div>
+                <div className="space-y-2">
+                    {queueDistribution.map((item) => (
+                        <div className="space-y-1 text-xs" key={item.key}>
+                            <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">
+                                    {item.label}
+                                </span>
+                                <span className="font-medium">
+                                    {item.value}
+                                </span>
+                            </div>
+                            <div className="h-1.5 rounded-full bg-muted">
+                                <div
+                                    className={`h-full rounded-full ${item.colorClass.replace("fill-", "bg-")}`}
+                                    style={{
+                                        width: `${queueTotal === 0 ? 0 : Math.round((item.value / queueTotal) * 100)}%`,
+                                    }}
+                                />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <p className="text-muted-foreground text-xs">
+                    Total active items in queue: {queueTotal}
+                </p>
+            </CardContent>
+        </Card>
+    );
+}
+
+function InventoryHealthCard({ metrics }: { metrics: DashboardMetrics }) {
+    const lowStockSeverity = toHealthSeverity(metrics.lowStockAlerts);
+    const expiringSeverity = toHealthSeverity(metrics.expiringIn30Days);
+
+    return (
+        <Card className="lg:col-span-2">
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                    <AlertTriangleIcon className="h-4 w-4 text-muted-foreground" />
+                    Inventory Health
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+                <HealthRow
+                    label="Low Stock Alerts"
+                    severity={lowStockSeverity}
+                    value={metrics.lowStockAlerts}
+                />
+                <HealthRow
+                    label="Expiring in 30 Days"
+                    severity={expiringSeverity}
+                    value={metrics.expiringIn30Days}
+                />
+                <HealthRow
+                    label="Recent Movements (7d)"
+                    severity="healthy"
+                    value={metrics.recentMovementsLast7Days}
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
+function QuickActionsCard() {
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                    <ActivityIcon className="h-4 w-4 text-muted-foreground" />
+                    Quick Actions
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3">
+                <Button
+                    className="justify-start"
+                    nativeButton={false}
+                    render={<Link to="/stock" />}
+                    variant="outline"
+                >
+                    Open Stock Operations
+                </Button>
+                <Button
+                    className="justify-start"
+                    nativeButton={false}
+                    render={<Link to="/reports" />}
+                    variant="outline"
+                >
+                    View Reports
+                </Button>
+                <Button
+                    className="justify-start"
+                    nativeButton={false}
+                    render={<Link to="/settings/system" />}
+                    variant="outline"
+                >
+                    Configure System
+                </Button>
+                <Button
+                    className="justify-start"
+                    nativeButton={false}
+                    render={<Link to="/profile" />}
+                    variant="outline"
+                >
+                    My Profile
+                </Button>
+            </CardContent>
+        </Card>
+    );
+}
+
+function OperationalQueueCard({ metrics }: { metrics: DashboardMetrics }) {
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                    <Clock3Icon className="h-4 w-4 text-muted-foreground" />
+                    Operational Queue
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+                <QueueCard
+                    description="Orders waiting supplier confirmation or receipt workflow."
+                    href="/purchase-orders"
+                    label="Purchase Orders"
+                    value={metrics.pendingPurchaseOrders}
+                />
+                <QueueCard
+                    description="Customer orders waiting picking, shipping, or fulfillment."
+                    href="/sales-orders"
+                    label="Sales Orders"
+                    value={metrics.pendingSalesOrders}
+                />
+                <QueueCard
+                    description="Items approaching or below their configured reorder point."
+                    href="/stock"
+                    label="Low Stock Items"
+                    value={metrics.lowStockAlerts}
+                />
+                <QueueCard
+                    description="Lots and batches with upcoming expiry within the next 30 days."
+                    href="/reports"
+                    label="Expiring Soon"
+                    value={metrics.expiringIn30Days}
+                />
+            </CardContent>
+        </Card>
     );
 }
 
