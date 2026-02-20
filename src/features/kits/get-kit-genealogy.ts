@@ -8,6 +8,8 @@ import { authMiddleware } from "@/middleware/auth";
 
 const getKitGenealogySchema = z.object({
     batchNumber: z.string().trim().optional(),
+    dateFrom: z.coerce.date().optional(),
+    dateTo: z.coerce.date().optional(),
     kitId: z.string().min(1),
     limit: z.number().int().min(1).max(200).default(50),
     warehouseId: z.string().optional(),
@@ -36,6 +38,12 @@ export const getKitGenealogy = createServerFn({ method: "GET" })
                 productId: data.kitId,
                 type: "ASSEMBLY",
                 ...(data.batchNumber ? { batchNumber: data.batchNumber } : {}),
+                ...((data.dateFrom || data.dateTo) && {
+                    createdAt: {
+                        ...(data.dateFrom ? { gte: data.dateFrom } : {}),
+                        ...(data.dateTo ? { lte: data.dateTo } : {}),
+                    },
+                }),
                 ...(data.warehouseId
                     ? { toWarehouseId: data.warehouseId }
                     : {}),
