@@ -22,6 +22,21 @@ interface ReportsPageState {
     valuationTotalMinor: number;
 }
 
+const getDefaultReportsState = (): ReportsPageState => {
+    const now = new Date();
+    const weekAgo = new Date(now);
+    weekAgo.setDate(weekAgo.getDate() - 7);
+
+    return {
+        agingDeadStockValueMinor: 0,
+        csvPreview: "",
+        dateFrom: weekAgo.toISOString().slice(0, 10),
+        dateTo: now.toISOString().slice(0, 10),
+        movementCount: 0,
+        valuationTotalMinor: 0,
+    };
+};
+
 const reportsPageReducer = (
     state: ReportsPageState,
     action: Partial<ReportsPageState>
@@ -41,16 +56,11 @@ export const Route = createFileRoute("/_dashboard/reports")({
 function ReportsPage() {
     const { metrics } = Route.useLoaderData();
 
-    const [state, setState] = useReducer(reportsPageReducer, {
-        agingDeadStockValueMinor: 0,
-        csvPreview: "",
-        dateFrom: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-            .toISOString()
-            .slice(0, 10),
-        dateTo: new Date().toISOString().slice(0, 10),
-        movementCount: 0,
-        valuationTotalMinor: 0,
-    });
+    const [state, setState] = useReducer(
+        reportsPageReducer,
+        undefined,
+        getDefaultReportsState
+    );
 
     const runCreateSnapshot = async () => {
         try {
