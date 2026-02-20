@@ -71,14 +71,15 @@ export const buildCategoryHierarchy = (
 };
 
 export const formatCurrencyFromMinorUnits = (
-    value: number | null | undefined
+    value: number | null | undefined,
+    currencyCode = "UGX"
 ): string => {
     if (value == null) {
         return "—";
     }
 
     return new Intl.NumberFormat("en-UG", {
-        currency: "UGX",
+        currency: currencyCode,
         maximumFractionDigits: 0,
         minimumFractionDigits: 0,
         style: "currency",

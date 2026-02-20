@@ -60,11 +60,13 @@ import {
     upsertProductVariant,
 } from "@/features/products/manage-product-variants";
 import { updateProduct } from "@/features/products/update-product";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 import { listSuppliers } from "@/features/suppliers/list-suppliers";
 
 interface ProductEditLoaderData {
     categories: Awaited<ReturnType<typeof getCategories>>;
     changeRequests: Awaited<ReturnType<typeof listProductChangeRequests>>;
+    financialSettings: Awaited<ReturnType<typeof getFinancialSettings>>;
     priceHistory: Awaited<ReturnType<typeof getProductPriceHistory>>;
     priceSchedules: Awaited<ReturnType<typeof listProductPriceSchedules>>;
     product: Awaited<ReturnType<typeof getProduct>>;
@@ -543,6 +545,7 @@ const MediaSection = ({
 };
 
 interface PriceSchedulingSectionProps {
+    currencyCode: string;
     onRefresh: () => Promise<void>;
     onStatePatch: (patch: Partial<EditProductPageState>) => void;
     priceSchedules: ProductEditLoaderData["priceSchedules"];
@@ -554,6 +557,7 @@ interface PriceSchedulingSectionProps {
 }
 
 const PriceSchedulingSection = ({
+    currencyCode,
     onRefresh,
     onStatePatch,
     priceSchedules,
@@ -576,7 +580,7 @@ const PriceSchedulingSection = ({
                                 scheduleCostPrice: event.target.value,
                             })
                         }
-                        placeholder="Cost price (UGX)"
+                        placeholder={`Cost price (${currencyCode})`}
                         step={1}
                         type="number"
                         value={scheduleCostPrice}
@@ -587,7 +591,7 @@ const PriceSchedulingSection = ({
                                 scheduleSellingPrice: event.target.value,
                             })
                         }
-                        placeholder="Selling price (UGX)"
+                        placeholder={`Selling price (${currencyCode})`}
                         step={1}
                         type="number"
                         value={scheduleSellingPrice}
@@ -675,7 +679,8 @@ const PriceSchedulingSection = ({
                                 </TableCell>
                                 <TableCell>
                                     {formatCurrencyFromMinorUnits(
-                                        schedule.sellingPrice
+                                        schedule.sellingPrice,
+                                        currencyCode
                                     )}
                                 </TableCell>
                                 <TableCell>{schedule.status}</TableCell>
@@ -793,10 +798,14 @@ const ChangeRequestsSection = ({
 };
 
 interface PriceHistorySectionProps {
+    currencyCode: string;
     priceHistory: ProductEditLoaderData["priceHistory"];
 }
 
-const PriceHistorySection = ({ priceHistory }: PriceHistorySectionProps) => {
+const PriceHistorySection = ({
+    currencyCode,
+    priceHistory,
+}: PriceHistorySectionProps) => {
     return (
         <Card>
             <CardHeader>
@@ -821,12 +830,14 @@ const PriceHistorySection = ({ priceHistory }: PriceHistorySectionProps) => {
                                 </TableCell>
                                 <TableCell>
                                     {formatCurrencyFromMinorUnits(
-                                        entry.costPrice
+                                        entry.costPrice,
+                                        currencyCode
                                     )}
                                 </TableCell>
                                 <TableCell>
                                     {formatCurrencyFromMinorUnits(
-                                        entry.sellingPrice
+                                        entry.sellingPrice,
+                                        currencyCode
                                     )}
                                 </TableCell>
                                 <TableCell>{entry.reason ?? "—"}</TableCell>
@@ -853,6 +864,7 @@ export const Route = createFileRoute("/_dashboard/products/$productId")({
             productMedia,
             priceSchedules,
             changeRequests,
+            financialSettings,
         ] = await Promise.all([
             getCategories(),
             getProduct({ data: { id: params.productId } }),
@@ -867,11 +879,13 @@ export const Route = createFileRoute("/_dashboard/products/$productId")({
             listProductChangeRequests({
                 data: { productId: params.productId },
             }),
+            getFinancialSettings(),
         ]);
 
         return {
             categories,
             changeRequests,
+            financialSettings,
             priceHistory,
             priceSchedules,
             product,
@@ -889,6 +903,7 @@ function EditProductPage() {
     const {
         categories,
         changeRequests,
+        financialSettings,
         priceHistory,
         priceSchedules,
         product,
@@ -897,6 +912,7 @@ function EditProductPage() {
         suppliers,
         variants,
     } = Route.useLoaderData();
+    const { currencyCode } = financialSettings;
     const categoryOptions = buildCategoryHierarchy(categories);
     const [state, setState] = useReducer(editProductPageReducer, {
         isSubmitting: false,
@@ -1002,6 +1018,7 @@ function EditProductPage() {
                 productMedia={productMedia}
             />
             <PriceSchedulingSection
+                currencyCode={currencyCode}
                 onRefresh={() => router.invalidate()}
                 onStatePatch={setState}
                 priceSchedules={priceSchedules}
@@ -1015,7 +1032,10 @@ function EditProductPage() {
                 changeRequests={changeRequests}
                 onRefresh={() => router.invalidate()}
             />
-            <PriceHistorySection priceHistory={priceHistory} />
+            <PriceHistorySection
+                currencyCode={currencyCode}
+                priceHistory={priceHistory}
+            />
         </div>
     );
 }

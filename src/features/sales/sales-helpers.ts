@@ -17,17 +17,21 @@ const createUniqueCode = (prefix: string): string => {
     return `${prefix}-${timestampPart}-${randomPart}`;
 };
 
-export const generateSalesOrderNumber = (): string => createUniqueCode("SO");
+export const generateSalesOrderNumber = (prefix = "SO"): string =>
+    createUniqueCode(prefix);
 
-export const generateShipmentNumber = (): string => createUniqueCode("SHP");
+export const generateShipmentNumber = (prefix = "SHP"): string =>
+    createUniqueCode(prefix);
 
-export const generateInventoryTransactionNumber = (): string =>
-    createUniqueCode("IT");
+export const generateInventoryTransactionNumber = (prefix = "IT"): string =>
+    createUniqueCode(prefix);
 
 export const generateStockMovementNumber = (
+    prefix: string,
     transactionNumber: string,
     lineNumber: number
-): string => `${transactionNumber}-L${String(lineNumber).padStart(3, "0")}`;
+): string =>
+    `${prefix}-${transactionNumber}-L${String(lineNumber).padStart(3, "0")}`;
 
 export const toNumber = (value: Prisma.Decimal | number): number =>
     Number(value);

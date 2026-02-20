@@ -13,6 +13,7 @@ import { generateAgingReport } from "@/features/reports/generate-aging-report";
 import { generateMovementReport } from "@/features/reports/generate-movement-report";
 import { generateValuationReport } from "@/features/reports/generate-valuation-report";
 import { getDashboardMetrics } from "@/features/reports/get-dashboard-metrics";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 interface ReportsPageState {
     agingDeadStockValueMinor: number;
@@ -55,15 +56,17 @@ const dashboardMetricsQueryOptions = queryOptions({
 export const Route = createFileRoute("/_dashboard/reports")({
     component: ReportsPage,
     loader: async ({ context }) => {
-        const metrics = await context.queryClient.ensureQueryData(
-            dashboardMetricsQueryOptions
-        );
-        return { metrics };
+        const [financialSettings, metrics] = await Promise.all([
+            getFinancialSettings(),
+            context.queryClient.ensureQueryData(dashboardMetricsQueryOptions),
+        ]);
+        return { financialSettings, metrics };
     },
 });
 
 function ReportsPage() {
-    const { metrics: loaderMetrics } = Route.useLoaderData();
+    const { financialSettings, metrics: loaderMetrics } = Route.useLoaderData();
+    const { currencyCode } = financialSettings;
     const { data: metrics } = useSuspenseQuery({
         ...dashboardMetricsQueryOptions,
         initialData: loaderMetrics,
@@ -194,7 +197,8 @@ function ReportsPage() {
                 <MetricCard
                     label="Stock Value"
                     value={formatCurrencyFromMinorUnits(
-                        metrics.totalStockValueMinor
+                        metrics.totalStockValueMinor,
+                        currencyCode
                     )}
                 />
             </div>
@@ -271,13 +275,15 @@ function ReportsPage() {
                     <p>
                         Valuation total:{" "}
                         {formatCurrencyFromMinorUnits(
-                            state.valuationTotalMinor
+                            state.valuationTotalMinor,
+                            currencyCode
                         )}
                     </p>
                     <p>
                         Dead stock value:{" "}
                         {formatCurrencyFromMinorUnits(
-                            state.agingDeadStockValueMinor
+                            state.agingDeadStockValueMinor,
+                            currencyCode
                         )}
                     </p>
                 </CardContent>

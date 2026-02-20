@@ -33,6 +33,7 @@ import { getSuppliers } from "@/features/purchases/get-suppliers";
 import { markPurchaseOrderOrdered } from "@/features/purchases/mark-purchase-order-ordered";
 import { rejectPurchaseOrder } from "@/features/purchases/reject-purchase-order";
 import { submitPurchaseOrder } from "@/features/purchases/submit-purchase-order";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 interface PurchaseOrderFormItem {
     id: string;
@@ -85,10 +86,12 @@ type SupplierList = Awaited<ReturnType<typeof getSuppliers>>;
 type PurchasingReport = Awaited<ReturnType<typeof getPurchasingReport>>;
 
 interface PurchaseOrderOverviewSectionProps {
+    currencyCode: string;
     report: PurchasingReport;
 }
 
 const PurchaseOrderOverviewSection = ({
+    currencyCode,
     report,
 }: PurchaseOrderOverviewSectionProps) => {
     return (
@@ -96,7 +99,10 @@ const PurchaseOrderOverviewSection = ({
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                 <MetricCard
                     label="30-Day Spend"
-                    value={formatCurrencyFromMinorUnits(report.recentSpend)}
+                    value={formatCurrencyFromMinorUnits(
+                        report.recentSpend,
+                        currencyCode
+                    )}
                 />
                 <MetricCard
                     label="30-Day Orders"
@@ -156,7 +162,8 @@ const PurchaseOrderOverviewSection = ({
                                     <TableCell>{supplier.openOrders}</TableCell>
                                     <TableCell className="text-right">
                                         {formatCurrencyFromMinorUnits(
-                                            supplier.totalSpend
+                                            supplier.totalSpend,
+                                            currencyCode
                                         )}
                                     </TableCell>
                                 </TableRow>
@@ -170,6 +177,7 @@ const PurchaseOrderOverviewSection = ({
 };
 
 interface CreatePurchaseOrderSectionProps {
+    currencyCode: string;
     expectedDate: string;
     isSaving: boolean;
     items: PurchaseOrderFormItem[];
@@ -191,6 +199,7 @@ interface CreatePurchaseOrderSectionProps {
 }
 
 const CreatePurchaseOrderSection = ({
+    currencyCode,
     expectedDate,
     isSaving,
     items,
@@ -253,7 +262,7 @@ const CreatePurchaseOrderSection = ({
                         />
                     </div>
                     <div className="space-y-2">
-                        <Label htmlFor="tax-amount">Tax (UGX)</Label>
+                        <Label htmlFor="tax-amount">Tax ({currencyCode})</Label>
                         <Input
                             id="tax-amount"
                             onChange={(event) =>
@@ -267,7 +276,7 @@ const CreatePurchaseOrderSection = ({
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="shipping-cost">
-                            Shipping Cost (UGX)
+                            Shipping Cost ({currencyCode})
                         </Label>
                         <Input
                             id="shipping-cost"
@@ -326,7 +335,7 @@ const CreatePurchaseOrderSection = ({
                                         unitPrice: event.target.value,
                                     })
                                 }
-                                placeholder="Unit price (UGX)"
+                                placeholder={`Unit price (${currencyCode})`}
                                 type="number"
                                 value={item.unitPrice}
                             />
@@ -351,8 +360,10 @@ const CreatePurchaseOrderSection = ({
                         Add Line
                     </Button>
                     <p className="text-muted-foreground text-sm">
-                        Subtotal: {formatCurrencyFromMinorUnits(subtotal)} |
-                        Total: {formatCurrencyFromMinorUnits(total)}
+                        Subtotal:{" "}
+                        {formatCurrencyFromMinorUnits(subtotal, currencyCode)} |
+                        Total:{" "}
+                        {formatCurrencyFromMinorUnits(total, currencyCode)}
                     </p>
                 </div>
 
@@ -369,6 +380,7 @@ const CreatePurchaseOrderSection = ({
 
 interface PurchaseOrderListSectionProps {
     cancelReason: string;
+    currencyCode: string;
     isTransitioningId: string | null;
     onLoadDetail: (purchaseOrderId: string) => void;
     onPatchState: (patch: Partial<PurchaseOrdersPageState>) => void;
@@ -381,6 +393,7 @@ interface PurchaseOrderListSectionProps {
 
 const PurchaseOrderListSection = ({
     cancelReason,
+    currencyCode,
     isTransitioningId,
     onLoadDetail,
     onPatchState,
@@ -432,7 +445,8 @@ const PurchaseOrderListSection = ({
                                 </TableCell>
                                 <TableCell>
                                     {formatCurrencyFromMinorUnits(
-                                        order.totalAmount
+                                        order.totalAmount,
+                                        currencyCode
                                     )}
                                 </TableCell>
                                 <TableCell className="text-right">
@@ -664,15 +678,22 @@ const PurchaseOrderDetailSection = ({
 export const Route = createFileRoute("/_dashboard/purchase-orders")({
     component: PurchaseOrdersPage,
     loader: async () => {
-        const [suppliers, productsResponse, purchaseOrders, report] =
-            await Promise.all([
-                getSuppliers({ data: {} }),
-                getProducts({ data: { pageSize: 200 } }),
-                getPurchaseOrders({ data: {} }),
-                getPurchasingReport({ data: { days: 30 } }),
-            ]);
+        const [
+            financialSettings,
+            suppliers,
+            productsResponse,
+            purchaseOrders,
+            report,
+        ] = await Promise.all([
+            getFinancialSettings(),
+            getSuppliers({ data: {} }),
+            getProducts({ data: { pageSize: 200 } }),
+            getPurchaseOrders({ data: {} }),
+            getPurchasingReport({ data: { days: 30 } }),
+        ]);
 
         return {
+            financialSettings,
             products: productsResponse.products,
             purchaseOrders,
             report,
@@ -683,8 +704,9 @@ export const Route = createFileRoute("/_dashboard/purchase-orders")({
 
 function PurchaseOrdersPage() {
     const router = useRouter();
-    const { products, purchaseOrders, report, suppliers } =
+    const { financialSettings, products, purchaseOrders, report, suppliers } =
         Route.useLoaderData();
+    const { currencyCode } = financialSettings;
     const [state, patchState] = useReducer(purchaseOrdersPageReducer, {
         cancelReason: "",
         expectedDate: "",
@@ -880,8 +902,12 @@ function PurchaseOrdersPage() {
                 </p>
             </div>
 
-            <PurchaseOrderOverviewSection report={report} />
+            <PurchaseOrderOverviewSection
+                currencyCode={currencyCode}
+                report={report}
+            />
             <CreatePurchaseOrderSection
+                currencyCode={currencyCode}
                 expectedDate={expectedDate}
                 isSaving={isSaving}
                 items={items}
@@ -902,6 +928,7 @@ function PurchaseOrdersPage() {
             />
             <PurchaseOrderListSection
                 cancelReason={cancelReason}
+                currencyCode={currencyCode}
                 isTransitioningId={isTransitioningId}
                 onLoadDetail={(purchaseOrderId) => {
                     loadPurchaseOrderDetail(purchaseOrderId).catch(

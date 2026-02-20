@@ -38,6 +38,17 @@ function SettingsLayout() {
                 >
                     Profile Settings
                 </Link>
+                {isAdmin ? (
+                    <Link
+                        activeProps={{
+                            className: "bg-primary text-primary-foreground",
+                        }}
+                        className="rounded-md border px-3 py-1.5 text-sm"
+                        to="/settings/system"
+                    >
+                        System
+                    </Link>
+                ) : null}
                 <Link
                     activeProps={{
                         className: "bg-primary text-primary-foreground",

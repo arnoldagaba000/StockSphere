@@ -2,6 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { prisma } from "@/db";
+import {
+    generateGoodsReceiptNumber,
+    generateInventoryTransactionNumber,
+    generateStockMovementNumber,
+    retryOnUniqueConstraint,
+} from "@/features/purchases/purchase-helpers";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import type { Prisma } from "@/generated/prisma/client";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
@@ -65,18 +72,23 @@ const validateDestination = async (data: ReceiveGoodsInput): Promise<void> => {
 const applyReceiptItems = async ({
     createdById,
     data,
+    movementPrefix,
     receiptId,
     receiptNumber,
+    transactionNumber,
     transactionId,
     tx,
 }: {
     createdById: string;
     data: ReceiveGoodsInput;
+    movementPrefix: string;
     receiptId: string;
     receiptNumber: string;
+    transactionNumber: string;
     transactionId: string;
     tx: Prisma.TransactionClient;
 }) => {
+    let lineNumber = 1;
     for (const item of data.items) {
         await tx.goodsReceiptItem.create({
             data: {
@@ -130,7 +142,11 @@ const applyReceiptItems = async ({
                 batchNumber: item.batchNumber ?? null,
                 createdById,
                 inventoryTransactionId: transactionId,
-                movementNumber: `${receiptNumber}-${item.productId.slice(0, 6)}`,
+                movementNumber: generateStockMovementNumber(
+                    movementPrefix,
+                    transactionNumber,
+                    lineNumber
+                ),
                 productId: item.productId,
                 quantity: item.quantity,
                 reason: data.notes ?? "Goods received",
@@ -140,6 +156,7 @@ const applyReceiptItems = async ({
                 type: "PURCHASE_RECEIPT",
             },
         });
+        lineNumber += 1;
     }
 };
 
@@ -188,42 +205,53 @@ export const receiveGoods = createServerFn({ method: "POST" })
         }
 
         await validateDestination(data);
+        const numberingPrefixes = await getNumberingPrefixes();
+        const result = await retryOnUniqueConstraint(async () =>
+            prisma.$transaction(async (tx) => {
+                const receiptNumber = generateGoodsReceiptNumber(
+                    undefined,
+                    numberingPrefixes.goodsReceipt
+                );
+                const transactionNumber = generateInventoryTransactionNumber(
+                    numberingPrefixes.inventoryTransaction
+                );
 
-        const receiptNumber = `GRN-${Date.now()}`;
-        const result = await prisma.$transaction(async (tx) => {
-            const receipt = await tx.goodsReceipt.create({
-                data: {
-                    notes: data.notes ?? null,
-                    purchaseOrderId: data.purchaseOrderId ?? null,
-                    receiptNumber,
-                    receivedBy: context.session.user.id,
-                },
-            });
+                const receipt = await tx.goodsReceipt.create({
+                    data: {
+                        notes: data.notes ?? null,
+                        purchaseOrderId: data.purchaseOrderId ?? null,
+                        receiptNumber,
+                        receivedBy: context.session.user.id,
+                    },
+                });
 
-            const transaction = await tx.inventoryTransaction.create({
-                data: {
+                const transaction = await tx.inventoryTransaction.create({
+                    data: {
+                        createdById: context.session.user.id,
+                        notes: data.notes ?? "Goods receipt posting",
+                        referenceId: receipt.id,
+                        referenceType: "GoodsReceipt",
+                        transactionNumber,
+                        type: "PURCHASE_RECEIPT",
+                    },
+                });
+
+                await applyReceiptItems({
                     createdById: context.session.user.id,
-                    notes: data.notes ?? "Goods receipt posting",
-                    referenceId: receipt.id,
-                    referenceType: "GoodsReceipt",
-                    transactionNumber: receiptNumber,
-                    type: "PURCHASE_RECEIPT",
-                },
-            });
+                    data,
+                    movementPrefix: numberingPrefixes.stockMovement,
+                    receiptId: receipt.id,
+                    receiptNumber: receipt.receiptNumber,
+                    transactionId: transaction.id,
+                    transactionNumber,
+                    tx,
+                });
 
-            await applyReceiptItems({
-                createdById: context.session.user.id,
-                data,
-                receiptId: receipt.id,
-                receiptNumber: receipt.receiptNumber,
-                transactionId: transaction.id,
-                tx,
-            });
+                await updatePoReceivedQuantities({ data, tx });
 
-            await updatePoReceivedQuantities({ data, tx });
-
-            return receipt;
-        });
+                return receipt;
+            })
+        );
 
         await logActivity({
             action: "GOODS_RECEIPT_POSTED",
@@ -231,7 +259,7 @@ export const receiveGoods = createServerFn({ method: "POST" })
             changes: {
                 after: {
                     items: data.items.length,
-                    receiptNumber,
+                    receiptNumber: result.receiptNumber,
                     warehouseId: data.warehouseId,
                 },
             },

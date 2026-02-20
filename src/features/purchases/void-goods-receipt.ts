@@ -6,6 +6,7 @@ import {
     generateInventoryTransactionNumber,
     generateStockMovementNumber,
 } from "@/features/purchases/purchase-helpers";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import type { Prisma } from "@/generated/prisma/client";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
@@ -53,6 +54,7 @@ const reverseStockForItem = async ({
     lineNumber,
     receiptNumber,
     reversalTransactionId,
+    stockMovementPrefix,
     transactionNumber,
     tx,
     voidReason,
@@ -62,6 +64,7 @@ const reverseStockForItem = async ({
     lineNumber: number;
     receiptNumber: string;
     reversalTransactionId: string;
+    stockMovementPrefix: string;
     transactionNumber: string;
     tx: Prisma.TransactionClient;
     voidReason: string;
@@ -87,6 +90,7 @@ const reverseStockForItem = async ({
             fromWarehouseId: item.warehouseId,
             inventoryTransactionId: reversalTransactionId,
             movementNumber: generateStockMovementNumber(
+                stockMovementPrefix,
                 transactionNumber,
                 lineNumber
             ),
@@ -190,9 +194,12 @@ export const voidGoodsReceipt = createServerFn({ method: "POST" })
         }
 
         ensureReceiptCanBeVoided(receipt.notes);
+        const numberingPrefixes = await getNumberingPrefixes();
 
         await prisma.$transaction(async (tx) => {
-            const transactionNumber = generateInventoryTransactionNumber();
+            const transactionNumber = generateInventoryTransactionNumber(
+                numberingPrefixes.inventoryTransaction
+            );
             const reversalTransaction = await tx.inventoryTransaction.create({
                 data: {
                     createdById: context.session.user.id,
@@ -212,6 +219,7 @@ export const voidGoodsReceipt = createServerFn({ method: "POST" })
                     lineNumber,
                     receiptNumber: receipt.receiptNumber,
                     reversalTransactionId: reversalTransaction.id,
+                    stockMovementPrefix: numberingPrefixes.stockMovement,
                     transactionNumber,
                     tx,
                     voidReason: data.reason,

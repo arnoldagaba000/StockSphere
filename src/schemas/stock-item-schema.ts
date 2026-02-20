@@ -13,7 +13,7 @@ export const manualStockEntrySchema = z.object({
             .positive("Quantity must be greater than zero")
     ),
 
-    // Stored as whole UGX integers (no decimals).
+    // Stored as whole integer minor units (no decimals).
     unitCost: z.preprocess((value) => {
         if (value === "" || value === null || value === undefined) {
             return null;
@@ -21,7 +21,7 @@ export const manualStockEntrySchema = z.object({
         return Number(value);
     }, z
         .number()
-        .int("Unit cost must be a whole number in UGX")
+        .int("Unit cost must be a whole number in minor units")
         .min(0, "Unit cost cannot be negative")
         .nullable()),
 

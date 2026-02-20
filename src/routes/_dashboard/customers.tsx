@@ -28,6 +28,7 @@ import {
     setCustomerActive,
     updateCustomer,
 } from "@/features/customers/update-customer";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 interface CustomerFormState {
     code: string;
@@ -79,10 +80,21 @@ const customersPageReducer = (
 
 export const Route = createFileRoute("/_dashboard/customers")({
     component: CustomersPage,
-    loader: () => getCustomers({ data: {} }),
+    loader: async () => {
+        const [customers, financialSettings] = await Promise.all([
+            getCustomers({ data: {} }),
+            getFinancialSettings(),
+        ]);
+
+        return {
+            customers,
+            financialSettings,
+        };
+    },
 });
 
 interface CustomerFormProps {
+    currencyCode: string;
     editingCustomer: CustomerListItem | undefined;
     form: CustomerFormState;
     isSubmitting: boolean;
@@ -92,6 +104,7 @@ interface CustomerFormProps {
 }
 
 const CustomerForm = ({
+    currencyCode,
     editingCustomer,
     form,
     isSubmitting,
@@ -182,7 +195,9 @@ const CustomerForm = ({
                     />
                 </div>
                 <div className="space-y-2">
-                    <Label htmlFor="customer-credit">Credit Limit (UGX)</Label>
+                    <Label htmlFor="customer-credit">
+                        Credit Limit ({currencyCode})
+                    </Label>
                     <Input
                         id="customer-credit"
                         min={0}
@@ -401,7 +416,7 @@ const CustomersTable = ({
 };
 
 function CustomersPage() {
-    const customers = Route.useLoaderData();
+    const { customers, financialSettings } = Route.useLoaderData();
     const [state, setState] = useReducer(customersPageReducer, {
         editingCustomerId: null,
         form: emptyForm,
@@ -629,6 +644,7 @@ function CustomersPage() {
             </div>
 
             <CustomerForm
+                currencyCode={financialSettings.currencyCode}
                 editingCustomer={editingCustomer}
                 form={form}
                 isSubmitting={isSubmitting}

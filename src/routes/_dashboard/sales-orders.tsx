@@ -39,6 +39,7 @@ import { getSalesOrders } from "@/features/sales/get-sales-orders";
 import { markSalesOrderDelivered } from "@/features/sales/mark-sales-order-delivered";
 import { shipOrder } from "@/features/sales/ship-order";
 import { updateSalesOrderDraft } from "@/features/sales/update-sales-order-draft";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 interface SalesOrderLineItemFormState {
     id: string;
@@ -63,12 +64,13 @@ interface SalesListFilters {
 }
 
 const createSalesLineItem = (
-    productId: string
+    productId: string,
+    defaultTaxRatePercent: number
 ): SalesOrderLineItemFormState => ({
     id: crypto.randomUUID(),
     productId,
     quantity: "",
-    taxRate: "0",
+    taxRate: String(defaultTaxRatePercent),
     unitPrice: "",
 });
 
@@ -162,15 +164,21 @@ const buildSalesOrdersQuery = (
 export const Route = createFileRoute("/_dashboard/sales-orders")({
     component: SalesOrdersPage,
     loader: async () => {
-        const [customers, productsResponse, initialSalesOrders] =
-            await Promise.all([
-                getCustomers({ data: { isActive: true } }),
-                getProducts({ data: { isActive: true, pageSize: 200 } }),
-                getSalesOrders(buildSalesOrdersQuery(emptyFilters, 1)),
-            ]);
+        const [
+            customers,
+            financialSettings,
+            productsResponse,
+            initialSalesOrders,
+        ] = await Promise.all([
+            getCustomers({ data: { isActive: true } }),
+            getFinancialSettings(),
+            getProducts({ data: { isActive: true, pageSize: 200 } }),
+            getSalesOrders(buildSalesOrdersQuery(emptyFilters, 1)),
+        ]);
 
         return {
             customers,
+            financialSettings,
             initialSalesOrders,
             products: productsResponse.products,
         };
@@ -180,7 +188,8 @@ export const Route = createFileRoute("/_dashboard/sales-orders")({
 const useSalesOrdersPageController = (
     loaderData: ReturnType<typeof Route.useLoaderData>
 ) => {
-    const { customers, initialSalesOrders, products } = loaderData;
+    const { customers, financialSettings, initialSalesOrders, products } =
+        loaderData;
     const [state, patchState] = useReducer(salesOrdersPageReducer, {
         cancelReason: "",
         customerId: customers[0]?.id ?? "",
@@ -196,7 +205,12 @@ const useSalesOrdersPageController = (
         isLoadingOrders: false,
         isSavingDraft: false,
         isShipping: false,
-        items: [createSalesLineItem(products[0]?.id ?? "")],
+        items: [
+            createSalesLineItem(
+                products[0]?.id ?? "",
+                financialSettings.defaultTaxRatePercent
+            ),
+        ],
         listFilters: emptyFilters,
         requiredDate: "",
         salesOrdersResponse: initialSalesOrders,
@@ -473,7 +487,10 @@ const useSalesOrdersPageController = (
     const addLineItem = (): void => {
         setItems((currentItems) => [
             ...currentItems,
-            createSalesLineItem(products[0]?.id ?? ""),
+            createSalesLineItem(
+                products[0]?.id ?? "",
+                financialSettings.defaultTaxRatePercent
+            ),
         ]);
     };
 
@@ -488,7 +505,12 @@ const useSalesOrdersPageController = (
         setShippingAddress("");
         setTaxAmount("0");
         setShippingCost("0");
-        setItems([createSalesLineItem(products[0]?.id ?? "")]);
+        setItems([
+            createSalesLineItem(
+                products[0]?.id ?? "",
+                financialSettings.defaultTaxRatePercent
+            ),
+        ]);
     };
 
     const handleCreateSalesOrder = async (): Promise<void> => {
@@ -790,6 +812,7 @@ const useSalesOrdersPageController = (
     return {
         addLineItem,
         cancelReason,
+        currencyCode: financialSettings.currencyCode,
         customerId,
         customers,
         draftLines,
@@ -856,6 +879,7 @@ function renderSalesOrdersPage(
     const {
         addLineItem,
         cancelReason,
+        currencyCode,
         customerId,
         customers,
         draftLines,
@@ -969,7 +993,9 @@ function renderSalesOrdersPage(
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="tax-amount">Tax (UGX)</Label>
+                            <Label htmlFor="tax-amount">
+                                Tax ({currencyCode})
+                            </Label>
                             <Input
                                 id="tax-amount"
                                 min={0}
@@ -982,7 +1008,7 @@ function renderSalesOrdersPage(
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="shipping-cost">
-                                Shipping Cost (UGX)
+                                Shipping Cost ({currencyCode})
                             </Label>
                             <Input
                                 id="shipping-cost"
@@ -1061,7 +1087,7 @@ function renderSalesOrdersPage(
                                             unitPrice: event.target.value,
                                         })
                                     }
-                                    placeholder="Unit Price (UGX)"
+                                    placeholder={`Unit Price (${currencyCode})`}
                                     type="number"
                                     value={item.unitPrice}
                                 />
@@ -1105,8 +1131,13 @@ function renderSalesOrdersPage(
                             {isCreating ? "Saving..." : "Create Draft"}
                         </Button>
                         <span className="text-muted-foreground text-sm">
-                            Subtotal: {formatCurrencyFromMinorUnits(subtotal)} |
-                            Total: {formatCurrencyFromMinorUnits(total)}
+                            Subtotal:{" "}
+                            {formatCurrencyFromMinorUnits(
+                                subtotal,
+                                currencyCode
+                            )}{" "}
+                            | Total:{" "}
+                            {formatCurrencyFromMinorUnits(total, currencyCode)}
                         </span>
                     </div>
                 </CardContent>
@@ -1279,7 +1310,8 @@ function renderSalesOrdersPage(
                                         </TableCell>
                                         <TableCell className="text-right">
                                             {formatCurrencyFromMinorUnits(
-                                                order.totalAmount
+                                                order.totalAmount,
+                                                currencyCode
                                             )}
                                         </TableCell>
                                         <TableCell>
@@ -1455,7 +1487,7 @@ function renderSalesOrdersPage(
                                                             event.target.value
                                                         )
                                                     }
-                                                    placeholder="Tax (UGX)"
+                                                    placeholder={`Tax (${currencyCode})`}
                                                     type="number"
                                                     value={draftTaxAmount}
                                                 />
@@ -1466,7 +1498,7 @@ function renderSalesOrdersPage(
                                                             event.target.value
                                                         )
                                                     }
-                                                    placeholder="Shipping (UGX)"
+                                                    placeholder={`Shipping (${currencyCode})`}
                                                     type="number"
                                                     value={draftShippingCost}
                                                 />

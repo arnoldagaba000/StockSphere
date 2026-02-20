@@ -7,6 +7,7 @@ import {
     generateStockMovementNumber,
     retryOnUniqueConstraint,
 } from "@/features/purchases/purchase-helpers";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import type { Prisma } from "@/generated/prisma/client";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
@@ -308,11 +309,17 @@ export const receiveGoods = createServerFn({ method: "POST" })
             order: purchaseOrder,
         });
 
-        const receiptNumber = generateGoodsReceiptNumber(data.idempotencyKey);
+        const numberingPrefixes = await getNumberingPrefixes();
+        const receiptNumber = generateGoodsReceiptNumber(
+            data.idempotencyKey,
+            numberingPrefixes.goodsReceipt
+        );
 
         const result = await retryOnUniqueConstraint(async () =>
             prisma.$transaction(async (tx) => {
-                const transactionNumber = generateInventoryTransactionNumber();
+                const transactionNumber = generateInventoryTransactionNumber(
+                    numberingPrefixes.inventoryTransaction
+                );
 
                 const goodsReceipt = await tx.goodsReceipt.create({
                     data: {
@@ -361,6 +368,7 @@ export const receiveGoods = createServerFn({ method: "POST" })
                             createdById: context.session.user.id,
                             inventoryTransactionId: inventoryTransaction.id,
                             movementNumber: generateStockMovementNumber(
+                                numberingPrefixes.stockMovement,
                                 transactionNumber,
                                 itemLine
                             ),

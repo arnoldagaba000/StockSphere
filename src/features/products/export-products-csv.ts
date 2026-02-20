@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { prisma } from "@/db";
+import { mapSystemSettings } from "@/features/settings/system-settings-helpers";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
@@ -35,22 +36,33 @@ export const exportProductsCsv = createServerFn({ method: "POST" })
             throw new Error("You do not have permission to export products.");
         }
 
-        const products = await prisma.product.findMany({
-            include: {
-                category: {
-                    select: {
-                        name: true,
+        const [products, systemSettings] = await Promise.all([
+            prisma.product.findMany({
+                include: {
+                    category: {
+                        select: {
+                            name: true,
+                        },
                     },
                 },
-            },
-            orderBy: [{ name: "asc" }],
-            where: {
-                deletedAt: null,
-                ...(data.productIds?.length
-                    ? { id: { in: [...new Set(data.productIds)] } }
-                    : {}),
-            },
-        });
+                orderBy: [{ name: "asc" }],
+                where: {
+                    deletedAt: null,
+                    ...(data.productIds?.length
+                        ? { id: { in: [...new Set(data.productIds)] } }
+                        : {}),
+                },
+            }),
+            prisma.systemSetting.findMany({
+                select: {
+                    key: true,
+                    value: true,
+                },
+            }),
+        ]);
+
+        const currencyCode =
+            mapSystemSettings(systemSettings).financial.currencyCode;
 
         const headers = [
             "id",
@@ -69,8 +81,8 @@ export const exportProductsCsv = createServerFn({ method: "POST" })
             product.name,
             product.barcode ?? "",
             product.category?.name ?? "",
-            formatCurrencyFromMinorUnits(product.costPrice),
-            formatCurrencyFromMinorUnits(product.sellingPrice),
+            formatCurrencyFromMinorUnits(product.costPrice, currencyCode),
+            formatCurrencyFromMinorUnits(product.sellingPrice, currencyCode),
             product.isActive ? "active" : "inactive",
             product.createdAt.toISOString(),
         ]);

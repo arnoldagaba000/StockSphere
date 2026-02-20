@@ -5,7 +5,7 @@ const purchaseOrderItemSchema = z.object({
     productId: z.string().min(1, "Product is required"),
     quantity: z.number().int().min(1, "Quantity must be at least 1"),
 
-    // Unit price stored as integer UGX.
+    // Unit price stored as integer minor units of configured currency.
     unitPrice: z.number().min(0, "Unit price cannot be negative"),
     taxRate: z.number().int().min(0).max(100).default(0),
 
@@ -23,7 +23,7 @@ export const purchaseOrderSchema = z.object({
         .array(purchaseOrderItemSchema)
         .min(1, "A purchase order must have at least one item"),
 
-    // Tax and shipping are stored as integer UGX.
+    // Tax and shipping are stored as integer minor units of configured currency.
     taxAmount: z.number().min(0).default(0),
     shippingCost: z.number().min(0).default(0),
 

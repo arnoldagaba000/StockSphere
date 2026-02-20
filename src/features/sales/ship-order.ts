@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { prisma } from "@/db";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import type { Prisma, SalesOrderItem } from "@/generated/prisma/client";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
@@ -59,6 +60,7 @@ const processShipmentLine = async ({
     orderItem,
     shipmentId,
     shipItem,
+    stockMovementPrefix,
     tx,
     userId,
     notes,
@@ -71,6 +73,7 @@ const processShipmentLine = async ({
     orderItem: SalesOrderItem;
     shipmentId: string;
     shipItem: ShipmentInputItem;
+    stockMovementPrefix: string;
     tx: Prisma.TransactionClient;
     userId: string;
 }) => {
@@ -111,6 +114,7 @@ const processShipmentLine = async ({
                 fromWarehouseId: stockItem.warehouseId,
                 inventoryTransactionId,
                 movementNumber: generateStockMovementNumber(
+                    stockMovementPrefix,
                     inventoryTransactionNumber,
                     index + 1
                 ),
@@ -160,6 +164,7 @@ export const shipOrder = createServerFn({ method: "POST" })
         if (!order) {
             throw new Error("Sales order not found.");
         }
+        const numberingPrefixes = await getNumberingPrefixes();
         if (!ALLOWED_ORDER_STATUSES.has(order.status)) {
             throw new Error(
                 `Cannot ship an order in "${order.status}" status.`
@@ -172,7 +177,9 @@ export const shipOrder = createServerFn({ method: "POST" })
 
         const result = await retryOnUniqueConstraint(async () =>
             prisma.$transaction(async (tx) => {
-                const shipmentNumber = generateShipmentNumber();
+                const shipmentNumber = generateShipmentNumber(
+                    numberingPrefixes.shipment
+                );
                 const shipment = await tx.shipment.create({
                     data: {
                         carrier: data.carrier ?? null,
@@ -186,7 +193,9 @@ export const shipOrder = createServerFn({ method: "POST" })
                 });
 
                 const inventoryTransactionNumber =
-                    generateInventoryTransactionNumber();
+                    generateInventoryTransactionNumber(
+                        numberingPrefixes.inventoryTransaction
+                    );
                 const inventoryTransaction =
                     await tx.inventoryTransaction.create({
                         data: {
@@ -222,6 +231,7 @@ export const shipOrder = createServerFn({ method: "POST" })
                         orderItem,
                         shipmentId: shipment.id,
                         shipItem,
+                        stockMovementPrefix: numberingPrefixes.stockMovement,
                         tx,
                         userId: context.session.user.id,
                     });
