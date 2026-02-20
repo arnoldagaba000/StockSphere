@@ -59,6 +59,7 @@ export const Route = createFileRoute("/_dashboard/mobile/receive")({
 function MobileReceivePage() {
     const router = useRouter();
     const { products, warehouses } = Route.useLoaderData();
+    const hasSetupData = warehouses.length > 0 && products.length > 0;
     const [state, setState] = useReducer(receivePageReducer, {
         batchNumber: "",
         isSubmitting: false,
@@ -142,8 +143,17 @@ function MobileReceivePage() {
                 <CardTitle>Mobile Receive</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+                {hasSetupData ? null : (
+                    <div className="rounded-md border border-dashed p-3 text-sm">
+                        <p className="font-medium">Setup required</p>
+                        <p className="text-muted-foreground">
+                            You need at least one warehouse and one active
+                            product before posting receipts.
+                        </p>
+                    </div>
+                )}
                 <BarcodeScanner
-                    disabled={state.isSubmitting}
+                    disabled={state.isSubmitting || !hasSetupData}
                     onDetected={handleBarcodeDetected}
                 />
 
@@ -240,7 +250,7 @@ function MobileReceivePage() {
 
                 <Button
                     className="min-h-11 w-full"
-                    disabled={state.isSubmitting}
+                    disabled={state.isSubmitting || !hasSetupData}
                     onClick={() => {
                         handleSubmit().catch(() => undefined);
                     }}

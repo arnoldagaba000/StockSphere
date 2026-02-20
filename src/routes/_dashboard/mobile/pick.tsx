@@ -73,6 +73,7 @@ export const Route = createFileRoute("/_dashboard/mobile/pick")({
 function MobilePickPage() {
     const router = useRouter();
     const { orderOptions } = Route.useLoaderData();
+    const hasOrders = orderOptions.length > 0;
     const [state, setState] = useReducer(pickPageReducer, {
         isSubmitting: false,
         selectedOrderId: orderOptions[0]?.id ?? "",
@@ -119,6 +120,14 @@ function MobilePickPage() {
                 <CardTitle>Mobile Pick</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+                {hasOrders ? null : (
+                    <div className="rounded-md border border-dashed p-3 text-sm">
+                        <p className="font-medium">No orders ready for pick</p>
+                        <p className="text-muted-foreground">
+                            Create or confirm sales orders to use mobile pick.
+                        </p>
+                    </div>
+                )}
                 <div className="space-y-2">
                     <Label htmlFor="mobile-pick-order">Sales Order</Label>
                     <Select
@@ -155,7 +164,11 @@ function MobilePickPage() {
 
                 <Button
                     className="min-h-11 w-full"
-                    disabled={state.isSubmitting || !state.selectedOrderId}
+                    disabled={
+                        state.isSubmitting ||
+                        !state.selectedOrderId ||
+                        !hasOrders
+                    }
                     onClick={() => {
                         handleShip().catch(() => undefined);
                     }}

@@ -51,6 +51,24 @@ const scannerReducer = (
 });
 
 const SCAN_INTERVAL_MS = 350;
+const getScannerErrorMessage = (error: unknown): string => {
+    if (error instanceof DOMException) {
+        if (error.name === "NotAllowedError") {
+            return "Camera permission denied. Allow camera access or use manual barcode entry.";
+        }
+        if (error.name === "NotFoundError") {
+            return "No camera detected on this device. Use manual barcode entry.";
+        }
+        if (error.name === "NotReadableError" || error.name === "AbortError") {
+            return "Camera is unavailable. It may be in use by another app.";
+        }
+        if (error.name === "SecurityError") {
+            return "Camera access requires a secure context (HTTPS or localhost).";
+        }
+    }
+
+    return "Unable to access camera. Use manual barcode entry instead.";
+};
 
 export function BarcodeScanner({
     disabled = false,
@@ -157,10 +175,10 @@ export function BarcodeScanner({
 
                 setState({ isStarting: false, isStreaming: true });
             })
-            .catch(() => {
+            .catch((error: unknown) => {
                 stopScanning();
                 setState({
-                    error: "Unable to access camera. Use manual barcode entry instead.",
+                    error: getScannerErrorMessage(error),
                     isStarting: false,
                 });
             });
@@ -215,6 +233,12 @@ export function BarcodeScanner({
             {state.error ? (
                 <p className="text-destructive text-xs">{state.error}</p>
             ) : null}
+            {state.isSupported ? null : (
+                <p className="text-muted-foreground text-xs">
+                    Camera scanning is not supported in this browser. Use manual
+                    barcode entry.
+                </p>
+            )}
 
             <div className="space-y-2">
                 <Label htmlFor="manual-barcode">Manual barcode entry</Label>

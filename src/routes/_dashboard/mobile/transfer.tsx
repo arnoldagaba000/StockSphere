@@ -56,6 +56,7 @@ export const Route = createFileRoute("/_dashboard/mobile/transfer")({
 function MobileTransferPage() {
     const router = useRouter();
     const { stockItems, warehouses } = Route.useLoaderData();
+    const hasSetupData = warehouses.length > 0 && stockItems.length > 0;
     const [state, setState] = useReducer(transferPageReducer, {
         isSubmitting: false,
         quantity: "1",
@@ -121,6 +122,15 @@ function MobileTransferPage() {
                 <CardTitle>Mobile Transfer</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+                {hasSetupData ? null : (
+                    <div className="rounded-md border border-dashed p-3 text-sm">
+                        <p className="font-medium">Setup required</p>
+                        <p className="text-muted-foreground">
+                            Mobile transfer needs at least one warehouse and one
+                            stock item with available quantity.
+                        </p>
+                    </div>
+                )}
                 <div className="space-y-2">
                     <Label htmlFor="mobile-transfer-stock">Stock Item</Label>
                     <Select
@@ -191,7 +201,7 @@ function MobileTransferPage() {
 
                 <Button
                     className="min-h-11 w-full"
-                    disabled={state.isSubmitting}
+                    disabled={state.isSubmitting || !hasSetupData}
                     onClick={() => {
                         handleSubmit().catch(() => undefined);
                     }}
