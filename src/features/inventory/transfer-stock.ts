@@ -1,23 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { z } from "zod";
 import { prisma } from "@/db";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
+import { stockTransferSchema } from "@/schemas/transfer-schema";
 import { assertPositiveQuantity, toNumber } from "./helpers";
 
-const transferStockSchema = z.object({
-    notes: z.string().max(500).nullable().optional(),
-    quantity: z.preprocess((value) => Number(value), z.number().positive()),
-    stockItemId: z.string().min(1),
-    toLocationId: z.string().nullable().optional(),
-    toWarehouseId: z.string().min(1),
-});
-
 export const transferStock = createServerFn({ method: "POST" })
-    .inputValidator(transferStockSchema)
+    .inputValidator(stockTransferSchema)
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         if (
@@ -66,6 +58,13 @@ export const transferStock = createServerFn({ method: "POST" })
             toNumber(sourceStock.reservedQuantity);
         if (data.quantity > sourceAvailable) {
             throw new Error("Transfer quantity exceeds available stock.");
+        }
+
+        const isSameDestination =
+            sourceStock.warehouseId === data.toWarehouseId &&
+            (sourceStock.locationId ?? null) === (data.toLocationId ?? null);
+        if (isSameDestination) {
+            throw new Error("Source and destination cannot be the same.");
         }
 
         const now = new Date();

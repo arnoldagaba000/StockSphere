@@ -1,29 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { z } from "zod";
 import { prisma } from "@/db";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
+import { inventoryAdjustmentSchema } from "@/schemas/adjustment-schema";
 import { toNumber } from "./helpers";
-
-const ADJUSTMENT_REASONS = [
-    "PHYSICAL_COUNT",
-    "DAMAGE",
-    "LOSS",
-    "FOUND",
-    "EXPIRY",
-    "QUALITY_ISSUE",
-    "OTHER",
-] as const;
-
-const adjustStockSchema = z.object({
-    countedQuantity: z.preprocess((value) => Number(value), z.number().min(0)),
-    notes: z.string().max(500).nullable().optional(),
-    reason: z.enum(ADJUSTMENT_REASONS),
-    stockItemId: z.string().min(1),
-});
 
 const parseApprovalThreshold = (): number => {
     const value = Number(
@@ -33,7 +16,7 @@ const parseApprovalThreshold = (): number => {
 };
 
 export const adjustStock = createServerFn({ method: "POST" })
-    .inputValidator(adjustStockSchema)
+    .inputValidator(inventoryAdjustmentSchema)
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         const stockItem = await prisma.stockItem.findUnique({
