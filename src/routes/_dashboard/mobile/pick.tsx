@@ -1,6 +1,11 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
+import { processMobilePick } from "@/components/features/mobile/mobile-operations";
+import {
+    isLikelyNetworkError,
+    queueMobileOperation,
+} from "@/components/features/mobile/offline-ops-queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -11,9 +16,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { getSalesOrderDetail } from "@/features/sales/get-sales-order-detail";
 import { getSalesOrders } from "@/features/sales/get-sales-orders";
-import { shipOrder } from "@/features/sales/ship-order";
 
 interface SalesOrderOption {
     id: string;
@@ -26,89 +29,27 @@ interface PickPageState {
     selectedOrderLabel: string;
 }
 
-interface ShipmentLine {
-    quantity: number;
-    salesOrderItemId: string;
-    stockItemId: string;
-}
-
 const pickPageReducer = (
     state: PickPageState,
     patch: Partial<PickPageState>
 ): PickPageState => ({ ...state, ...patch });
 
-const buildShipmentLines = (
-    order: Awaited<ReturnType<typeof getSalesOrderDetail>>
-): ShipmentLine[] => {
-    const shipmentLines: ShipmentLine[] = [];
-
-    for (const item of order.items) {
-        let remaining = item.quantity - item.shippedQuantity;
-        if (remaining <= 0) {
-            continue;
-        }
-
-        const productBuckets = order.stockBuckets
-            .filter((bucket) => bucket.productId === item.productId)
-            .sort(
-                (left, right) =>
-                    left.availableQuantity - right.availableQuantity
-            );
-
-        for (const bucket of productBuckets) {
-            if (remaining <= 0) {
-                break;
-            }
-            if (bucket.availableQuantity <= 0) {
-                continue;
-            }
-
-            const allocatedQuantity = Math.min(
-                remaining,
-                bucket.availableQuantity
-            );
-            shipmentLines.push({
-                quantity: allocatedQuantity,
-                salesOrderItemId: item.id,
-                stockItemId: bucket.id,
-            });
-            remaining -= allocatedQuantity;
-        }
-
-        if (remaining > 0) {
-            throw new Error(
-                `Insufficient available stock to pick ${item.product.sku}.`
-            );
-        }
+const handlePickError = (error: unknown) => {
+    if (!(error instanceof Error)) {
+        toast.error("Pick failed.");
+        return;
     }
-
-    return shipmentLines;
-};
-
-const processMobilePick = async (
-    salesOrderId: string
-): Promise<ShipmentLine[]> => {
-    const order = await getSalesOrderDetail({
-        data: { salesOrderId },
-    });
-    const shipmentLines = buildShipmentLines(order);
-
-    if (shipmentLines.length === 0) {
-        throw new Error("No remaining lines to ship for this order.");
+    if (error.message.includes("Insufficient available stock")) {
+        toast.error(
+            "Cannot pick order: stock is insufficient for one or more items."
+        );
+        return;
     }
-
-    await shipOrder({
-        data: {
-            carrier: "Mobile Pick",
-            items: shipmentLines,
-            notes: "Auto-picked via mobile workflow",
-            salesOrderId,
-            shippedDate: new Date(),
-            trackingNumber: null,
-        },
-    });
-
-    return shipmentLines;
+    if (error.message.includes("No remaining lines to ship")) {
+        toast.error("Order is already fully shipped.");
+        return;
+    }
+    toast.error(error.message);
 };
 
 export const Route = createFileRoute("/_dashboard/mobile/pick")({
@@ -150,6 +91,7 @@ export const Route = createFileRoute("/_dashboard/mobile/pick")({
 function MobilePickPage() {
     const router = useRouter();
     const { orderOptions } = Route.useLoaderData();
+    const hasOrders = orderOptions.length > 0;
     const [state, setState] = useReducer(pickPageReducer, {
         isSubmitting: false,
         selectedOrderId: orderOptions[0]?.id ?? "",
@@ -174,9 +116,17 @@ function MobilePickPage() {
             await router.invalidate();
         } catch (error) {
             setState({ isSubmitting: false });
-            toast.error(
-                error instanceof Error ? error.message : "Pick failed."
-            );
+            if (isLikelyNetworkError(error)) {
+                queueMobileOperation({
+                    createdAt: new Date().toISOString(),
+                    id: crypto.randomUUID(),
+                    payload: { salesOrderId: state.selectedOrderId },
+                    type: "PICK",
+                });
+                toast.success("Offline. Pick request queued for retry.");
+                return;
+            }
+            handlePickError(error);
         }
     };
 
@@ -186,6 +136,14 @@ function MobilePickPage() {
                 <CardTitle>Mobile Pick</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+                {hasOrders ? null : (
+                    <div className="rounded-md border border-dashed p-3 text-sm">
+                        <p className="font-medium">No orders ready for pick</p>
+                        <p className="text-muted-foreground">
+                            Create or confirm sales orders to use mobile pick.
+                        </p>
+                    </div>
+                )}
                 <div className="space-y-2">
                     <Label htmlFor="mobile-pick-order">Sales Order</Label>
                     <Select
@@ -222,7 +180,11 @@ function MobilePickPage() {
 
                 <Button
                     className="min-h-11 w-full"
-                    disabled={state.isSubmitting || !state.selectedOrderId}
+                    disabled={
+                        state.isSubmitting ||
+                        !state.selectedOrderId ||
+                        !hasOrders
+                    }
                     onClick={() => {
                         handleShip().catch(() => undefined);
                     }}

@@ -2,6 +2,14 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
 import { BarcodeScanner } from "@/components/features/mobile/barcode-scanner";
+import {
+    executeMobileOperation,
+    type MobileReceivePayload,
+} from "@/components/features/mobile/mobile-operations";
+import {
+    isLikelyNetworkError,
+    queueMobileOperation,
+} from "@/components/features/mobile/offline-ops-queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +22,6 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
-import { receiveGoods } from "@/features/inventory/receive-goods";
 import { getProducts } from "@/features/products/get-products";
 
 interface ReceivePageState {
@@ -52,6 +59,7 @@ export const Route = createFileRoute("/_dashboard/mobile/receive")({
 function MobileReceivePage() {
     const router = useRouter();
     const { products, warehouses } = Route.useLoaderData();
+    const hasSetupData = warehouses.length > 0 && products.length > 0;
     const [state, setState] = useReducer(receivePageReducer, {
         batchNumber: "",
         isSubmitting: false,
@@ -86,24 +94,27 @@ function MobileReceivePage() {
         const normalizedBatchNumber = state.batchNumber || null;
         const normalizedUnitCost =
             state.unitCost.trim().length > 0 ? Number(state.unitCost) : null;
+        if (
+            normalizedUnitCost !== null &&
+            (!Number.isFinite(normalizedUnitCost) || normalizedUnitCost < 0)
+        ) {
+            toast.error("Unit cost must be zero or greater.");
+            return;
+        }
+        const operationPayload: MobileReceivePayload = {
+            batchNumber: normalizedBatchNumber,
+            productId: state.productId,
+            quantity,
+            unitCost: normalizedUnitCost,
+            warehouseId: state.warehouseId,
+        };
 
         setState({ isSubmitting: true });
-        await receiveGoods({
-            data: {
-                items: [
-                    {
-                        batchNumber: normalizedBatchNumber,
-                        expiryDate: null,
-                        productId: state.productId,
-                        quantity,
-                        unitCost: normalizedUnitCost,
-                    },
-                ],
-                locationId: null,
-                notes: "Posted via mobile receive",
-                purchaseOrderId: null,
-                warehouseId: state.warehouseId,
-            },
+        await executeMobileOperation({
+            createdAt: new Date().toISOString(),
+            id: crypto.randomUUID(),
+            payload: operationPayload,
+            type: "RECEIVE",
         })
             .then(async () => {
                 toast.success("Goods received.");
@@ -117,6 +128,16 @@ function MobileReceivePage() {
             })
             .catch((error: unknown) => {
                 setState({ isSubmitting: false });
+                if (isLikelyNetworkError(error)) {
+                    queueMobileOperation({
+                        createdAt: new Date().toISOString(),
+                        id: crypto.randomUUID(),
+                        payload: operationPayload,
+                        type: "RECEIVE",
+                    });
+                    toast.success("Offline. Receipt queued for retry.");
+                    return;
+                }
                 toast.error(
                     error instanceof Error ? error.message : "Receive failed."
                 );
@@ -129,8 +150,17 @@ function MobileReceivePage() {
                 <CardTitle>Mobile Receive</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+                {hasSetupData ? null : (
+                    <div className="rounded-md border border-dashed p-3 text-sm">
+                        <p className="font-medium">Setup required</p>
+                        <p className="text-muted-foreground">
+                            You need at least one warehouse and one active
+                            product before posting receipts.
+                        </p>
+                    </div>
+                )}
                 <BarcodeScanner
-                    disabled={state.isSubmitting}
+                    disabled={state.isSubmitting || !hasSetupData}
                     onDetected={handleBarcodeDetected}
                 />
 
@@ -227,7 +257,7 @@ function MobileReceivePage() {
 
                 <Button
                     className="min-h-11 w-full"
-                    disabled={state.isSubmitting}
+                    disabled={state.isSubmitting || !hasSetupData}
                     onClick={() => {
                         handleSubmit().catch(() => undefined);
                     }}

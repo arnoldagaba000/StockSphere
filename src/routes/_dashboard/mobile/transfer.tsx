@@ -1,6 +1,14 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
+import {
+    executeMobileOperation,
+    type MobileTransferPayload,
+} from "@/components/features/mobile/mobile-operations";
+import {
+    isLikelyNetworkError,
+    queueMobileOperation,
+} from "@/components/features/mobile/offline-ops-queue";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +22,6 @@ import {
 } from "@/components/ui/select";
 import { getStock } from "@/features/inventory/get-stock";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
-import { transferStock } from "@/features/inventory/transfer-stock";
 
 interface TransferPageState {
     isSubmitting: boolean;
@@ -49,6 +56,7 @@ export const Route = createFileRoute("/_dashboard/mobile/transfer")({
 function MobileTransferPage() {
     const router = useRouter();
     const { stockItems, warehouses } = Route.useLoaderData();
+    const hasSetupData = warehouses.length > 0 && stockItems.length > 0;
     const [state, setState] = useReducer(transferPageReducer, {
         isSubmitting: false,
         quantity: "1",
@@ -70,17 +78,33 @@ function MobileTransferPage() {
             toast.error("Quantity must be greater than zero.");
             return;
         }
+        if (
+            selectedStockItem &&
+            selectedStockItem.warehouseId === state.toWarehouseId
+        ) {
+            toast.error("Destination warehouse must be different.");
+            return;
+        }
+        if (
+            selectedStockItem &&
+            quantity > Number(selectedStockItem.availableQuantity)
+        ) {
+            toast.error("Quantity cannot exceed available stock.");
+            return;
+        }
+        const operationPayload: MobileTransferPayload = {
+            quantity,
+            stockItemId: state.stockItemId,
+            toWarehouseId: state.toWarehouseId,
+        };
 
         try {
             setState({ isSubmitting: true });
-            await transferStock({
-                data: {
-                    notes: "Posted via mobile transfer",
-                    quantity,
-                    stockItemId: state.stockItemId,
-                    toLocationId: null,
-                    toWarehouseId: state.toWarehouseId,
-                },
+            await executeMobileOperation({
+                createdAt: new Date().toISOString(),
+                id: crypto.randomUUID(),
+                payload: operationPayload,
+                type: "TRANSFER",
             });
             toast.success("Stock transferred.");
             setState({
@@ -90,6 +114,16 @@ function MobileTransferPage() {
             await router.invalidate();
         } catch (error) {
             setState({ isSubmitting: false });
+            if (isLikelyNetworkError(error)) {
+                queueMobileOperation({
+                    createdAt: new Date().toISOString(),
+                    id: crypto.randomUUID(),
+                    payload: operationPayload,
+                    type: "TRANSFER",
+                });
+                toast.success("Offline. Transfer queued for retry.");
+                return;
+            }
             toast.error(
                 error instanceof Error ? error.message : "Transfer failed."
             );
@@ -102,6 +136,15 @@ function MobileTransferPage() {
                 <CardTitle>Mobile Transfer</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+                {hasSetupData ? null : (
+                    <div className="rounded-md border border-dashed p-3 text-sm">
+                        <p className="font-medium">Setup required</p>
+                        <p className="text-muted-foreground">
+                            Mobile transfer needs at least one warehouse and one
+                            stock item with available quantity.
+                        </p>
+                    </div>
+                )}
                 <div className="space-y-2">
                     <Label htmlFor="mobile-transfer-stock">Stock Item</Label>
                     <Select
@@ -172,7 +215,7 @@ function MobileTransferPage() {
 
                 <Button
                     className="min-h-11 w-full"
-                    disabled={state.isSubmitting}
+                    disabled={state.isSubmitting || !hasSetupData}
                     onClick={() => {
                         handleSubmit().catch(() => undefined);
                     }}
