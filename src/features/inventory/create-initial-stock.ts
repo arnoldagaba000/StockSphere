@@ -1,6 +1,11 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { prisma } from "@/db";
+import {
+    generateInventoryTransactionNumber,
+    generateStockMovementNumber,
+} from "@/features/purchases/purchase-helpers";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
@@ -71,9 +76,12 @@ export const createInitialStock = createServerFn({ method: "POST" })
             throw new Error("This product requires an expiry date.");
         }
 
-        const now = new Date();
+        const numberingPrefixes = await getNumberingPrefixes();
 
         const stockItem = await prisma.$transaction(async (tx) => {
+            const transactionNumber = generateInventoryTransactionNumber(
+                numberingPrefixes.inventoryTransaction
+            );
             const createdStockItem = await tx.stockItem.create({
                 data: {
                     batchNumber: data.batchNumber ?? null,
@@ -94,7 +102,11 @@ export const createInitialStock = createServerFn({ method: "POST" })
                     batchNumber: data.batchNumber ?? null,
                     createdById: context.session.user.id,
                     fromWarehouseId: null,
-                    movementNumber: `OPEN-${now.getTime()}-${createdStockItem.id.slice(0, 6)}`,
+                    movementNumber: generateStockMovementNumber(
+                        numberingPrefixes.stockMovement,
+                        transactionNumber,
+                        1
+                    ),
                     productId: data.productId,
                     quantity: data.quantity,
                     reason: data.notes ?? "Initial stock entry",

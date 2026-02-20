@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { prisma } from "@/db";
+import {
+    generateInventoryTransactionNumber,
+    generateStockMovementNumber,
+} from "@/features/purchases/purchase-helpers";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
@@ -62,6 +67,7 @@ export const moveToQuarantine = createServerFn({ method: "POST" })
                 );
             }
         }
+        const numberingPrefixes = await getNumberingPrefixes();
 
         const result = await prisma.$transaction(async (tx) => {
             const updatedStockItem = await tx.stockItem.update({
@@ -73,7 +79,14 @@ export const moveToQuarantine = createServerFn({ method: "POST" })
                 },
             });
 
-            const movementNumber = `QTN-${Date.now()}-${stockItem.id.slice(0, 6)}`;
+            const transactionNumber = generateInventoryTransactionNumber(
+                numberingPrefixes.inventoryTransaction
+            );
+            const movementNumber = generateStockMovementNumber(
+                numberingPrefixes.stockMovement,
+                transactionNumber,
+                1
+            );
 
             await tx.stockMovement.create({
                 data: {

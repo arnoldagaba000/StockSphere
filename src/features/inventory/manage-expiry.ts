@@ -2,6 +2,11 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { prisma } from "@/db";
+import {
+    generateInventoryTransactionNumber,
+    generateStockMovementNumber,
+} from "@/features/purchases/purchase-helpers";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import type { StockStatus } from "@/generated/prisma/client";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
@@ -119,6 +124,10 @@ export const updateStockExpiryStatus = createServerFn({ method: "POST" })
         }
 
         const targetStatus = toTargetStatus(data.operation);
+        const numberingPrefixes = await getNumberingPrefixes();
+        const transactionNumber = generateInventoryTransactionNumber(
+            numberingPrefixes.inventoryTransaction
+        );
         const updated = await prisma.stockItem.update({
             where: { id: stockItem.id },
             data: { status: targetStatus },
@@ -129,7 +138,11 @@ export const updateStockExpiryStatus = createServerFn({ method: "POST" })
                 batchNumber: stockItem.batchNumber,
                 createdById: context.session.user.id,
                 fromWarehouseId: stockItem.warehouseId,
-                movementNumber: `EXP-${Date.now()}-${stockItem.id.slice(0, 6)}`,
+                movementNumber: generateStockMovementNumber(
+                    numberingPrefixes.stockMovement,
+                    transactionNumber,
+                    1
+                ),
                 productId: stockItem.productId,
                 quantity: toNumber(stockItem.quantity),
                 reason:
