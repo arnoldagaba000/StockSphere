@@ -894,24 +894,35 @@ function StockPage() {
     });
 
     const loadMovementHistory = async () => {
+        const movementType =
+            state.movementType.length > 0
+                ? (state.movementType as
+                      | "ADJUSTMENT"
+                      | "ASSEMBLY"
+                      | "DISASSEMBLY"
+                      | "PURCHASE_RECEIPT"
+                      | "RETURN"
+                      | "SALES_SHIPMENT"
+                      | "TRANSFER")
+                : undefined;
+        const page = Number(state.movementPage) || 1;
+        const productId =
+            state.movementProductId.length > 0
+                ? state.movementProductId
+                : undefined;
+        const warehouseId =
+            state.movementWarehouseId.length > 0
+                ? state.movementWarehouseId
+                : undefined;
+
         try {
             const movementHistory = await getMovementHistory({
                 data: {
-                    movementType:
-                        state.movementType.length > 0
-                            ? (state.movementType as
-                                  | "ADJUSTMENT"
-                                  | "ASSEMBLY"
-                                  | "DISASSEMBLY"
-                                  | "PURCHASE_RECEIPT"
-                                  | "RETURN"
-                                  | "SALES_SHIPMENT"
-                                  | "TRANSFER")
-                            : undefined,
-                    page: Number(state.movementPage) || 1,
+                    movementType,
+                    page,
                     pageSize: 25,
-                    productId: state.movementProductId || undefined,
-                    warehouseId: state.movementWarehouseId || undefined,
+                    productId,
+                    warehouseId,
                 },
             });
             setState({ movementHistory });
