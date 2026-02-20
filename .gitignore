@@ -12,7 +12,7 @@ count.txt
 .vinxi
 __unconfig*
 todos.json
-.pdf
+*.pdf
 
 /src/generated/prisma
 docker-compose.yml

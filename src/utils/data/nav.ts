@@ -4,6 +4,7 @@ import {
     FolderTree,
     LayoutDashboard,
     MapPinned,
+    PackagePlus,
     PackageSearch,
     PieChart,
     Settings,
@@ -83,6 +84,12 @@ export const getNavData = (
             title: "Stock",
             to: "/stock",
             icon: PackageSearch,
+            activeOptions: { exact: false },
+        },
+        {
+            title: "Kits",
+            to: "/kits",
+            icon: PackagePlus,
             activeOptions: { exact: false },
         },
         {
