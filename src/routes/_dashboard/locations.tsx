@@ -58,6 +58,268 @@ const locationsPageReducer = (
     ...patch,
 });
 
+type WarehousesData = Awaited<ReturnType<typeof getWarehouses>>;
+
+interface CreateLocationCardProps {
+    code: string;
+    isActive: boolean;
+    isSubmitting: boolean;
+    name: string;
+    onCreate: () => void;
+    onPatchState: (patch: Partial<LocationsPageState>) => void;
+    type: LocationType;
+    warehouseId: string;
+    warehouses: WarehousesData;
+}
+
+const CreateLocationCard = ({
+    code,
+    isActive,
+    isSubmitting,
+    name,
+    onCreate,
+    onPatchState,
+    type,
+    warehouseId,
+    warehouses,
+}: CreateLocationCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Create Location</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2 md:col-span-2">
+                        <Label>Warehouse</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onPatchState({
+                                    warehouseId: value ?? "",
+                                })
+                            }
+                            value={warehouseId}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select warehouse" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {warehouses.map((warehouse) => (
+                                    <SelectItem
+                                        key={warehouse.id}
+                                        value={warehouse.id}
+                                    >
+                                        {warehouse.code} - {warehouse.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="location-code">Code</Label>
+                        <Input
+                            id="location-code"
+                            onChange={(event) =>
+                                onPatchState({
+                                    code: event.target.value.toUpperCase(),
+                                })
+                            }
+                            placeholder="A-01-BIN-02"
+                            value={code}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="location-name">Name</Label>
+                        <Input
+                            id="location-name"
+                            onChange={(event) =>
+                                onPatchState({
+                                    name: event.target.value,
+                                })
+                            }
+                            placeholder="Aisle A, Bin 02"
+                            value={name}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Type</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onPatchState({
+                                    type: (value as LocationType) ?? "STANDARD",
+                                })
+                            }
+                            value={type}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {LOCATION_TYPES.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                        {option}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex items-end gap-2 pb-2">
+                        <Switch
+                            checked={isActive}
+                            id="location-active"
+                            onCheckedChange={(checked) =>
+                                onPatchState({
+                                    isActive: checked,
+                                })
+                            }
+                        />
+                        <Label htmlFor="location-active">Active</Label>
+                    </div>
+                </div>
+                <Button
+                    disabled={
+                        isSubmitting ||
+                        !warehouseId ||
+                        code.trim().length === 0 ||
+                        name.trim().length === 0
+                    }
+                    onClick={onCreate}
+                >
+                    {isSubmitting ? "Creating..." : "Create Location"}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface LocationListCardProps {
+    isLoadingLocations: boolean;
+    isUpdatingId: string | null;
+    locations: Awaited<ReturnType<typeof getLocations>>;
+    onArchive: (locationId: string) => void;
+    onToggleActive: (locationId: string, isActive: boolean) => void;
+    onToggleType: (locationId: string, type: LocationType) => void;
+}
+
+const LocationListCard = ({
+    isLoadingLocations,
+    isUpdatingId,
+    locations,
+    onArchive,
+    onToggleActive,
+    onToggleType,
+}: LocationListCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Location List</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">
+                                Actions
+                            </TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoadingLocations ? (
+                            <TableRow>
+                                <TableCell
+                                    className="text-muted-foreground"
+                                    colSpan={5}
+                                >
+                                    Loading locations...
+                                </TableCell>
+                            </TableRow>
+                        ) : null}
+                        {!isLoadingLocations && locations.length === 0 ? (
+                            <TableRow>
+                                <TableCell
+                                    className="text-muted-foreground"
+                                    colSpan={5}
+                                >
+                                    No locations found for this warehouse.
+                                </TableCell>
+                            </TableRow>
+                        ) : null}
+                        {!isLoadingLocations && locations.length > 0
+                            ? locations.map((location) => (
+                                  <TableRow key={location.id}>
+                                      <TableCell>{location.code}</TableCell>
+                                      <TableCell>{location.name}</TableCell>
+                                      <TableCell>{location.type}</TableCell>
+                                      <TableCell>
+                                          {location.isActive
+                                              ? "Active"
+                                              : "Inactive"}
+                                      </TableCell>
+                                      <TableCell className="text-right">
+                                          <div className="flex justify-end gap-2">
+                                              <Button
+                                                  disabled={
+                                                      isUpdatingId ===
+                                                      location.id
+                                                  }
+                                                  onClick={() =>
+                                                      onToggleActive(
+                                                          location.id,
+                                                          location.isActive
+                                                      )
+                                                  }
+                                                  size="sm"
+                                                  variant="outline"
+                                              >
+                                                  {location.isActive
+                                                      ? "Deactivate"
+                                                      : "Activate"}
+                                              </Button>
+                                              <Button
+                                                  disabled={
+                                                      isUpdatingId ===
+                                                      location.id
+                                                  }
+                                                  onClick={() =>
+                                                      onToggleType(
+                                                          location.id,
+                                                          location.type
+                                                      )
+                                                  }
+                                                  size="sm"
+                                                  variant="outline"
+                                              >
+                                                  Toggle Type
+                                              </Button>
+                                              <Button
+                                                  disabled={
+                                                      isUpdatingId ===
+                                                      location.id
+                                                  }
+                                                  onClick={() =>
+                                                      onArchive(location.id)
+                                                  }
+                                                  size="sm"
+                                                  variant="destructive"
+                                              >
+                                                  Archive
+                                              </Button>
+                                          </div>
+                                      </TableCell>
+                                  </TableRow>
+                              ))
+                            : null}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
 export const Route = createFileRoute("/_dashboard/locations")({
     component: LocationsPage,
     loader: () => getWarehouses({ data: {} }),
@@ -164,6 +426,74 @@ function LocationsPage() {
         }
     };
 
+    const runLocationAction = async (
+        locationId: string,
+        work: () => Promise<unknown>,
+        successMessage: string,
+        errorMessage: string
+    ): Promise<void> => {
+        try {
+            patchState({ isUpdatingId: locationId });
+            await work();
+            toast.success(successMessage);
+            await loadLocations(warehouseId);
+            patchState({ isUpdatingId: null });
+        } catch (error) {
+            patchState({ isUpdatingId: null });
+            toast.error(error instanceof Error ? error.message : errorMessage);
+        }
+    };
+
+    const handleToggleActive = async (
+        locationId: string,
+        isActiveValue: boolean
+    ): Promise<void> => {
+        await runLocationAction(
+            locationId,
+            () =>
+                updateLocation({
+                    data: {
+                        id: locationId,
+                        isActive: !isActiveValue,
+                    },
+                }),
+            "Location updated.",
+            "Failed to update location."
+        );
+    };
+
+    const handleToggleType = async (
+        locationId: string,
+        currentType: LocationType
+    ): Promise<void> => {
+        const nextType =
+            currentType === "QUARANTINE" ? "STANDARD" : "QUARANTINE";
+        await runLocationAction(
+            locationId,
+            () =>
+                updateLocation({
+                    data: {
+                        id: locationId,
+                        type: nextType,
+                    },
+                }),
+            "Location type updated.",
+            "Failed to update location type."
+        );
+    };
+
+    const handleArchive = async (locationId: string): Promise<void> => {
+        await runLocationAction(
+            locationId,
+            () =>
+                archiveLocation({
+                    data: { id: locationId },
+                }),
+            "Location archived.",
+            "Failed to archive location."
+        );
+    };
+
     return (
         <section className="w-full space-y-4">
             <div>
@@ -173,323 +503,38 @@ function LocationsPage() {
                 </p>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Create Location</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-2">
-                        <div className="space-y-2 md:col-span-2">
-                            <Label>Warehouse</Label>
-                            <Select
-                                onValueChange={(value) =>
-                                    patchState({
-                                        warehouseId: value ?? "",
-                                    })
-                                }
-                                value={warehouseId}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select warehouse" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {warehouses.map((warehouse) => (
-                                        <SelectItem
-                                            key={warehouse.id}
-                                            value={warehouse.id}
-                                        >
-                                            {warehouse.code} - {warehouse.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="location-code">Code</Label>
-                            <Input
-                                id="location-code"
-                                onChange={(event) =>
-                                    patchState({
-                                        code: event.target.value.toUpperCase(),
-                                    })
-                                }
-                                placeholder="A-01-BIN-02"
-                                value={code}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="location-name">Name</Label>
-                            <Input
-                                id="location-name"
-                                onChange={(event) =>
-                                    patchState({
-                                        name: event.target.value,
-                                    })
-                                }
-                                placeholder="Aisle A, Bin 02"
-                                value={name}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label>Type</Label>
-                            <Select
-                                onValueChange={(value) =>
-                                    patchState({
-                                        type:
-                                            (value as LocationType) ??
-                                            "STANDARD",
-                                    })
-                                }
-                                value={type}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {LOCATION_TYPES.map((option) => (
-                                        <SelectItem key={option} value={option}>
-                                            {option}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="flex items-end gap-2 pb-2">
-                            <Switch
-                                checked={isActive}
-                                id="location-active"
-                                onCheckedChange={(checked) =>
-                                    patchState({
-                                        isActive: checked,
-                                    })
-                                }
-                            />
-                            <Label htmlFor="location-active">Active</Label>
-                        </div>
-                    </div>
-                    <Button
-                        disabled={
-                            isSubmitting ||
-                            !warehouseId ||
-                            code.trim().length === 0 ||
-                            name.trim().length === 0
-                        }
-                        onClick={handleCreateLocation}
-                    >
-                        {isSubmitting ? "Creating..." : "Create Location"}
-                    </Button>
-                </CardContent>
-            </Card>
+            <CreateLocationCard
+                code={code}
+                isActive={isActive}
+                isSubmitting={isSubmitting}
+                name={name}
+                onCreate={() => {
+                    handleCreateLocation().catch(() => undefined);
+                }}
+                onPatchState={patchState}
+                type={type}
+                warehouseId={warehouseId}
+                warehouses={warehouses}
+            />
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Location List</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Code</TableHead>
-                                <TableHead>Name</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">
-                                    Actions
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isLoadingLocations ? (
-                                <TableRow>
-                                    <TableCell
-                                        className="text-muted-foreground"
-                                        colSpan={5}
-                                    >
-                                        Loading locations...
-                                    </TableCell>
-                                </TableRow>
-                            ) : null}
-                            {!isLoadingLocations && locations.length === 0 ? (
-                                <TableRow>
-                                    <TableCell
-                                        className="text-muted-foreground"
-                                        colSpan={5}
-                                    >
-                                        No locations found for this warehouse.
-                                    </TableCell>
-                                </TableRow>
-                            ) : null}
-                            {!isLoadingLocations && locations.length > 0
-                                ? locations.map((location) => (
-                                      <TableRow key={location.id}>
-                                          <TableCell>{location.code}</TableCell>
-                                          <TableCell>{location.name}</TableCell>
-                                          <TableCell>{location.type}</TableCell>
-                                          <TableCell>
-                                              {location.isActive
-                                                  ? "Active"
-                                                  : "Inactive"}
-                                          </TableCell>
-                                          <TableCell className="text-right">
-                                              <div className="flex justify-end gap-2">
-                                                  <Button
-                                                      disabled={
-                                                          isUpdatingId ===
-                                                          location.id
-                                                      }
-                                                      onClick={async () => {
-                                                          try {
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      location.id,
-                                                              });
-                                                              await updateLocation(
-                                                                  {
-                                                                      data: {
-                                                                          id: location.id,
-                                                                          isActive:
-                                                                              !location.isActive,
-                                                                      },
-                                                                  }
-                                                              );
-                                                              toast.success(
-                                                                  "Location updated."
-                                                              );
-                                                              await loadLocations(
-                                                                  warehouseId
-                                                              );
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      null,
-                                                              });
-                                                          } catch (error) {
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      null,
-                                                              });
-                                                              toast.error(
-                                                                  error instanceof
-                                                                      Error
-                                                                      ? error.message
-                                                                      : "Failed to update location."
-                                                              );
-                                                          }
-                                                      }}
-                                                      size="sm"
-                                                      variant="outline"
-                                                  >
-                                                      {location.isActive
-                                                          ? "Deactivate"
-                                                          : "Activate"}
-                                                  </Button>
-                                                  <Button
-                                                      disabled={
-                                                          isUpdatingId ===
-                                                          location.id
-                                                      }
-                                                      onClick={async () => {
-                                                          const nextType =
-                                                              location.type ===
-                                                              "QUARANTINE"
-                                                                  ? "STANDARD"
-                                                                  : "QUARANTINE";
-
-                                                          try {
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      location.id,
-                                                              });
-                                                              await updateLocation(
-                                                                  {
-                                                                      data: {
-                                                                          id: location.id,
-                                                                          type: nextType,
-                                                                      },
-                                                                  }
-                                                              );
-                                                              toast.success(
-                                                                  "Location type updated."
-                                                              );
-                                                              await loadLocations(
-                                                                  warehouseId
-                                                              );
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      null,
-                                                              });
-                                                          } catch (error) {
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      null,
-                                                              });
-                                                              toast.error(
-                                                                  error instanceof
-                                                                      Error
-                                                                      ? error.message
-                                                                      : "Failed to update location type."
-                                                              );
-                                                          }
-                                                      }}
-                                                      size="sm"
-                                                      variant="outline"
-                                                  >
-                                                      Toggle Type
-                                                  </Button>
-                                                  <Button
-                                                      disabled={
-                                                          isUpdatingId ===
-                                                          location.id
-                                                      }
-                                                      onClick={async () => {
-                                                          try {
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      location.id,
-                                                              });
-                                                              await archiveLocation(
-                                                                  {
-                                                                      data: {
-                                                                          id: location.id,
-                                                                      },
-                                                                  }
-                                                              );
-                                                              toast.success(
-                                                                  "Location archived."
-                                                              );
-                                                              await loadLocations(
-                                                                  warehouseId
-                                                              );
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      null,
-                                                              });
-                                                          } catch (error) {
-                                                              patchState({
-                                                                  isUpdatingId:
-                                                                      null,
-                                                              });
-                                                              toast.error(
-                                                                  error instanceof
-                                                                      Error
-                                                                      ? error.message
-                                                                      : "Failed to archive location."
-                                                              );
-                                                          }
-                                                      }}
-                                                      size="sm"
-                                                      variant="destructive"
-                                                  >
-                                                      Archive
-                                                  </Button>
-                                              </div>
-                                          </TableCell>
-                                      </TableRow>
-                                  ))
-                                : null}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
+            <LocationListCard
+                isLoadingLocations={isLoadingLocations}
+                isUpdatingId={isUpdatingId}
+                locations={locations}
+                onArchive={(locationId) => {
+                    handleArchive(locationId).catch(() => undefined);
+                }}
+                onToggleActive={(locationId, isActiveValue) => {
+                    handleToggleActive(locationId, isActiveValue).catch(
+                        () => undefined
+                    );
+                }}
+                onToggleType={(locationId, currentType) => {
+                    handleToggleType(locationId, currentType).catch(
+                        () => undefined
+                    );
+                }}
+            />
         </section>
     );
 }
