@@ -21,6 +21,7 @@ import { Route as DashboardReportsRouteImport } from './routes/_dashboard/report
 import { Route as DashboardPurchaseOrdersRouteImport } from './routes/_dashboard/purchase-orders'
 import { Route as DashboardProfileRouteImport } from './routes/_dashboard/profile'
 import { Route as DashboardLocationsRouteImport } from './routes/_dashboard/locations'
+import { Route as DashboardKitsRouteImport } from './routes/_dashboard/kits'
 import { Route as DashboardGoodsReceiptsRouteImport } from './routes/_dashboard/goods-receipts'
 import { Route as DashboardCustomersRouteImport } from './routes/_dashboard/customers'
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
@@ -98,6 +99,11 @@ const DashboardProfileRoute = DashboardProfileRouteImport.update({
 const DashboardLocationsRoute = DashboardLocationsRouteImport.update({
   id: '/locations',
   path: '/locations',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
+const DashboardKitsRoute = DashboardKitsRouteImport.update({
+  id: '/kits',
+  path: '/kits',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
 const DashboardGoodsReceiptsRoute = DashboardGoodsReceiptsRouteImport.update({
@@ -220,6 +226,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof AuthResetPasswordRoute
   '/customers': typeof DashboardCustomersRoute
   '/goods-receipts': typeof DashboardGoodsReceiptsRoute
+  '/kits': typeof DashboardKitsRoute
   '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
   '/purchase-orders': typeof DashboardPurchaseOrdersRoute
@@ -249,6 +256,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof AuthResetPasswordRoute
   '/customers': typeof DashboardCustomersRoute
   '/goods-receipts': typeof DashboardGoodsReceiptsRoute
+  '/kits': typeof DashboardKitsRoute
   '/locations': typeof DashboardLocationsRoute
   '/profile': typeof DashboardProfileRoute
   '/purchase-orders': typeof DashboardPurchaseOrdersRoute
@@ -283,6 +291,7 @@ export interface FileRoutesById {
   '/_auth/reset-password': typeof AuthResetPasswordRoute
   '/_dashboard/customers': typeof DashboardCustomersRoute
   '/_dashboard/goods-receipts': typeof DashboardGoodsReceiptsRoute
+  '/_dashboard/kits': typeof DashboardKitsRoute
   '/_dashboard/locations': typeof DashboardLocationsRoute
   '/_dashboard/profile': typeof DashboardProfileRoute
   '/_dashboard/purchase-orders': typeof DashboardPurchaseOrdersRoute
@@ -318,6 +327,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/customers'
     | '/goods-receipts'
+    | '/kits'
     | '/locations'
     | '/profile'
     | '/purchase-orders'
@@ -347,6 +357,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/customers'
     | '/goods-receipts'
+    | '/kits'
     | '/locations'
     | '/profile'
     | '/purchase-orders'
@@ -380,6 +391,7 @@ export interface FileRouteTypes {
     | '/_auth/reset-password'
     | '/_dashboard/customers'
     | '/_dashboard/goods-receipts'
+    | '/_dashboard/kits'
     | '/_dashboard/locations'
     | '/_dashboard/profile'
     | '/_dashboard/purchase-orders'
@@ -493,6 +505,13 @@ declare module '@tanstack/react-router' {
       path: '/locations'
       fullPath: '/locations'
       preLoaderRoute: typeof DashboardLocationsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
+    '/_dashboard/kits': {
+      id: '/_dashboard/kits'
+      path: '/kits'
+      fullPath: '/kits'
+      preLoaderRoute: typeof DashboardKitsRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
     '/_dashboard/goods-receipts': {
@@ -718,6 +737,7 @@ interface DashboardRouteRouteChildren {
   DashboardSettingsRouteRoute: typeof DashboardSettingsRouteRouteWithChildren
   DashboardCustomersRoute: typeof DashboardCustomersRoute
   DashboardGoodsReceiptsRoute: typeof DashboardGoodsReceiptsRoute
+  DashboardKitsRoute: typeof DashboardKitsRoute
   DashboardLocationsRoute: typeof DashboardLocationsRoute
   DashboardProfileRoute: typeof DashboardProfileRoute
   DashboardPurchaseOrdersRoute: typeof DashboardPurchaseOrdersRoute
@@ -735,6 +755,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardSettingsRouteRoute: DashboardSettingsRouteRouteWithChildren,
   DashboardCustomersRoute: DashboardCustomersRoute,
   DashboardGoodsReceiptsRoute: DashboardGoodsReceiptsRoute,
+  DashboardKitsRoute: DashboardKitsRoute,
   DashboardLocationsRoute: DashboardLocationsRoute,
   DashboardProfileRoute: DashboardProfileRoute,
   DashboardPurchaseOrdersRoute: DashboardPurchaseOrdersRoute,
