@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
@@ -55,6 +55,30 @@ type TransitionAction =
     | "reject"
     | "submit";
 
+type PurchaseOrderDetail = Awaited<ReturnType<typeof getPurchaseOrderDetail>>;
+
+interface PurchaseOrdersPageState {
+    cancelReason: string;
+    expectedDate: string;
+    isLoadingDetail: boolean;
+    isSaving: boolean;
+    isTransitioningId: string | null;
+    items: PurchaseOrderFormItem[];
+    selectedOrderDetail: PurchaseOrderDetail | null;
+    selectedOrderId: string | null;
+    shippingCost: string;
+    supplierId: string;
+    taxAmount: string;
+}
+
+const purchaseOrdersPageReducer = (
+    state: PurchaseOrdersPageState,
+    patch: Partial<PurchaseOrdersPageState>
+): PurchaseOrdersPageState => ({
+    ...state,
+    ...patch,
+});
+
 export const Route = createFileRoute("/_dashboard/purchase-orders")({
     component: PurchaseOrdersPage,
     loader: async () => {
@@ -79,24 +103,32 @@ function PurchaseOrdersPage() {
     const router = useRouter();
     const { products, purchaseOrders, report, suppliers } =
         Route.useLoaderData();
-
-    const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? "");
-    const [expectedDate, setExpectedDate] = useState("");
-    const [taxAmount, setTaxAmount] = useState("0");
-    const [shippingCost, setShippingCost] = useState("0");
-    const [items, setItems] = useState<PurchaseOrderFormItem[]>([
-        createLineItem(products[0]?.id ?? ""),
-    ]);
-    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-    const [selectedOrderDetail, setSelectedOrderDetail] = useState<Awaited<
-        ReturnType<typeof getPurchaseOrderDetail>
-    > | null>(null);
-    const [cancelReason, setCancelReason] = useState("");
-    const [isSaving, setIsSaving] = useState(false);
-    const [isTransitioningId, setIsTransitioningId] = useState<string | null>(
-        null
-    );
-    const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+    const [state, patchState] = useReducer(purchaseOrdersPageReducer, {
+        cancelReason: "",
+        expectedDate: "",
+        isLoadingDetail: false,
+        isSaving: false,
+        isTransitioningId: null,
+        items: [createLineItem(products[0]?.id ?? "")],
+        selectedOrderDetail: null,
+        selectedOrderId: null,
+        shippingCost: "0",
+        supplierId: suppliers[0]?.id ?? "",
+        taxAmount: "0",
+    });
+    const {
+        cancelReason,
+        expectedDate,
+        isLoadingDetail,
+        isSaving,
+        isTransitioningId,
+        items,
+        selectedOrderDetail,
+        selectedOrderId,
+        shippingCost,
+        supplierId,
+        taxAmount,
+    } = state;
 
     const subtotal = useMemo(
         () =>
@@ -114,22 +146,23 @@ function PurchaseOrdersPage() {
         index: number,
         patch: Partial<PurchaseOrderFormItem>
     ): void => {
-        setItems((currentItems) =>
-            currentItems.map((item, itemIndex) =>
+        patchState({
+            items: items.map((item, itemIndex) =>
                 itemIndex === index ? { ...item, ...patch } : item
-            )
-        );
+            ),
+        });
     };
 
     const addLineItem = (): void => {
-        setItems((currentItems) => [
-            ...currentItems,
-            createLineItem(products[0]?.id ?? ""),
-        ]);
+        patchState({
+            items: [...items, createLineItem(products[0]?.id ?? "")],
+        });
     };
 
     const removeLineItem = (index: number): void => {
-        setItems((currentItems) => currentItems.filter((_, i) => i !== index));
+        patchState({
+            items: items.filter((_, i) => i !== index),
+        });
     };
 
     const refreshData = async (): Promise<void> => {
@@ -141,15 +174,19 @@ function PurchaseOrdersPage() {
 
     const loadPurchaseOrderDetail = async (purchaseOrderId: string) => {
         try {
-            setIsLoadingDetail(true);
-            setSelectedOrderId(purchaseOrderId);
+            patchState({
+                isLoadingDetail: true,
+                selectedOrderId: purchaseOrderId,
+            });
             const detail = await getPurchaseOrderDetail({
                 data: { purchaseOrderId },
             });
-            setSelectedOrderDetail(detail);
-            setIsLoadingDetail(false);
+            patchState({
+                isLoadingDetail: false,
+                selectedOrderDetail: detail,
+            });
         } catch (error) {
-            setIsLoadingDetail(false);
+            patchState({ isLoadingDetail: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -177,7 +214,7 @@ function PurchaseOrdersPage() {
         const taxAmountValue = Number(taxAmount) || 0;
 
         try {
-            setIsSaving(true);
+            patchState({ isSaving: true });
             await createPurchaseOrder({
                 data: {
                     expectedDate: expectedDateValue,
@@ -195,14 +232,16 @@ function PurchaseOrdersPage() {
                 },
             });
             toast.success("Purchase order created.");
-            setExpectedDate("");
-            setTaxAmount("0");
-            setShippingCost("0");
-            setItems([createLineItem(firstProductId)]);
+            patchState({
+                expectedDate: "",
+                items: [createLineItem(firstProductId)],
+                shippingCost: "0",
+                taxAmount: "0",
+            });
             await refreshData();
-            setIsSaving(false);
+            patchState({ isSaving: false });
         } catch (error) {
-            setIsSaving(false);
+            patchState({ isSaving: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -219,7 +258,7 @@ function PurchaseOrdersPage() {
             cancelReason.trim().length > 0 ? cancelReason.trim() : undefined;
 
         try {
-            setIsTransitioningId(purchaseOrderId);
+            patchState({ isTransitioningId: purchaseOrderId });
             if (action === "submit") {
                 await submitPurchaseOrder({ data: { purchaseOrderId } });
             } else if (action === "approve") {
@@ -238,9 +277,9 @@ function PurchaseOrdersPage() {
             }
             toast.success("Purchase order updated.");
             await refreshData();
-            setIsTransitioningId(null);
+            patchState({ isTransitioningId: null });
         } catch (error) {
-            setIsTransitioningId(null);
+            patchState({ isTransitioningId: null });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -342,7 +381,9 @@ function PurchaseOrdersPage() {
                             <Label>Supplier</Label>
                             <Select
                                 onValueChange={(value) =>
-                                    setSupplierId(value ?? "")
+                                    patchState({
+                                        supplierId: value ?? "",
+                                    })
                                 }
                                 value={supplierId}
                             >
@@ -366,7 +407,9 @@ function PurchaseOrdersPage() {
                             <Input
                                 id="expected-date"
                                 onChange={(event) =>
-                                    setExpectedDate(event.target.value)
+                                    patchState({
+                                        expectedDate: event.target.value,
+                                    })
                                 }
                                 type="date"
                                 value={expectedDate}
@@ -377,7 +420,9 @@ function PurchaseOrdersPage() {
                             <Input
                                 id="tax-amount"
                                 onChange={(event) =>
-                                    setTaxAmount(event.target.value)
+                                    patchState({
+                                        taxAmount: event.target.value,
+                                    })
                                 }
                                 type="number"
                                 value={taxAmount}
@@ -390,7 +435,9 @@ function PurchaseOrdersPage() {
                             <Input
                                 id="shipping-cost"
                                 onChange={(event) =>
-                                    setShippingCost(event.target.value)
+                                    patchState({
+                                        shippingCost: event.target.value,
+                                    })
                                 }
                                 type="number"
                                 value={shippingCost}
@@ -493,7 +540,9 @@ function PurchaseOrdersPage() {
                         <Input
                             id="po-cancel-reason"
                             onChange={(event) =>
-                                setCancelReason(event.target.value)
+                                patchState({
+                                    cancelReason: event.target.value,
+                                })
                             }
                             placeholder="Reason included in audit trail"
                             value={cancelReason}
