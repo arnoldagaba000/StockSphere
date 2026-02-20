@@ -6,6 +6,7 @@ import {
     generateInventoryTransactionNumber,
     generateStockMovementNumber,
 } from "@/features/purchases/purchase-helpers";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import type { Prisma } from "@/generated/prisma/client";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
@@ -190,9 +191,12 @@ export const voidGoodsReceipt = createServerFn({ method: "POST" })
         }
 
         ensureReceiptCanBeVoided(receipt.notes);
+        const numberingPrefixes = await getNumberingPrefixes();
 
         await prisma.$transaction(async (tx) => {
-            const transactionNumber = generateInventoryTransactionNumber();
+            const transactionNumber = generateInventoryTransactionNumber(
+                numberingPrefixes.inventoryTransaction
+            );
             const reversalTransaction = await tx.inventoryTransaction.create({
                 data: {
                     createdById: context.session.user.id,

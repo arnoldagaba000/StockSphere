@@ -5,6 +5,7 @@ import {
     generatePurchaseOrderNumber,
     retryOnUniqueConstraint,
 } from "@/features/purchases/purchase-helpers";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
@@ -26,11 +27,12 @@ export const createPurchaseOrder = createServerFn({ method: "POST" })
             );
         }
 
-        const [supplier, products] = await Promise.all([
+        const [supplier, numberingPrefixes, products] = await Promise.all([
             prisma.supplier.findFirst({
                 select: { id: true, isActive: true },
                 where: { deletedAt: null, id: data.supplierId },
             }),
+            getNumberingPrefixes(),
             prisma.product.findMany({
                 select: { id: true, isActive: true },
                 where: { id: { in: data.items.map((item) => item.productId) } },
@@ -55,7 +57,9 @@ export const createPurchaseOrder = createServerFn({ method: "POST" })
 
         const order = await retryOnUniqueConstraint(async () =>
             prisma.$transaction(async (tx) => {
-                const orderNumber = generatePurchaseOrderNumber();
+                const orderNumber = generatePurchaseOrderNumber(
+                    numberingPrefixes.purchaseOrder
+                );
 
                 const itemsWithTotals = data.items.map((item) => {
                     const unitPrice = Math.round(item.unitPrice);

@@ -17,12 +17,14 @@ const createUniqueCode = (prefix: string): string => {
     return `${prefix}-${timestampPart}-${randomPart}`;
 };
 
-export const generateSalesOrderNumber = (): string => createUniqueCode("SO");
+export const generateSalesOrderNumber = (prefix = "SO"): string =>
+    createUniqueCode(prefix);
 
-export const generateShipmentNumber = (): string => createUniqueCode("SHP");
+export const generateShipmentNumber = (prefix = "SHP"): string =>
+    createUniqueCode(prefix);
 
-export const generateInventoryTransactionNumber = (): string =>
-    createUniqueCode("IT");
+export const generateInventoryTransactionNumber = (prefix = "IT"): string =>
+    createUniqueCode(prefix);
 
 export const generateStockMovementNumber = (
     transactionNumber: string,

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeaders } from "@tanstack/react-start/server";
 import { prisma } from "@/db";
+import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
@@ -27,11 +28,12 @@ export const createSalesOrder = createServerFn({ method: "POST" })
             );
         }
 
-        const [customer, products] = await Promise.all([
+        const [customer, numberingPrefixes, products] = await Promise.all([
             prisma.customer.findFirst({
                 select: { creditLimit: true, id: true, isActive: true },
                 where: { deletedAt: null, id: data.customerId },
             }),
+            getNumberingPrefixes(),
             prisma.product.findMany({
                 select: { id: true, isActive: true },
                 where: { id: { in: data.items.map((item) => item.productId) } },
@@ -110,7 +112,9 @@ export const createSalesOrder = createServerFn({ method: "POST" })
                     createdById: context.session.user.id,
                     customerId: data.customerId,
                     notes: data.notes ?? null,
-                    orderNumber: generateSalesOrderNumber(),
+                    orderNumber: generateSalesOrderNumber(
+                        numberingPrefixes.salesOrder
+                    ),
                     requiredDate: data.requiredDate ?? null,
                     shippingAddress: data.shippingAddress ?? null,
                     shippingCost,

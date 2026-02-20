@@ -16,15 +16,19 @@ const createUniqueCode = (prefix: string): string => {
     return `${prefix}-${timestampPart}-${randomPart}`;
 };
 
-export const generatePurchaseOrderNumber = (): string => createUniqueCode("PO");
+export const generatePurchaseOrderNumber = (prefix = "PO"): string =>
+    createUniqueCode(prefix);
 
-export const generateGoodsReceiptNumber = (idempotencyKey?: string): string =>
+export const generateGoodsReceiptNumber = (
+    idempotencyKey?: string,
+    prefix = "GRN"
+): string =>
     idempotencyKey
-        ? `GRN-${sanitizeCodeSegment(idempotencyKey)}`
-        : createUniqueCode("GRN");
+        ? `${prefix}-${sanitizeCodeSegment(idempotencyKey)}`
+        : createUniqueCode(prefix);
 
-export const generateInventoryTransactionNumber = (): string =>
-    createUniqueCode("IT");
+export const generateInventoryTransactionNumber = (prefix = "IT"): string =>
+    createUniqueCode(prefix);
 
 export const generateStockMovementNumber = (
     transactionNumber: string,

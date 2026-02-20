@@ -49,6 +49,9 @@ const DEFAULT_SYSTEM_SETTINGS: Record<SystemSettingKey, string> = {
     [SYSTEM_SETTING_KEYS.TAX_DEFAULT_RATE_BPS]: "1800",
 };
 
+export const getDefaultSystemSettingValue = (key: SystemSettingKey): string =>
+    DEFAULT_SYSTEM_SETTINGS[key];
+
 const SYSTEM_SETTING_DESCRIPTIONS: Record<SystemSettingKey, string> = {
     [SYSTEM_SETTING_KEYS.COMPANY_ADDRESS]:
         "Company address shown on documents and reports.",
