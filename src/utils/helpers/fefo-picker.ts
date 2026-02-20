@@ -3,22 +3,22 @@ import type { PrismaClient } from "@/generated/prisma/client";
 type Tx = Parameters<Parameters<PrismaClient["$transaction"]>[0]>[0];
 
 interface PickingAllocation {
+    batchNumber: string | null;
+    expiryDate: Date | null;
+    locationId: string | null;
+    quantityToTake: number;
+    serialNumber: string | null;
     stockItemId: string;
     warehouseId: string;
-    locationId: string | null;
-    batchNumber: string | null;
-    serialNumber: string | null;
-    expiryDate: Date | null;
-    quantityToTake: number;
 }
 
 interface FEFOPickerOptions {
-    productId: string;
-    warehouseId: string;
-    quantityNeeded: number;
     // Exclude stock with expiry dates on or before this date.
     // Defaults to today — you never want to suggest already-expired stock.
     excludeExpiredBefore?: Date;
+    productId: string;
+    quantityNeeded: number;
+    warehouseId: string;
 }
 
 /**

@@ -4,8 +4,8 @@ import type { AuthUser as User } from "@/lib/auth/config";
 import { cn } from "@/lib/utils";
 
 interface UserAvatarProps {
-    user: User;
     size?: "lg" | "md" | "sm";
+    user: User;
 }
 
 const UserAvatar = ({ user, size = "sm" }: UserAvatarProps) => (

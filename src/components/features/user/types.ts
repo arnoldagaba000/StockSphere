@@ -1,9 +1,9 @@
 export interface ManagedUser {
+    banned: boolean | null;
+    email: string;
     id: string;
     name: string;
-    email: string;
     role: string | null;
-    banned: boolean | null;
 }
 
 export interface UserActionContext {

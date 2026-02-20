@@ -44,7 +44,6 @@ export interface SalesOrderDetailResponse {
     orderDate: Date;
     orderNumber: string;
     requiredDate: Date | null;
-    shippedDate: Date | null;
     shipments: {
         carrier: string | null;
         createdAt: Date;
@@ -74,6 +73,7 @@ export interface SalesOrderDetailResponse {
         trackingNumber: string | null;
         updatedAt: Date;
     }[];
+    shippedDate: Date | null;
     shippingAddress: string | null;
     shippingCost: number;
     status:
