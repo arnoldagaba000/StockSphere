@@ -55,43 +55,42 @@ function MobileLayout() {
     }, [refreshQueueState]);
 
     const runSync = useCallback(
-        async (showToast = true) => {
+        (showToast = true) => {
             if (syncState.isSyncing || typeof window === "undefined") {
-                return;
+                return Promise.resolve();
             }
             if (!navigator.onLine) {
                 refreshQueueState();
-                return;
+                return Promise.resolve();
             }
 
             setSyncState({ isSyncing: true });
-            try {
-                const result = await flushQueuedMobileOperations(
-                    executeMobileOperation
-                );
-                setSyncState({ isSyncing: false });
-                refreshQueueState();
+            return flushQueuedMobileOperations(executeMobileOperation)
+                .then(async (result) => {
+                    setSyncState({ isSyncing: false });
+                    refreshQueueState();
 
-                if (result.processed > 0) {
-                    await router.invalidate();
-                }
-                if (showToast && result.processed > 0) {
-                    toast.success(
-                        `Synced ${result.processed} queued mobile action(s).`
-                    );
-                }
-                if (showToast && result.failed > 0) {
-                    toast.error(
-                        `${result.failed} queued action(s) still failing.`
-                    );
-                }
-            } catch {
-                setSyncState({ isSyncing: false });
-                refreshQueueState();
-                if (showToast) {
-                    toast.error("Failed to sync queued actions.");
-                }
-            }
+                    if (result.processed > 0) {
+                        await router.invalidate();
+                    }
+                    if (showToast && result.processed > 0) {
+                        toast.success(
+                            `Synced ${result.processed} queued mobile action(s).`
+                        );
+                    }
+                    if (showToast && result.failed > 0) {
+                        toast.error(
+                            `${result.failed} queued action(s) still failing.`
+                        );
+                    }
+                })
+                .catch(() => {
+                    setSyncState({ isSyncing: false });
+                    refreshQueueState();
+                    if (showToast) {
+                        toast.error("Failed to sync queued actions.");
+                    }
+                });
         },
         [refreshQueueState, router, syncState.isSyncing]
     );
