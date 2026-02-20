@@ -208,12 +208,13 @@ function KitsPage() {
             toast.error("Assembly quantity must be greater than zero.");
             return;
         }
+        const normalizedAssemblyNotes = assemblyNotes || undefined;
 
         try {
             const result = await assembleKit({
                 data: {
                     kitId,
-                    notes: assemblyNotes || undefined,
+                    notes: normalizedAssemblyNotes,
                     quantity,
                     warehouseId,
                 },
