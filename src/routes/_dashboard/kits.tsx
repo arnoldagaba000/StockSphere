@@ -20,6 +20,10 @@ import { getKitGenealogy } from "@/features/kits/get-kit-genealogy";
 import { getKitStockItems } from "@/features/kits/get-kit-stock-items";
 import { getKits } from "@/features/kits/get-kits";
 import { setKitBom } from "@/features/kits/set-kit-bom";
+
+const getErrorMessage = (error: unknown, fallback: string): string =>
+    error instanceof Error ? error.message : fallback;
+
 import { getProducts } from "@/features/products/get-products";
 
 export const Route = createFileRoute("/_dashboard/kits")({
@@ -129,31 +133,31 @@ function KitsPage() {
             setKitStockItems([]);
             return;
         }
-        try {
-            const [nextKits, nextGenealogy, nextKitStockItems] =
-                await Promise.all([
-                    getKits({ data: { warehouseId } }),
-                    fetchGenealogy(kitId, warehouseId),
-                    kitId
-                        ? getKitStockItems({
-                              data: {
-                                  kitId,
-                                  warehouseId,
-                              },
-                          })
-                        : Promise.resolve([]),
-                ]);
-            setKits(nextKits);
-            setGenealogy(nextGenealogy);
-            setKitStockItems(nextKitStockItems);
-            if (!nextKits.some((entry) => entry.kitId === kitId)) {
-                setKitId(nextKits[0]?.kitId ?? "");
-            }
-        } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Failed to load kits."
-            );
-        }
+        const kitStockItemsPromise = kitId
+            ? getKitStockItems({
+                  data: {
+                      kitId,
+                      warehouseId,
+                  },
+              })
+            : Promise.resolve([]);
+
+        await Promise.all([
+            getKits({ data: { warehouseId } }),
+            fetchGenealogy(kitId, warehouseId),
+            kitStockItemsPromise,
+        ])
+            .then(([nextKits, nextGenealogy, nextKitStockItems]) => {
+                setKits(nextKits);
+                setGenealogy(nextGenealogy);
+                setKitStockItems(nextKitStockItems);
+                if (!nextKits.some((entry) => entry.kitId === kitId)) {
+                    setKitId(nextKits[0]?.kitId ?? "");
+                }
+            })
+            .catch((error: unknown) => {
+                toast.error(getErrorMessage(error, "Failed to load kits."));
+            });
     };
 
     const onSaveBom = async () => {

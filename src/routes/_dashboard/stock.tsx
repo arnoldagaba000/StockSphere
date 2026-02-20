@@ -48,6 +48,8 @@ const formatQuantity = (value: number): string =>
     Number.isInteger(value)
         ? String(value)
         : value.toFixed(3).replace(TRAILING_ZEROES_REGEX, "");
+const getErrorMessage = (error: unknown, fallback: string): string =>
+    error instanceof Error ? error.message : fallback;
 
 type StockData = Awaited<ReturnType<typeof getStock>>;
 type ValuationData = Awaited<ReturnType<typeof getInventoryValuationReport>>;
@@ -1309,27 +1311,26 @@ function StockPage() {
         setState({ stockData: nextStock, valuation: nextValuation });
     };
 
-    const runAction = async (
+    const runAction = (
         work: () => Promise<unknown>,
         successMessage: string
-    ) => {
-        try {
-            const result = await work();
-            const resultMessage =
-                typeof result === "object" && result
-                    ? (result as { message?: unknown }).message
-                    : undefined;
-            const dynamicMessage =
-                typeof resultMessage === "string"
-                    ? resultMessage
-                    : successMessage;
-            toast.success(dynamicMessage);
-            await refreshAll();
-        } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Action failed."
-            );
-        }
+    ): Promise<void> => {
+        return work()
+            .then(async (result) => {
+                const resultMessage =
+                    typeof result === "object" && result
+                        ? (result as { message?: unknown }).message
+                        : undefined;
+                const dynamicMessage =
+                    typeof resultMessage === "string"
+                        ? resultMessage
+                        : successMessage;
+                toast.success(dynamicMessage);
+                await refreshAll();
+            })
+            .catch((error: unknown) => {
+                toast.error(getErrorMessage(error, "Action failed."));
+            });
     };
 
     const selectedItem = state.stockData.stockItems.find(
