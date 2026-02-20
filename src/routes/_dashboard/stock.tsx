@@ -22,12 +22,14 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { adjustStock } from "@/features/inventory/adjust-stock";
+import { approveAdjustment } from "@/features/inventory/approve-adjustment";
 import { createInitialStock } from "@/features/inventory/create-initial-stock";
 import { submitCycleCount } from "@/features/inventory/cycle-count";
 import {
     getInventoryKpis,
     getInventoryValuationReport,
 } from "@/features/inventory/get-inventory-reports";
+import { getMovementHistory } from "@/features/inventory/get-movement-history";
 import { getPutawaySuggestions } from "@/features/inventory/get-putaway-suggestions";
 import { getStock } from "@/features/inventory/get-stock";
 import { getTrackingHistory } from "@/features/inventory/get-tracking-history";
@@ -37,6 +39,7 @@ import {
     updateStockExpiryStatus,
 } from "@/features/inventory/manage-expiry";
 import { receiveGoods } from "@/features/inventory/receive-goods";
+import { rejectAdjustment } from "@/features/inventory/reject-adjustment";
 import {
     releaseReservedStock,
     reserveStock,
@@ -52,17 +55,37 @@ const formatQuantity = (value: number): string =>
 
 type StockData = Awaited<ReturnType<typeof getStock>>;
 type ValuationData = Awaited<ReturnType<typeof getInventoryValuationReport>>;
+type MovementHistoryData = Awaited<ReturnType<typeof getMovementHistory>>;
 type StockItem = StockData["stockItems"][number];
 type Product = Awaited<ReturnType<typeof getProducts>>["products"][number];
 type Warehouse = Awaited<ReturnType<typeof getWarehouses>>[number];
+type MovementHistoryItem = MovementHistoryData["movements"][number];
+
+const MOVEMENT_TYPE_OPTIONS = [
+    "PURCHASE_RECEIPT",
+    "SALES_SHIPMENT",
+    "TRANSFER",
+    "ADJUSTMENT",
+    "RETURN",
+    "ASSEMBLY",
+    "DISASSEMBLY",
+] as const;
 
 interface StockPageState {
+    adjustmentApprovalNotes: string;
+    adjustmentId: string;
+    adjustmentRejectionReason: string;
     adjustQuantity: string;
     cycleQuantity: string;
     entryProductId: string;
     entryQuantity: string;
     entryUnitCost: string;
     entryWarehouseId: string;
+    movementHistory: MovementHistoryData | null;
+    movementPage: string;
+    movementProductId: string;
+    movementType: string;
+    movementWarehouseId: string;
     releaseQuantity: string;
     reserveQuantity: string;
     selectedStockItemId: string;
@@ -588,17 +611,277 @@ const StockTrackingCard = ({
     );
 };
 
+interface AdjustmentReviewCardProps {
+    adjustmentApprovalNotes: string;
+    adjustmentId: string;
+    adjustmentRejectionReason: string;
+    runAction: (
+        work: () => Promise<unknown>,
+        successMessage: string
+    ) => Promise<void>;
+    setState: (action: StockPageAction) => void;
+}
+
+const AdjustmentReviewCard = ({
+    adjustmentApprovalNotes,
+    adjustmentId,
+    adjustmentRejectionReason,
+    runAction,
+    setState,
+}: AdjustmentReviewCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Adjustment Review</CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-3 md:grid-cols-3">
+                <FieldInput
+                    label="Adjustment ID"
+                    onChange={(value) => setState({ adjustmentId: value })}
+                    value={adjustmentId}
+                />
+                <FieldInput
+                    label="Approval Notes"
+                    onChange={(value) =>
+                        setState({ adjustmentApprovalNotes: value })
+                    }
+                    value={adjustmentApprovalNotes}
+                />
+                <FieldInput
+                    label="Rejection Reason"
+                    onChange={(value) =>
+                        setState({ adjustmentRejectionReason: value })
+                    }
+                    value={adjustmentRejectionReason}
+                />
+                <div className="flex flex-wrap gap-2 md:col-span-3">
+                    <Button
+                        disabled={!adjustmentId}
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    approveAdjustment({
+                                        data: {
+                                            adjustmentId,
+                                            approvalNotes:
+                                                adjustmentApprovalNotes || null,
+                                        },
+                                    }),
+                                "Adjustment approval logged."
+                            )
+                        }
+                        variant="outline"
+                    >
+                        Approve Adjustment
+                    </Button>
+                    <Button
+                        disabled={
+                            !(
+                                adjustmentId &&
+                                adjustmentRejectionReason.trim().length > 0
+                            )
+                        }
+                        onClick={() =>
+                            runAction(
+                                () =>
+                                    rejectAdjustment({
+                                        data: {
+                                            adjustmentId,
+                                            rejectionReason:
+                                                adjustmentRejectionReason.trim(),
+                                        },
+                                    }),
+                                "Adjustment rejection logged."
+                            )
+                        }
+                        variant="destructive"
+                    >
+                        Reject Adjustment
+                    </Button>
+                </div>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface MovementHistoryCardProps {
+    movementHistory: MovementHistoryData | null;
+    movementPage: string;
+    movementProductId: string;
+    movementType: string;
+    movementWarehouseId: string;
+    onLoadHistory: () => Promise<void>;
+    products: Product[];
+    setState: (action: StockPageAction) => void;
+    warehouses: Warehouse[];
+}
+
+const MovementHistoryCard = ({
+    movementHistory,
+    movementPage,
+    movementProductId,
+    movementType,
+    movementWarehouseId,
+    onLoadHistory,
+    products,
+    setState,
+    warehouses,
+}: MovementHistoryCardProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Movement History</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div className="grid gap-3 md:grid-cols-4">
+                    <FieldSelect
+                        label="Warehouse"
+                        onValueChange={(value) =>
+                            setState({
+                                movementWarehouseId:
+                                    value === "all" ? "" : value,
+                            })
+                        }
+                        options={[
+                            { label: "All Warehouses", value: "all" },
+                            ...warehouses.map((warehouse) => ({
+                                label: `${warehouse.code} - ${warehouse.name}`,
+                                value: warehouse.id,
+                            })),
+                        ]}
+                        value={movementWarehouseId || "all"}
+                    />
+                    <FieldSelect
+                        label="Product"
+                        onValueChange={(value) =>
+                            setState({
+                                movementProductId: value === "all" ? "" : value,
+                            })
+                        }
+                        options={[
+                            { label: "All Products", value: "all" },
+                            ...products.map((product) => ({
+                                label: `${product.sku} - ${product.name}`,
+                                value: product.id,
+                            })),
+                        ]}
+                        value={movementProductId || "all"}
+                    />
+                    <FieldSelect
+                        label="Movement Type"
+                        onValueChange={(value) =>
+                            setState({
+                                movementType: value === "all" ? "" : value,
+                            })
+                        }
+                        options={[
+                            { label: "All Types", value: "all" },
+                            ...MOVEMENT_TYPE_OPTIONS.map((type) => ({
+                                label: type,
+                                value: type,
+                            })),
+                        ]}
+                        value={movementType || "all"}
+                    />
+                    <FieldInput
+                        label="Page"
+                        onChange={(value) => setState({ movementPage: value })}
+                        type="number"
+                        value={movementPage}
+                    />
+                </div>
+                <div className="flex gap-2">
+                    <Button
+                        onClick={() => {
+                            onLoadHistory().catch(() => undefined);
+                        }}
+                        type="button"
+                        variant="outline"
+                    >
+                        Load Movement History
+                    </Button>
+                </div>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>When</TableHead>
+                            <TableHead>Type</TableHead>
+                            <TableHead>Product</TableHead>
+                            <TableHead>Qty</TableHead>
+                            <TableHead>From</TableHead>
+                            <TableHead>To</TableHead>
+                            <TableHead>Reference</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {(movementHistory?.movements ?? []).length === 0 ? (
+                            <TableRow>
+                                <TableCell colSpan={7}>
+                                    No movements loaded.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            movementHistory?.movements.map(
+                                (movement: MovementHistoryItem) => (
+                                    <TableRow key={movement.id}>
+                                        <TableCell>
+                                            {new Date(
+                                                movement.createdAt
+                                            ).toLocaleString()}
+                                        </TableCell>
+                                        <TableCell>{movement.type}</TableCell>
+                                        <TableCell>
+                                            {movement.product
+                                                ? `${movement.product.sku} - ${movement.product.name}`
+                                                : movement.productId}
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatQuantity(movement.quantity)}
+                                        </TableCell>
+                                        <TableCell>
+                                            {movement.fromWarehouse?.code ??
+                                                "\u2014"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {movement.toWarehouse?.code ??
+                                                "\u2014"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {movement.inventoryTransaction
+                                                ?.transactionNumber ??
+                                                movement.referenceNumber ??
+                                                "\u2014"}
+                                        </TableCell>
+                                    </TableRow>
+                                )
+                            )
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
 function StockPage() {
     const { initialStock, initialValuation, kpis, products, warehouses } =
         Route.useLoaderData();
 
     const [state, setState] = useReducer(stockPageReducer, {
+        adjustmentApprovalNotes: "",
+        adjustmentId: "",
+        adjustmentRejectionReason: "",
         adjustQuantity: "",
         cycleQuantity: "",
         entryProductId: products[0]?.id ?? "",
         entryQuantity: "",
         entryUnitCost: "",
         entryWarehouseId: warehouses[0]?.id ?? "",
+        movementHistory: null,
+        movementPage: "1",
+        movementProductId: "",
+        movementType: "",
+        movementWarehouseId: "",
         releaseQuantity: "",
         reserveQuantity: "",
         selectedStockItemId: "",
@@ -609,6 +892,38 @@ function StockPage() {
         transferWarehouseId: warehouses[0]?.id ?? "",
         valuation: initialValuation,
     });
+
+    const loadMovementHistory = async () => {
+        try {
+            const movementHistory = await getMovementHistory({
+                data: {
+                    movementType:
+                        state.movementType.length > 0
+                            ? (state.movementType as
+                                  | "ADJUSTMENT"
+                                  | "ASSEMBLY"
+                                  | "DISASSEMBLY"
+                                  | "PURCHASE_RECEIPT"
+                                  | "RETURN"
+                                  | "SALES_SHIPMENT"
+                                  | "TRANSFER")
+                            : undefined,
+                    page: Number(state.movementPage) || 1,
+                    pageSize: 25,
+                    productId: state.movementProductId || undefined,
+                    warehouseId: state.movementWarehouseId || undefined,
+                },
+            });
+            setState({ movementHistory });
+            toast.success("Movement history loaded.");
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load movement history."
+            );
+        }
+    };
 
     const refreshAll = async () => {
         const [nextStock, nextValuation] = await Promise.all([
@@ -711,6 +1026,26 @@ function StockPage() {
                 setState={setState}
                 trackingBatch={state.trackingBatch}
                 trackingSerial={state.trackingSerial}
+            />
+
+            <AdjustmentReviewCard
+                adjustmentApprovalNotes={state.adjustmentApprovalNotes}
+                adjustmentId={state.adjustmentId}
+                adjustmentRejectionReason={state.adjustmentRejectionReason}
+                runAction={runAction}
+                setState={setState}
+            />
+
+            <MovementHistoryCard
+                movementHistory={state.movementHistory}
+                movementPage={state.movementPage}
+                movementProductId={state.movementProductId}
+                movementType={state.movementType}
+                movementWarehouseId={state.movementWarehouseId}
+                onLoadHistory={loadMovementHistory}
+                products={products}
+                setState={setState}
+                warehouses={warehouses}
             />
 
             <Card>
