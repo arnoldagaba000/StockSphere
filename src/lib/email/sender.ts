@@ -1,10 +1,10 @@
 import nodemailer from "nodemailer";
 
 interface SendEmailParams {
-    to: string;
+    html?: string;
     subject: string;
     text: string;
-    html?: string;
+    to: string;
 }
 
 const parseBoolean = (value: string | undefined) =>

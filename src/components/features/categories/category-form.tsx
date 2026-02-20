@@ -32,8 +32,8 @@ export interface CategorySubmitData {
 
 interface CategoryFormProps {
     categories: CategoryOption[];
-    excludeCategoryIds?: readonly string[];
     defaultValues: CategoryFormValues;
+    excludeCategoryIds?: readonly string[];
     isSubmitting: boolean;
     onSubmit: (data: CategorySubmitData) => Promise<void>;
     submitLabel: string;

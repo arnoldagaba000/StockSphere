@@ -2,7 +2,7 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { cva, type VariantProps } from "class-variance-authority";
 import { PanelLeftIcon } from "lucide-react";
-import * as React from "react";
+import React from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -29,17 +29,32 @@ const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
 
-type SidebarContextProps = {
-    state: "expanded" | "collapsed";
-    open: boolean;
-    setOpen: (open: boolean) => void;
-    openMobile: boolean;
-    setOpenMobile: (open: boolean) => void;
+interface SidebarContextProps {
     isMobile: boolean;
+    open: boolean;
+    openMobile: boolean;
+    setOpen: (open: boolean) => void;
+    setOpenMobile: (open: boolean) => void;
+    state: "expanded" | "collapsed";
     toggleSidebar: () => void;
-};
+}
 
 const SidebarContext = React.createContext<SidebarContextProps | null>(null);
+
+const persistSidebarCookie = (openState: boolean): void => {
+    if (!("cookieStore" in window)) {
+        return;
+    }
+
+    window.cookieStore
+        .set({
+            expires: Date.now() + SIDEBAR_COOKIE_MAX_AGE * 1000,
+            name: SIDEBAR_COOKIE_NAME,
+            path: "/",
+            value: String(openState),
+        })
+        .catch(() => undefined);
+};
 
 function useSidebar() {
     const context = React.useContext(SidebarContext);
@@ -79,8 +94,8 @@ function SidebarProvider({
                 _setOpen(openState);
             }
 
-            // This sets the cookie to keep the sidebar state.
-            document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+            // Persist state when the browser supports Cookie Store API.
+            persistSidebarCookie(openState);
         },
         [setOpenProp, open]
     );
@@ -90,7 +105,7 @@ function SidebarProvider({
         return isMobile
             ? setOpenMobile((open) => !open)
             : setOpen((open) => !open);
-    }, [isMobile, setOpen, setOpenMobile]);
+    }, [isMobile, setOpen]);
 
     // Adds a keyboard shortcut to toggle the sidebar.
     React.useEffect(() => {
@@ -122,15 +137,7 @@ function SidebarProvider({
             setOpenMobile,
             toggleSidebar,
         }),
-        [
-            state,
-            open,
-            setOpen,
-            isMobile,
-            openMobile,
-            setOpenMobile,
-            toggleSidebar,
-        ]
+        [state, open, setOpen, isMobile, openMobile, toggleSidebar]
     );
 
     return (

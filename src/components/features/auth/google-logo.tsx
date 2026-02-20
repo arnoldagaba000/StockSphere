@@ -1,7 +1,7 @@
 interface GoogleIconProps {
+    ariaHidden?: boolean;
     className?: string;
     title?: string;
-    ariaHidden?: boolean;
 }
 
 const GoogleLogo = ({
