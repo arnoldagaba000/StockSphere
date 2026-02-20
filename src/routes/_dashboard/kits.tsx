@@ -20,11 +20,10 @@ import { getKitGenealogy } from "@/features/kits/get-kit-genealogy";
 import { getKitStockItems } from "@/features/kits/get-kit-stock-items";
 import { getKits } from "@/features/kits/get-kits";
 import { setKitBom } from "@/features/kits/set-kit-bom";
+import { getProducts } from "@/features/products/get-products";
 
 const getErrorMessage = (error: unknown, fallback: string): string =>
     error instanceof Error ? error.message : fallback;
-
-import { getProducts } from "@/features/products/get-products";
 
 export const Route = createFileRoute("/_dashboard/kits")({
     component: KitsPage,
@@ -68,6 +67,13 @@ export const Route = createFileRoute("/_dashboard/kits")({
     },
 });
 
+type LoaderData = ReturnType<typeof Route.useLoaderData>;
+type KitsData = Awaited<ReturnType<typeof getKits>>;
+type KitGenealogyData = Awaited<ReturnType<typeof getKitGenealogy>>;
+type KitStockItemsData = Awaited<ReturnType<typeof getKitStockItems>>;
+type WarehouseOption = LoaderData["warehouses"][number];
+type ProductOption = LoaderData["products"][number];
+
 interface BomItemState {
     componentId: string;
     id: string;
@@ -81,13 +87,13 @@ interface KitsPageState {
     disassemblyNotes: string;
     disassemblyQuantity: string;
     disassemblyStockItemId: string;
-    genealogy: Awaited<ReturnType<typeof getKitGenealogy>>;
+    genealogy: KitGenealogyData;
     genealogyBatch: string;
     genealogyDateFrom: string;
     genealogyDateTo: string;
     kitId: string;
-    kitStockItems: Awaited<ReturnType<typeof getKitStockItems>>;
-    kits: Awaited<ReturnType<typeof getKits>>;
+    kitStockItems: KitStockItemsData;
+    kits: KitsData;
     warehouseId: string;
 }
 
@@ -100,10 +106,7 @@ const kitsPageReducer = (
     action: KitsPageAction
 ): KitsPageState => {
     const patch = typeof action === "function" ? action(state) : action;
-    return {
-        ...state,
-        ...patch,
-    };
+    return { ...state, ...patch };
 };
 
 const createBomItem = (): BomItemState => ({
@@ -131,13 +134,19 @@ function KitsPage() {
         warehouseId: loaderData.selectedWarehouseId ?? "",
     });
 
+    const selectedKit = useMemo(
+        () => state.kits.find((entry) => entry.kitId === state.kitId) ?? null,
+        [state.kitId, state.kits]
+    );
+
     const fetchGenealogy = async (
         nextKitId: string,
         nextWarehouseId: string
-    ) => {
+    ): Promise<KitGenealogyData> => {
         if (!(nextKitId && nextWarehouseId)) {
             return [];
         }
+
         return await getKitGenealogy({
             data: {
                 batchNumber: state.genealogyBatch || undefined,
@@ -154,21 +163,39 @@ function KitsPage() {
         });
     };
 
-    const selectedKit = useMemo(
-        () => state.kits.find((entry) => entry.kitId === state.kitId) ?? null,
-        [state.kitId, state.kits]
-    );
+    const updateSelectionDependentData = async (
+        nextKitId: string,
+        nextWarehouseId: string
+    ): Promise<void> => {
+        if (!(nextWarehouseId && nextKitId)) {
+            setState({ genealogy: [], kitStockItems: [] });
+            return;
+        }
+
+        const [nextGenealogy, nextKitStockItems] = await Promise.all([
+            fetchGenealogy(nextKitId, nextWarehouseId),
+            getKitStockItems({
+                data: {
+                    kitId: nextKitId,
+                    warehouseId: nextWarehouseId,
+                },
+            }),
+        ]);
+
+        setState({
+            disassemblyStockItemId: nextKitStockItems[0]?.stockItemId ?? "",
+            genealogy: nextGenealogy,
+            kitStockItems: nextKitStockItems,
+        });
+    };
 
     const refreshKits = async () => {
         if (!state.warehouseId) {
-            setState({
-                genealogy: [],
-                kitStockItems: [],
-                kits: [],
-            });
+            setState({ genealogy: [], kitStockItems: [], kits: [] });
             return;
         }
-        const kitStockItemsPromise = state.kitId
+
+        const stockItemsPromise = state.kitId
             ? getKitStockItems({
                   data: {
                       kitId: state.kitId,
@@ -180,17 +207,21 @@ function KitsPage() {
         await Promise.all([
             getKits({ data: { warehouseId: state.warehouseId } }),
             fetchGenealogy(state.kitId, state.warehouseId),
-            kitStockItemsPromise,
+            stockItemsPromise,
         ])
             .then(([nextKits, nextGenealogy, nextKitStockItems]) => {
+                const nextKitId = nextKits.some(
+                    (entry) => entry.kitId === state.kitId
+                )
+                    ? state.kitId
+                    : (nextKits[0]?.kitId ?? "");
+
                 setState({
                     genealogy: nextGenealogy,
+                    kitId: nextKitId,
                     kitStockItems: nextKitStockItems,
                     kits: nextKits,
                 });
-                if (!nextKits.some((entry) => entry.kitId === state.kitId)) {
-                    setState({ kitId: nextKits[0]?.kitId ?? "" });
-                }
             })
             .catch((error: unknown) => {
                 toast.error(getErrorMessage(error, "Failed to load kits."));
@@ -228,9 +259,7 @@ function KitsPage() {
             await refreshKits();
             toast.success("Kit BOM saved.");
         } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Failed to save BOM."
-            );
+            toast.error(getErrorMessage(error, "Failed to save BOM."));
         }
     };
 
@@ -245,8 +274,8 @@ function KitsPage() {
             toast.error("Assembly quantity must be greater than zero.");
             return;
         }
-        const normalizedAssemblyNotes = state.assemblyNotes || undefined;
 
+        const normalizedAssemblyNotes = state.assemblyNotes || undefined;
         try {
             const result = await assembleKit({
                 data: {
@@ -259,24 +288,23 @@ function KitsPage() {
             await refreshKits();
             toast.success(`Assembled ${result.assembledQuantity} kit unit(s).`);
         } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Assembly failed."
-            );
+            toast.error(getErrorMessage(error, "Assembly failed."));
         }
     };
 
     const onDisassemble = async () => {
-        const quantity = Number(state.disassemblyQuantity);
         if (!state.disassemblyStockItemId) {
             toast.error("Enter a kit stock item ID.");
             return;
         }
+
+        const quantity = Number(state.disassemblyQuantity);
         if (!Number.isFinite(quantity) || quantity <= 0) {
             toast.error("Disassembly quantity must be greater than zero.");
             return;
         }
-        const normalizedDisassemblyNotes = state.disassemblyNotes || undefined;
 
+        const normalizedDisassemblyNotes = state.disassemblyNotes || undefined;
         try {
             const result = await disassembleKit({
                 data: {
@@ -290,501 +318,581 @@ function KitsPage() {
                 `Disassembled ${result.disassembledQuantity} kit unit(s).`
             );
         } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Disassembly failed."
-            );
+            toast.error(getErrorMessage(error, "Disassembly failed."));
         }
     };
 
     return (
         <section className="space-y-4">
-            <div className="flex flex-wrap items-end gap-3">
-                <div className="space-y-1">
-                    <Label htmlFor="kit-warehouse">Warehouse</Label>
-                    <Select
-                        onValueChange={(value) =>
-                            setState({ warehouseId: value ?? "" })
-                        }
-                        value={state.warehouseId}
-                    >
-                        <SelectTrigger id="kit-warehouse">
-                            <SelectValue placeholder="Select warehouse" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {loaderData.warehouses.map((warehouse) => (
-                                <SelectItem
-                                    key={warehouse.id}
-                                    value={warehouse.id}
-                                >
-                                    {warehouse.name} ({warehouse.code})
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
-                </div>
-                <Button onClick={refreshKits} type="button" variant="outline">
-                    Refresh
-                </Button>
+            <WarehouseToolbar
+                onRefresh={refreshKits}
+                onWarehouseChange={(warehouseId) => setState({ warehouseId })}
+                warehouseId={state.warehouseId}
+                warehouses={loaderData.warehouses}
+            />
+
+            <KitCatalogSection
+                kits={state.kits}
+                onSelect={async (nextKitId) => {
+                    setState({ kitId: nextKitId });
+                    await updateSelectionDependentData(
+                        nextKitId,
+                        state.warehouseId
+                    );
+                }}
+                selectedKit={selectedKit}
+                selectedKitId={state.kitId}
+            />
+
+            <GenealogySection
+                genealogy={state.genealogy}
+                genealogyBatch={state.genealogyBatch}
+                genealogyDateFrom={state.genealogyDateFrom}
+                genealogyDateTo={state.genealogyDateTo}
+                onApplyFilters={async () => {
+                    const genealogy = await fetchGenealogy(
+                        state.kitId,
+                        state.warehouseId
+                    );
+                    setState({ genealogy });
+                }}
+                onGenealogyBatchChange={(genealogyBatch) =>
+                    setState({ genealogyBatch })
+                }
+                onGenealogyDateFromChange={(genealogyDateFrom) =>
+                    setState({ genealogyDateFrom })
+                }
+                onGenealogyDateToChange={(genealogyDateTo) =>
+                    setState({ genealogyDateTo })
+                }
+            />
+
+            <OperationsSection
+                assemblyNotes={state.assemblyNotes}
+                assemblyQuantity={state.assemblyQuantity}
+                bomItems={state.bomItems}
+                disassemblyNotes={state.disassemblyNotes}
+                disassemblyQuantity={state.disassemblyQuantity}
+                disassemblyStockItemId={state.disassemblyStockItemId}
+                kitStockItems={state.kitStockItems}
+                kits={state.kits}
+                onAddBomRow={() =>
+                    setState((prev) => ({
+                        bomItems: [...prev.bomItems, createBomItem()],
+                    }))
+                }
+                onAssemble={onAssemble}
+                onAssemblyNotesChange={(assemblyNotes) =>
+                    setState({ assemblyNotes })
+                }
+                onAssemblyQuantityChange={(assemblyQuantity) =>
+                    setState({ assemblyQuantity })
+                }
+                onBomItemChange={(index, patch) =>
+                    setState((prev) => {
+                        const nextBomItems = [...prev.bomItems];
+                        nextBomItems[index] = {
+                            ...nextBomItems[index],
+                            ...patch,
+                        };
+                        return { bomItems: nextBomItems };
+                    })
+                }
+                onDisassemble={onDisassemble}
+                onDisassemblyNotesChange={(disassemblyNotes) =>
+                    setState({ disassemblyNotes })
+                }
+                onDisassemblyQuantityChange={(disassemblyQuantity) =>
+                    setState({ disassemblyQuantity })
+                }
+                onDisassemblyStockItemIdChange={(disassemblyStockItemId) =>
+                    setState({ disassemblyStockItemId })
+                }
+                onKitChange={async (kitId) => {
+                    setState({ kitId });
+                    await updateSelectionDependentData(
+                        kitId,
+                        state.warehouseId
+                    );
+                }}
+                onSaveBom={onSaveBom}
+                products={loaderData.products}
+                selectedKitId={state.kitId}
+            />
+        </section>
+    );
+}
+
+function WarehouseToolbar({
+    onRefresh,
+    onWarehouseChange,
+    warehouses,
+    warehouseId,
+}: {
+    onRefresh: () => Promise<void>;
+    onWarehouseChange: (warehouseId: string) => void;
+    warehouses: LoaderData["warehouses"];
+    warehouseId: string;
+}) {
+    return (
+        <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+                <Label htmlFor="kit-warehouse">Warehouse</Label>
+                <Select
+                    onValueChange={(value) => onWarehouseChange(value ?? "")}
+                    value={warehouseId}
+                >
+                    <SelectTrigger id="kit-warehouse">
+                        <SelectValue placeholder="Select warehouse" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {warehouses.map((warehouse: WarehouseOption) => (
+                            <SelectItem key={warehouse.id} value={warehouse.id}>
+                                {warehouse.name} ({warehouse.code})
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
             </div>
+            <Button onClick={onRefresh} type="button" variant="outline">
+                Refresh
+            </Button>
+        </div>
+    );
+}
 
-            <div className="grid gap-4 lg:grid-cols-3">
-                <Card className="lg:col-span-2">
-                    <CardHeader>
-                        <CardTitle>Kit Catalog</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                        {state.kits.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">
-                                No kits found. Mark a product as kit and define
-                                BOM.
-                            </p>
-                        ) : (
-                            state.kits.map((entry) => (
-                                <article
-                                    className="rounded-md border p-3"
-                                    key={entry.kitId}
-                                >
-                                    <div className="flex items-center justify-between">
-                                        <h3 className="font-medium">
-                                            {entry.kitName}
-                                        </h3>
-                                        <Button
-                                            onClick={async () => {
-                                                setState({
-                                                    kitId: entry.kitId,
-                                                });
-                                                if (!state.warehouseId) {
-                                                    setState({
-                                                        genealogy: [],
-                                                        kitStockItems: [],
-                                                    });
-                                                    return;
-                                                }
-                                                const [
-                                                    nextGenealogy,
-                                                    nextKitStockItems,
-                                                ] = await Promise.all([
-                                                    fetchGenealogy(
-                                                        entry.kitId,
-                                                        state.warehouseId
-                                                    ),
-                                                    getKitStockItems({
-                                                        data: {
-                                                            kitId: entry.kitId,
-                                                            warehouseId:
-                                                                state.warehouseId,
-                                                        },
-                                                    }),
-                                                ]);
-                                                setState({
-                                                    disassemblyStockItemId:
-                                                        nextKitStockItems[0]
-                                                            ?.stockItemId ?? "",
-                                                    genealogy: nextGenealogy,
-                                                    kitStockItems:
-                                                        nextKitStockItems,
-                                                });
-                                            }}
-                                            size="sm"
-                                            type="button"
-                                            variant={
-                                                entry.kitId === state.kitId
-                                                    ? "default"
-                                                    : "outline"
-                                            }
-                                        >
-                                            Select
-                                        </Button>
-                                    </div>
-                                    <p className="text-muted-foreground text-xs">
-                                        {entry.kitSku} • On hand:{" "}
-                                        {entry.onHandQuantity} • Can assemble:{" "}
-                                        {entry.assemblableUnits}
-                                    </p>
-                                </article>
-                            ))
-                        )}
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Selected Kit</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2 text-sm">
-                        {selectedKit ? (
-                            <>
-                                <p>
-                                    <span className="font-medium">
-                                        {selectedKit.kitName}
-                                    </span>{" "}
-                                    ({selectedKit.kitSku})
-                                </p>
-                                {selectedKit.bom.length === 0 ? (
-                                    <p className="text-muted-foreground">
-                                        No BOM components.
-                                    </p>
-                                ) : (
-                                    selectedKit.bom.map((component) => (
-                                        <p key={component.componentId}>
-                                            {component.componentSku}:{" "}
-                                            {component.quantityPerKit} per kit
-                                            (available{" "}
-                                            {component.availableComponentQty})
-                                        </p>
-                                    ))
-                                )}
-                            </>
-                        ) : (
-                            <p className="text-muted-foreground">
-                                No kit selected.
-                            </p>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-
-            <Card>
+function KitCatalogSection({
+    kits,
+    onSelect,
+    selectedKit,
+    selectedKitId,
+}: {
+    kits: KitsData;
+    onSelect: (kitId: string) => Promise<void>;
+    selectedKit: KitsData[number] | null;
+    selectedKitId: string;
+}) {
+    return (
+        <div className="grid gap-4 lg:grid-cols-3">
+            <Card className="lg:col-span-2">
                 <CardHeader>
-                    <CardTitle>Batch Genealogy</CardTitle>
+                    <CardTitle>Kit Catalog</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    <div className="grid gap-2 md:grid-cols-4">
-                        <Input
-                            onChange={(event) =>
-                                setState({
-                                    genealogyBatch: event.target.value,
-                                })
-                            }
-                            placeholder="Batch number"
-                            value={state.genealogyBatch}
-                        />
-                        <Input
-                            onChange={(event) =>
-                                setState({
-                                    genealogyDateFrom: event.target.value,
-                                })
-                            }
-                            type="date"
-                            value={state.genealogyDateFrom}
-                        />
-                        <Input
-                            onChange={(event) =>
-                                setState({
-                                    genealogyDateTo: event.target.value,
-                                })
-                            }
-                            type="date"
-                            value={state.genealogyDateTo}
-                        />
-                        <Button
-                            onClick={async () => {
-                                const nextGenealogy = await fetchGenealogy(
-                                    state.kitId,
-                                    state.warehouseId
-                                );
-                                setState({ genealogy: nextGenealogy });
-                            }}
-                            type="button"
-                            variant="outline"
-                        >
-                            Apply Filters
-                        </Button>
-                    </div>
-                    {state.genealogy.length === 0 ? (
+                    {kits.length === 0 ? (
                         <p className="text-muted-foreground text-sm">
-                            No assembly genealogy records for current filters.
+                            No kits found. Mark a product as kit and define BOM.
                         </p>
                     ) : (
-                        state.genealogy.map((entry) => (
+                        kits.map((entry) => (
                             <article
-                                className="space-y-2 rounded-md border p-3"
-                                key={`${entry.transactionNumber}-${entry.assembledAt.toString()}`}
+                                className="rounded-md border p-3"
+                                key={entry.kitId}
                             >
-                                <div className="text-sm">
-                                    <p>
-                                        <span className="font-medium">
-                                            Txn:
-                                        </span>{" "}
-                                        {entry.transactionNumber}
-                                    </p>
-                                    <p>
-                                        <span className="font-medium">
-                                            Warehouse:
-                                        </span>{" "}
-                                        {entry.warehouse}
-                                    </p>
-                                    <p>
-                                        <span className="font-medium">
-                                            Assembled:
-                                        </span>{" "}
-                                        {entry.assembledQuantity} | Batch:{" "}
-                                        {entry.assembledBatchNumber ?? "—"} |
-                                        Serial:{" "}
-                                        {entry.assembledSerialNumber ?? "—"}
-                                    </p>
+                                <div className="flex items-center justify-between">
+                                    <h3 className="font-medium">
+                                        {entry.kitName}
+                                    </h3>
+                                    <Button
+                                        onClick={async () =>
+                                            await onSelect(entry.kitId)
+                                        }
+                                        size="sm"
+                                        type="button"
+                                        variant={
+                                            entry.kitId === selectedKitId
+                                                ? "default"
+                                                : "outline"
+                                        }
+                                    >
+                                        Select
+                                    </Button>
                                 </div>
-                                <div className="space-y-1 text-xs">
-                                    {entry.consumedComponents.map(
-                                        (component) => (
-                                            <p
-                                                key={`${entry.transactionNumber}-${component.componentId}-${component.batchNumber ?? "na"}-${component.serialNumber ?? "na"}`}
-                                            >
-                                                {component.componentSku} • qty{" "}
-                                                {component.quantity} • batch{" "}
-                                                {component.batchNumber ?? "—"} •
-                                                serial{" "}
-                                                {component.serialNumber ?? "—"}
-                                            </p>
-                                        )
-                                    )}
-                                </div>
+                                <p className="text-muted-foreground text-xs">
+                                    {entry.kitSku} • On hand:{" "}
+                                    {entry.onHandQuantity} • Can assemble:{" "}
+                                    {entry.assemblableUnits}
+                                </p>
                             </article>
                         ))
                     )}
                 </CardContent>
             </Card>
 
-            <div className="grid gap-4 xl:grid-cols-3">
-                <Card>
-                    <CardHeader>
-                        <CardTitle>BOM Editor</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        <div className="space-y-1">
-                            <Label htmlFor="bom-kit">Kit Product</Label>
-                            <Select
-                                onValueChange={async (value) => {
-                                    const nextKitId = value ?? "";
-                                    setState({ kitId: nextKitId });
-                                    if (!(state.warehouseId && nextKitId)) {
-                                        setState({
-                                            genealogy: [],
-                                            kitStockItems: [],
-                                        });
-                                        return;
-                                    }
-                                    const [nextGenealogy, nextKitStockItems] =
-                                        await Promise.all([
-                                            fetchGenealogy(
-                                                nextKitId,
-                                                state.warehouseId
-                                            ),
-                                            getKitStockItems({
-                                                data: {
-                                                    kitId: nextKitId,
-                                                    warehouseId:
-                                                        state.warehouseId,
-                                                },
-                                            }),
-                                        ]);
-                                    setState({
-                                        disassemblyStockItemId:
-                                            nextKitStockItems[0]?.stockItemId ??
-                                            "",
-                                        genealogy: nextGenealogy,
-                                        kitStockItems: nextKitStockItems,
-                                    });
-                                }}
-                                value={state.kitId}
-                            >
-                                <SelectTrigger id="bom-kit">
-                                    <SelectValue placeholder="Select kit" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {state.kits.map((entry) => (
-                                        <SelectItem
-                                            key={entry.kitId}
-                                            value={entry.kitId}
-                                        >
-                                            {entry.kitName} ({entry.kitSku})
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        {state.bomItems.map((item, index) => (
-                            <div
-                                className="grid grid-cols-12 gap-2"
-                                key={item.id}
-                            >
-                                <Select
-                                    onValueChange={(value) => {
-                                        const next = [...state.bomItems];
-                                        next[index] = {
-                                            ...next[index],
-                                            componentId: value ?? "",
-                                        };
-                                        setState({ bomItems: next });
-                                    }}
-                                    value={item.componentId}
-                                >
-                                    <SelectTrigger className="col-span-8">
-                                        <SelectValue placeholder="Component" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {loaderData.products.map((product) => (
-                                            <SelectItem
-                                                key={product.id}
-                                                value={product.id}
-                                            >
-                                                {product.name} ({product.sku})
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <Input
-                                    className="col-span-4"
-                                    min={0.001}
-                                    onChange={(event) => {
-                                        const next = [...state.bomItems];
-                                        next[index] = {
-                                            ...next[index],
-                                            quantity: event.target.value,
-                                        };
-                                        setState({ bomItems: next });
-                                    }}
-                                    step={0.001}
-                                    type="number"
-                                    value={item.quantity}
-                                />
+            <Card>
+                <CardHeader>
+                    <CardTitle>Selected Kit</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2 text-sm">
+                    {selectedKit ? (
+                        <>
+                            <p>
+                                <span className="font-medium">
+                                    {selectedKit.kitName}
+                                </span>{" "}
+                                ({selectedKit.kitSku})
+                            </p>
+                            {selectedKit.bom.length === 0 ? (
+                                <p className="text-muted-foreground">
+                                    No BOM components.
+                                </p>
+                            ) : (
+                                selectedKit.bom.map((component) => (
+                                    <p key={component.componentId}>
+                                        {component.componentSku}:{" "}
+                                        {component.quantityPerKit} per kit
+                                        (available{" "}
+                                        {component.availableComponentQty})
+                                    </p>
+                                ))
+                            )}
+                        </>
+                    ) : (
+                        <p className="text-muted-foreground">
+                            No kit selected.
+                        </p>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function GenealogySection({
+    genealogy,
+    genealogyBatch,
+    genealogyDateFrom,
+    genealogyDateTo,
+    onApplyFilters,
+    onGenealogyBatchChange,
+    onGenealogyDateFromChange,
+    onGenealogyDateToChange,
+}: {
+    genealogy: KitGenealogyData;
+    genealogyBatch: string;
+    genealogyDateFrom: string;
+    genealogyDateTo: string;
+    onApplyFilters: () => Promise<void>;
+    onGenealogyBatchChange: (value: string) => void;
+    onGenealogyDateFromChange: (value: string) => void;
+    onGenealogyDateToChange: (value: string) => void;
+}) {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Batch Genealogy</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div className="grid gap-2 md:grid-cols-4">
+                    <Input
+                        onChange={(event) =>
+                            onGenealogyBatchChange(event.target.value)
+                        }
+                        placeholder="Batch number"
+                        value={genealogyBatch}
+                    />
+                    <Input
+                        onChange={(event) =>
+                            onGenealogyDateFromChange(event.target.value)
+                        }
+                        type="date"
+                        value={genealogyDateFrom}
+                    />
+                    <Input
+                        onChange={(event) =>
+                            onGenealogyDateToChange(event.target.value)
+                        }
+                        type="date"
+                        value={genealogyDateTo}
+                    />
+                    <Button
+                        onClick={onApplyFilters}
+                        type="button"
+                        variant="outline"
+                    >
+                        Apply Filters
+                    </Button>
+                </div>
+                {genealogy.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">
+                        No assembly genealogy records for current filters.
+                    </p>
+                ) : (
+                    genealogy.map((entry) => (
+                        <article
+                            className="space-y-2 rounded-md border p-3"
+                            key={`${entry.transactionNumber}-${entry.assembledAt.toString()}`}
+                        >
+                            <div className="text-sm">
+                                <p>
+                                    <span className="font-medium">Txn:</span>{" "}
+                                    {entry.transactionNumber}
+                                </p>
+                                <p>
+                                    <span className="font-medium">
+                                        Warehouse:
+                                    </span>{" "}
+                                    {entry.warehouse}
+                                </p>
+                                <p>
+                                    <span className="font-medium">
+                                        Assembled:
+                                    </span>{" "}
+                                    {entry.assembledQuantity} | Batch:{" "}
+                                    {entry.assembledBatchNumber ?? "—"} |
+                                    Serial: {entry.assembledSerialNumber ?? "—"}
+                                </p>
                             </div>
-                        ))}
+                            <div className="space-y-1 text-xs">
+                                {entry.consumedComponents.map((component) => (
+                                    <p
+                                        key={`${entry.transactionNumber}-${component.componentId}-${component.batchNumber ?? "na"}-${component.serialNumber ?? "na"}`}
+                                    >
+                                        {component.componentSku} • qty{" "}
+                                        {component.quantity} • batch{" "}
+                                        {component.batchNumber ?? "—"} • serial{" "}
+                                        {component.serialNumber ?? "—"}
+                                    </p>
+                                ))}
+                            </div>
+                        </article>
+                    ))
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
-                        <div className="flex gap-2">
-                            <Button
-                                onClick={() =>
-                                    setState((prev) => ({
-                                        bomItems: [
-                                            ...prev.bomItems,
-                                            createBomItem(),
-                                        ],
-                                    }))
-                                }
-                                type="button"
-                                variant="outline"
-                            >
-                                Add Row
-                            </Button>
-                            <Button onClick={onSaveBom} type="button">
-                                Save BOM
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Assemble</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        <div className="space-y-1">
-                            <Label htmlFor="assembly-qty">Quantity</Label>
-                            <Input
-                                id="assembly-qty"
-                                min={0.001}
-                                onChange={(event) =>
-                                    setState({
-                                        assemblyQuantity: event.target.value,
-                                    })
-                                }
-                                step={0.001}
-                                type="number"
-                                value={state.assemblyQuantity}
-                            />
-                        </div>
-                        <div className="space-y-1">
-                            <Label htmlFor="assembly-notes">Notes</Label>
-                            <Textarea
-                                id="assembly-notes"
-                                onChange={(event) =>
-                                    setState({
-                                        assemblyNotes: event.target.value,
-                                    })
-                                }
-                                rows={4}
-                                value={state.assemblyNotes}
-                            />
-                        </div>
-                        <Button onClick={onAssemble} type="button">
-                            Assemble Kit
-                        </Button>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Disassemble</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                        <div className="space-y-1">
-                            <Label htmlFor="disassembly-stock-item-id">
-                                Kit Stock Item
-                            </Label>
+function OperationsSection({
+    assemblyNotes,
+    assemblyQuantity,
+    bomItems,
+    disassemblyNotes,
+    disassemblyQuantity,
+    disassemblyStockItemId,
+    kits,
+    kitStockItems,
+    onAddBomRow,
+    onAssemble,
+    onAssemblyNotesChange,
+    onAssemblyQuantityChange,
+    onBomItemChange,
+    onDisassemble,
+    onDisassemblyNotesChange,
+    onDisassemblyQuantityChange,
+    onDisassemblyStockItemIdChange,
+    onKitChange,
+    onSaveBom,
+    products,
+    selectedKitId,
+}: {
+    assemblyNotes: string;
+    assemblyQuantity: string;
+    bomItems: BomItemState[];
+    disassemblyNotes: string;
+    disassemblyQuantity: string;
+    disassemblyStockItemId: string;
+    kits: KitsData;
+    kitStockItems: KitStockItemsData;
+    onAddBomRow: () => void;
+    onAssemble: () => Promise<void>;
+    onAssemblyNotesChange: (value: string) => void;
+    onAssemblyQuantityChange: (value: string) => void;
+    onBomItemChange: (index: number, patch: Partial<BomItemState>) => void;
+    onDisassemble: () => Promise<void>;
+    onDisassemblyNotesChange: (value: string) => void;
+    onDisassemblyQuantityChange: (value: string) => void;
+    onDisassemblyStockItemIdChange: (value: string) => void;
+    onKitChange: (kitId: string) => Promise<void>;
+    onSaveBom: () => Promise<void>;
+    products: LoaderData["products"];
+    selectedKitId: string;
+}) {
+    return (
+        <div className="grid gap-4 xl:grid-cols-3">
+            <Card>
+                <CardHeader>
+                    <CardTitle>BOM Editor</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <div className="space-y-1">
+                        <Label htmlFor="bom-kit">Kit Product</Label>
+                        <Select
+                            onValueChange={async (value) =>
+                                await onKitChange(value ?? "")
+                            }
+                            value={selectedKitId}
+                        >
+                            <SelectTrigger id="bom-kit">
+                                <SelectValue placeholder="Select kit" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {kits.map((entry) => (
+                                    <SelectItem
+                                        key={entry.kitId}
+                                        value={entry.kitId}
+                                    >
+                                        {entry.kitName} ({entry.kitSku})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {bomItems.map((item, index) => (
+                        <div className="grid grid-cols-12 gap-2" key={item.id}>
                             <Select
                                 onValueChange={(value) =>
-                                    setState({
-                                        disassemblyStockItemId: value ?? "",
+                                    onBomItemChange(index, {
+                                        componentId: value ?? "",
                                     })
                                 }
-                                value={state.disassemblyStockItemId}
+                                value={item.componentId}
                             >
-                                <SelectTrigger id="disassembly-stock-item-id">
-                                    <SelectValue placeholder="Select kit stock row" />
+                                <SelectTrigger className="col-span-8">
+                                    <SelectValue placeholder="Component" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {state.kitStockItems.map((row) => (
+                                    {products.map((product: ProductOption) => (
                                         <SelectItem
-                                            key={row.stockItemId}
-                                            value={row.stockItemId}
+                                            key={product.id}
+                                            value={product.id}
                                         >
-                                            {row.stockItemId.slice(0, 8)}... |
-                                            qty {row.availableQuantity} | batch{" "}
-                                            {row.batchNumber ?? "—"} | serial{" "}
-                                            {row.serialNumber ?? "—"}
+                                            {product.name} ({product.sku})
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
-                        </div>
-                        <div className="space-y-1">
-                            <Label htmlFor="disassembly-qty">Quantity</Label>
                             <Input
-                                id="disassembly-qty"
+                                className="col-span-4"
                                 min={0.001}
                                 onChange={(event) =>
-                                    setState({
-                                        disassemblyQuantity: event.target.value,
+                                    onBomItemChange(index, {
+                                        quantity: event.target.value,
                                     })
                                 }
                                 step={0.001}
                                 type="number"
-                                value={state.disassemblyQuantity}
+                                value={item.quantity}
                             />
                         </div>
-                        <div className="space-y-1">
-                            <Label htmlFor="disassembly-notes">Notes</Label>
-                            <Textarea
-                                id="disassembly-notes"
-                                onChange={(event) =>
-                                    setState({
-                                        disassemblyNotes: event.target.value,
-                                    })
-                                }
-                                rows={3}
-                                value={state.disassemblyNotes}
-                            />
-                        </div>
+                    ))}
+
+                    <div className="flex gap-2">
                         <Button
-                            onClick={onDisassemble}
+                            onClick={onAddBomRow}
                             type="button"
                             variant="outline"
                         >
-                            Disassemble Kit
+                            Add Row
                         </Button>
-                    </CardContent>
-                </Card>
-            </div>
-        </section>
+                        <Button onClick={onSaveBom} type="button">
+                            Save BOM
+                        </Button>
+                    </div>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Assemble</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <div className="space-y-1">
+                        <Label htmlFor="assembly-qty">Quantity</Label>
+                        <Input
+                            id="assembly-qty"
+                            min={0.001}
+                            onChange={(event) =>
+                                onAssemblyQuantityChange(event.target.value)
+                            }
+                            step={0.001}
+                            type="number"
+                            value={assemblyQuantity}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="assembly-notes">Notes</Label>
+                        <Textarea
+                            id="assembly-notes"
+                            onChange={(event) =>
+                                onAssemblyNotesChange(event.target.value)
+                            }
+                            rows={4}
+                            value={assemblyNotes}
+                        />
+                    </div>
+                    <Button onClick={onAssemble} type="button">
+                        Assemble Kit
+                    </Button>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Disassemble</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <div className="space-y-1">
+                        <Label htmlFor="disassembly-stock-item-id">
+                            Kit Stock Item
+                        </Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onDisassemblyStockItemIdChange(value ?? "")
+                            }
+                            value={disassemblyStockItemId}
+                        >
+                            <SelectTrigger id="disassembly-stock-item-id">
+                                <SelectValue placeholder="Select kit stock row" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {kitStockItems.map((row) => (
+                                    <SelectItem
+                                        key={row.stockItemId}
+                                        value={row.stockItemId}
+                                    >
+                                        {row.stockItemId.slice(0, 8)}... | qty{" "}
+                                        {row.availableQuantity} | batch{" "}
+                                        {row.batchNumber ?? "—"} | serial{" "}
+                                        {row.serialNumber ?? "—"}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="disassembly-qty">Quantity</Label>
+                        <Input
+                            id="disassembly-qty"
+                            min={0.001}
+                            onChange={(event) =>
+                                onDisassemblyQuantityChange(event.target.value)
+                            }
+                            step={0.001}
+                            type="number"
+                            value={disassemblyQuantity}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="disassembly-notes">Notes</Label>
+                        <Textarea
+                            id="disassembly-notes"
+                            onChange={(event) =>
+                                onDisassemblyNotesChange(event.target.value)
+                            }
+                            rows={3}
+                            value={disassemblyNotes}
+                        />
+                    </div>
+                    <Button
+                        onClick={onDisassemble}
+                        type="button"
+                        variant="outline"
+                    >
+                        Disassemble Kit
+                    </Button>
+                </CardContent>
+            </Card>
+        </div>
     );
 }
