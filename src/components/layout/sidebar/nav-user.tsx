@@ -33,10 +33,17 @@ interface NavUserProps {
 }
 
 const NavUser = ({ user, isImpersonating }: NavUserProps) => {
-    const { isMobile } = useSidebar();
+    const { isMobile, setOpenMobile } = useSidebar();
     const navigate = useNavigate();
 
+    const closeMobileSidebar = () => {
+        if (isMobile) {
+            setOpenMobile(false);
+        }
+    };
+
     const handleLogout = async () => {
+        closeMobileSidebar();
         await authClient.signOut({
             fetchOptions: {
                 onSuccess: () => {
@@ -47,11 +54,15 @@ const NavUser = ({ user, isImpersonating }: NavUserProps) => {
                         reloadDocument: true,
                     });
                 },
+                onError: ({ error }) => {
+                    toast.error(error.message);
+                },
             },
         });
     };
 
     const handleStopImpersonating = async () => {
+        closeMobileSidebar();
         await authClient.admin.stopImpersonating({
             fetchOptions: {
                 onSuccess: () => {
@@ -61,6 +72,9 @@ const NavUser = ({ user, isImpersonating }: NavUserProps) => {
                         replace: true,
                         reloadDocument: true,
                     });
+                },
+                onError: ({ error }) => {
+                    toast.error(error.message);
                 },
             },
         });
@@ -107,6 +121,7 @@ const NavUser = ({ user, isImpersonating }: NavUserProps) => {
                             <DropdownMenuGroup>
                                 <DropdownMenuItem
                                     onClick={() => {
+                                        closeMobileSidebar();
                                         navigate({
                                             to: "/profile",
                                         });
@@ -118,6 +133,7 @@ const NavUser = ({ user, isImpersonating }: NavUserProps) => {
 
                                 <DropdownMenuItem
                                     onClick={() => {
+                                        closeMobileSidebar();
                                         navigate({
                                             to: "/settings/profile",
                                         });

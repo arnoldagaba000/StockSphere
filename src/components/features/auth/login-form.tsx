@@ -78,7 +78,7 @@ const LoginForm = () => {
     const handleGoogleSignIn = () => {
         authClient.signIn.social({
             provider: "google",
-            callbackURL: `${window.location.origin}`,
+            callbackURL: "/",
             fetchOptions: {
                 onSuccess: (ctx) => {
                     const displayName =

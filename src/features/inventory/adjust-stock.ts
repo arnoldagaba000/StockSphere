@@ -6,6 +6,10 @@ import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
 import { inventoryAdjustmentSchema } from "@/schemas/adjustment-schema";
+import {
+    ADJUSTMENT_APPROVAL_REQUESTED_ACTION,
+    INVENTORY_ADJUSTMENT_REQUEST_ENTITY,
+} from "./adjustment-approval-request";
 import { toNumber } from "./helpers";
 
 const parseApprovalThreshold = (): number => {
@@ -45,25 +49,48 @@ export const adjustStock = createServerFn({ method: "POST" })
         const requiresLargeAdjustmentPermission =
             absoluteDifference > threshold;
         if (requiresLargeAdjustmentPermission) {
-            if (
-                !canUser(
-                    context.session.user,
-                    PERMISSIONS.INVENTORY_ADJUST_LARGE
-                )
-            ) {
+            const canRequestLargeAdjustment = canUser(
+                context.session.user,
+                PERMISSIONS.INVENTORY_ADJUST_LARGE
+            );
+            if (!canRequestLargeAdjustment) {
                 throw new Error(
                     "This adjustment exceeds the configured threshold for your role."
                 );
             }
-            if (
-                !canUser(
-                    context.session.user,
-                    PERMISSIONS.INVENTORY_ADJUST_APPROVE
-                )
-            ) {
-                throw new Error(
-                    "Large adjustments require approval permission for this action."
-                );
+
+            const canApproveLargeAdjustment = canUser(
+                context.session.user,
+                PERMISSIONS.INVENTORY_ADJUST_APPROVE
+            );
+            if (!canApproveLargeAdjustment) {
+                await logActivity({
+                    action: ADJUSTMENT_APPROVAL_REQUESTED_ACTION,
+                    actorUserId: context.session.user.id,
+                    changes: {
+                        countedQuantity: data.countedQuantity,
+                        notes: data.notes ?? null,
+                        reason: data.reason,
+                        requestedDifference: difference,
+                        requestedPreviousQuantity: currentQuantity,
+                        stockItemId: stockItem.id,
+                    },
+                    entity: INVENTORY_ADJUSTMENT_REQUEST_ENTITY,
+                    entityId: `ADJREQ-${Date.now()}-${stockItem.id.slice(0, 6)}`,
+                    ipAddress: getRequestIpAddress(getRequestHeaders()),
+                });
+
+                return {
+                    adjustment: null,
+                    message:
+                        "Large adjustment submitted for approval. A manager must approve before stock is updated.",
+                    requiresApproval: true,
+                    stockItem: {
+                        ...stockItem,
+                        quantity: currentQuantity,
+                        reservedQuantity: toNumber(stockItem.reservedQuantity),
+                    },
+                };
             }
         } else if (
             !canUser(context.session.user, PERMISSIONS.INVENTORY_ADJUST_SMALL)
@@ -143,6 +170,7 @@ export const adjustStock = createServerFn({ method: "POST" })
                 difference: toNumber(result.adjustment.difference),
                 previousQuantity: toNumber(result.adjustment.previousQuantity),
             },
+            message: "Stock adjusted.",
             stockItem: {
                 ...result.updatedStockItem,
                 quantity: toNumber(result.updatedStockItem.quantity),

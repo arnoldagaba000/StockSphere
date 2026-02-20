@@ -24,22 +24,29 @@ import { Route as DashboardLocationsRouteImport } from './routes/_dashboard/loca
 import { Route as DashboardKitsRouteImport } from './routes/_dashboard/kits'
 import { Route as DashboardGoodsReceiptsRouteImport } from './routes/_dashboard/goods-receipts'
 import { Route as DashboardCustomersRouteImport } from './routes/_dashboard/customers'
+import { Route as DashboardApprovalsRouteImport } from './routes/_dashboard/approvals'
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
 import { Route as AuthRegisterRouteImport } from './routes/_auth/register'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
 import { Route as AuthForgotPasswordRouteImport } from './routes/_auth/forgot-password'
 import { Route as DashboardSettingsRouteRouteImport } from './routes/_dashboard/settings/route'
 import { Route as DashboardProductsRouteRouteImport } from './routes/_dashboard/products/route'
+import { Route as DashboardMobileRouteRouteImport } from './routes/_dashboard/mobile/route'
 import { Route as DashboardCategoriesRouteRouteImport } from './routes/_dashboard/categories/route'
 import { Route as DashboardSettingsIndexRouteImport } from './routes/_dashboard/settings/index'
 import { Route as DashboardProductsIndexRouteImport } from './routes/_dashboard/products/index'
+import { Route as DashboardMobileIndexRouteImport } from './routes/_dashboard/mobile/index'
 import { Route as DashboardCategoriesIndexRouteImport } from './routes/_dashboard/categories/index'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as DashboardSettingsUserManagementRouteImport } from './routes/_dashboard/settings/user-management'
 import { Route as DashboardSettingsSecurityRouteImport } from './routes/_dashboard/settings/security'
 import { Route as DashboardSettingsProfileRouteImport } from './routes/_dashboard/settings/profile'
+import { Route as DashboardSettingsAuditRouteImport } from './routes/_dashboard/settings/audit'
 import { Route as DashboardProductsNewRouteImport } from './routes/_dashboard/products/new'
 import { Route as DashboardProductsProductIdRouteImport } from './routes/_dashboard/products/$productId'
+import { Route as DashboardMobileTransferRouteImport } from './routes/_dashboard/mobile/transfer'
+import { Route as DashboardMobileReceiveRouteImport } from './routes/_dashboard/mobile/receive'
+import { Route as DashboardMobilePickRouteImport } from './routes/_dashboard/mobile/pick'
 import { Route as DashboardCategoriesNewRouteImport } from './routes/_dashboard/categories/new'
 import { Route as DashboardCategoriesCategoryIdRouteImport } from './routes/_dashboard/categories/$categoryId'
 
@@ -116,6 +123,11 @@ const DashboardCustomersRoute = DashboardCustomersRouteImport.update({
   path: '/customers',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardApprovalsRoute = DashboardApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -146,6 +158,11 @@ const DashboardProductsRouteRoute = DashboardProductsRouteRouteImport.update({
   path: '/products',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardMobileRouteRoute = DashboardMobileRouteRouteImport.update({
+  id: '/mobile',
+  path: '/mobile',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const DashboardCategoriesRouteRoute =
   DashboardCategoriesRouteRouteImport.update({
     id: '/categories',
@@ -161,6 +178,11 @@ const DashboardProductsIndexRoute = DashboardProductsIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardProductsRouteRoute,
+} as any)
+const DashboardMobileIndexRoute = DashboardMobileIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardMobileRouteRoute,
 } as any)
 const DashboardCategoriesIndexRoute =
   DashboardCategoriesIndexRouteImport.update({
@@ -191,6 +213,11 @@ const DashboardSettingsProfileRoute =
     path: '/profile',
     getParentRoute: () => DashboardSettingsRouteRoute,
   } as any)
+const DashboardSettingsAuditRoute = DashboardSettingsAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => DashboardSettingsRouteRoute,
+} as any)
 const DashboardProductsNewRoute = DashboardProductsNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -202,6 +229,21 @@ const DashboardProductsProductIdRoute =
     path: '/$productId',
     getParentRoute: () => DashboardProductsRouteRoute,
   } as any)
+const DashboardMobileTransferRoute = DashboardMobileTransferRouteImport.update({
+  id: '/transfer',
+  path: '/transfer',
+  getParentRoute: () => DashboardMobileRouteRoute,
+} as any)
+const DashboardMobileReceiveRoute = DashboardMobileReceiveRouteImport.update({
+  id: '/receive',
+  path: '/receive',
+  getParentRoute: () => DashboardMobileRouteRoute,
+} as any)
+const DashboardMobilePickRoute = DashboardMobilePickRouteImport.update({
+  id: '/pick',
+  path: '/pick',
+  getParentRoute: () => DashboardMobileRouteRoute,
+} as any)
 const DashboardCategoriesNewRoute = DashboardCategoriesNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -218,12 +260,14 @@ export interface FileRoutesByFullPath {
   '/': typeof DashboardIndexRoute
   '/banned': typeof BannedRoute
   '/categories': typeof DashboardCategoriesRouteRouteWithChildren
+  '/mobile': typeof DashboardMobileRouteRouteWithChildren
   '/products': typeof DashboardProductsRouteRouteWithChildren
   '/settings': typeof DashboardSettingsRouteRouteWithChildren
   '/forgot-password': typeof AuthForgotPasswordRoute
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/approvals': typeof DashboardApprovalsRoute
   '/customers': typeof DashboardCustomersRoute
   '/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/kits': typeof DashboardKitsRoute
@@ -237,13 +281,18 @@ export interface FileRoutesByFullPath {
   '/warehouses': typeof DashboardWarehousesRoute
   '/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
   '/categories/new': typeof DashboardCategoriesNewRoute
+  '/mobile/pick': typeof DashboardMobilePickRoute
+  '/mobile/receive': typeof DashboardMobileReceiveRoute
+  '/mobile/transfer': typeof DashboardMobileTransferRoute
   '/products/$productId': typeof DashboardProductsProductIdRoute
   '/products/new': typeof DashboardProductsNewRoute
+  '/settings/audit': typeof DashboardSettingsAuditRoute
   '/settings/profile': typeof DashboardSettingsProfileRoute
   '/settings/security': typeof DashboardSettingsSecurityRoute
   '/settings/user-management': typeof DashboardSettingsUserManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/categories/': typeof DashboardCategoriesIndexRoute
+  '/mobile/': typeof DashboardMobileIndexRoute
   '/products/': typeof DashboardProductsIndexRoute
   '/settings/': typeof DashboardSettingsIndexRoute
 }
@@ -254,6 +303,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/approvals': typeof DashboardApprovalsRoute
   '/customers': typeof DashboardCustomersRoute
   '/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/kits': typeof DashboardKitsRoute
@@ -267,13 +317,18 @@ export interface FileRoutesByTo {
   '/warehouses': typeof DashboardWarehousesRoute
   '/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
   '/categories/new': typeof DashboardCategoriesNewRoute
+  '/mobile/pick': typeof DashboardMobilePickRoute
+  '/mobile/receive': typeof DashboardMobileReceiveRoute
+  '/mobile/transfer': typeof DashboardMobileTransferRoute
   '/products/$productId': typeof DashboardProductsProductIdRoute
   '/products/new': typeof DashboardProductsNewRoute
+  '/settings/audit': typeof DashboardSettingsAuditRoute
   '/settings/profile': typeof DashboardSettingsProfileRoute
   '/settings/security': typeof DashboardSettingsSecurityRoute
   '/settings/user-management': typeof DashboardSettingsUserManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/categories': typeof DashboardCategoriesIndexRoute
+  '/mobile': typeof DashboardMobileIndexRoute
   '/products': typeof DashboardProductsIndexRoute
   '/settings': typeof DashboardSettingsIndexRoute
 }
@@ -283,12 +338,14 @@ export interface FileRoutesById {
   '/_dashboard': typeof DashboardRouteRouteWithChildren
   '/banned': typeof BannedRoute
   '/_dashboard/categories': typeof DashboardCategoriesRouteRouteWithChildren
+  '/_dashboard/mobile': typeof DashboardMobileRouteRouteWithChildren
   '/_dashboard/products': typeof DashboardProductsRouteRouteWithChildren
   '/_dashboard/settings': typeof DashboardSettingsRouteRouteWithChildren
   '/_auth/forgot-password': typeof AuthForgotPasswordRoute
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
+  '/_dashboard/approvals': typeof DashboardApprovalsRoute
   '/_dashboard/customers': typeof DashboardCustomersRoute
   '/_dashboard/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/_dashboard/kits': typeof DashboardKitsRoute
@@ -303,13 +360,18 @@ export interface FileRoutesById {
   '/_dashboard/': typeof DashboardIndexRoute
   '/_dashboard/categories/$categoryId': typeof DashboardCategoriesCategoryIdRoute
   '/_dashboard/categories/new': typeof DashboardCategoriesNewRoute
+  '/_dashboard/mobile/pick': typeof DashboardMobilePickRoute
+  '/_dashboard/mobile/receive': typeof DashboardMobileReceiveRoute
+  '/_dashboard/mobile/transfer': typeof DashboardMobileTransferRoute
   '/_dashboard/products/$productId': typeof DashboardProductsProductIdRoute
   '/_dashboard/products/new': typeof DashboardProductsNewRoute
+  '/_dashboard/settings/audit': typeof DashboardSettingsAuditRoute
   '/_dashboard/settings/profile': typeof DashboardSettingsProfileRoute
   '/_dashboard/settings/security': typeof DashboardSettingsSecurityRoute
   '/_dashboard/settings/user-management': typeof DashboardSettingsUserManagementRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/_dashboard/categories/': typeof DashboardCategoriesIndexRoute
+  '/_dashboard/mobile/': typeof DashboardMobileIndexRoute
   '/_dashboard/products/': typeof DashboardProductsIndexRoute
   '/_dashboard/settings/': typeof DashboardSettingsIndexRoute
 }
@@ -319,12 +381,14 @@ export interface FileRouteTypes {
     | '/'
     | '/banned'
     | '/categories'
+    | '/mobile'
     | '/products'
     | '/settings'
     | '/forgot-password'
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/approvals'
     | '/customers'
     | '/goods-receipts'
     | '/kits'
@@ -338,13 +402,18 @@ export interface FileRouteTypes {
     | '/warehouses'
     | '/categories/$categoryId'
     | '/categories/new'
+    | '/mobile/pick'
+    | '/mobile/receive'
+    | '/mobile/transfer'
     | '/products/$productId'
     | '/products/new'
+    | '/settings/audit'
     | '/settings/profile'
     | '/settings/security'
     | '/settings/user-management'
     | '/api/auth/$'
     | '/categories/'
+    | '/mobile/'
     | '/products/'
     | '/settings/'
   fileRoutesByTo: FileRoutesByTo
@@ -355,6 +424,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/approvals'
     | '/customers'
     | '/goods-receipts'
     | '/kits'
@@ -368,13 +438,18 @@ export interface FileRouteTypes {
     | '/warehouses'
     | '/categories/$categoryId'
     | '/categories/new'
+    | '/mobile/pick'
+    | '/mobile/receive'
+    | '/mobile/transfer'
     | '/products/$productId'
     | '/products/new'
+    | '/settings/audit'
     | '/settings/profile'
     | '/settings/security'
     | '/settings/user-management'
     | '/api/auth/$'
     | '/categories'
+    | '/mobile'
     | '/products'
     | '/settings'
   id:
@@ -383,12 +458,14 @@ export interface FileRouteTypes {
     | '/_dashboard'
     | '/banned'
     | '/_dashboard/categories'
+    | '/_dashboard/mobile'
     | '/_dashboard/products'
     | '/_dashboard/settings'
     | '/_auth/forgot-password'
     | '/_auth/login'
     | '/_auth/register'
     | '/_auth/reset-password'
+    | '/_dashboard/approvals'
     | '/_dashboard/customers'
     | '/_dashboard/goods-receipts'
     | '/_dashboard/kits'
@@ -403,13 +480,18 @@ export interface FileRouteTypes {
     | '/_dashboard/'
     | '/_dashboard/categories/$categoryId'
     | '/_dashboard/categories/new'
+    | '/_dashboard/mobile/pick'
+    | '/_dashboard/mobile/receive'
+    | '/_dashboard/mobile/transfer'
     | '/_dashboard/products/$productId'
     | '/_dashboard/products/new'
+    | '/_dashboard/settings/audit'
     | '/_dashboard/settings/profile'
     | '/_dashboard/settings/security'
     | '/_dashboard/settings/user-management'
     | '/api/auth/$'
     | '/_dashboard/categories/'
+    | '/_dashboard/mobile/'
     | '/_dashboard/products/'
     | '/_dashboard/settings/'
   fileRoutesById: FileRoutesById
@@ -528,6 +610,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCustomersRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/_dashboard/approvals': {
+      id: '/_dashboard/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof DashboardApprovalsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/_auth/reset-password': {
       id: '/_auth/reset-password'
       path: '/reset-password'
@@ -570,6 +659,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardProductsRouteRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/_dashboard/mobile': {
+      id: '/_dashboard/mobile'
+      path: '/mobile'
+      fullPath: '/mobile'
+      preLoaderRoute: typeof DashboardMobileRouteRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/_dashboard/categories': {
       id: '/_dashboard/categories'
       path: '/categories'
@@ -590,6 +686,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/products/'
       preLoaderRoute: typeof DashboardProductsIndexRouteImport
       parentRoute: typeof DashboardProductsRouteRoute
+    }
+    '/_dashboard/mobile/': {
+      id: '/_dashboard/mobile/'
+      path: '/'
+      fullPath: '/mobile/'
+      preLoaderRoute: typeof DashboardMobileIndexRouteImport
+      parentRoute: typeof DashboardMobileRouteRoute
     }
     '/_dashboard/categories/': {
       id: '/_dashboard/categories/'
@@ -626,6 +729,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardSettingsProfileRouteImport
       parentRoute: typeof DashboardSettingsRouteRoute
     }
+    '/_dashboard/settings/audit': {
+      id: '/_dashboard/settings/audit'
+      path: '/audit'
+      fullPath: '/settings/audit'
+      preLoaderRoute: typeof DashboardSettingsAuditRouteImport
+      parentRoute: typeof DashboardSettingsRouteRoute
+    }
     '/_dashboard/products/new': {
       id: '/_dashboard/products/new'
       path: '/new'
@@ -639,6 +749,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/products/$productId'
       preLoaderRoute: typeof DashboardProductsProductIdRouteImport
       parentRoute: typeof DashboardProductsRouteRoute
+    }
+    '/_dashboard/mobile/transfer': {
+      id: '/_dashboard/mobile/transfer'
+      path: '/transfer'
+      fullPath: '/mobile/transfer'
+      preLoaderRoute: typeof DashboardMobileTransferRouteImport
+      parentRoute: typeof DashboardMobileRouteRoute
+    }
+    '/_dashboard/mobile/receive': {
+      id: '/_dashboard/mobile/receive'
+      path: '/receive'
+      fullPath: '/mobile/receive'
+      preLoaderRoute: typeof DashboardMobileReceiveRouteImport
+      parentRoute: typeof DashboardMobileRouteRoute
+    }
+    '/_dashboard/mobile/pick': {
+      id: '/_dashboard/mobile/pick'
+      path: '/pick'
+      fullPath: '/mobile/pick'
+      preLoaderRoute: typeof DashboardMobilePickRouteImport
+      parentRoute: typeof DashboardMobileRouteRoute
     }
     '/_dashboard/categories/new': {
       id: '/_dashboard/categories/new'
@@ -693,6 +824,23 @@ const DashboardCategoriesRouteRouteWithChildren =
     DashboardCategoriesRouteRouteChildren,
   )
 
+interface DashboardMobileRouteRouteChildren {
+  DashboardMobilePickRoute: typeof DashboardMobilePickRoute
+  DashboardMobileReceiveRoute: typeof DashboardMobileReceiveRoute
+  DashboardMobileTransferRoute: typeof DashboardMobileTransferRoute
+  DashboardMobileIndexRoute: typeof DashboardMobileIndexRoute
+}
+
+const DashboardMobileRouteRouteChildren: DashboardMobileRouteRouteChildren = {
+  DashboardMobilePickRoute: DashboardMobilePickRoute,
+  DashboardMobileReceiveRoute: DashboardMobileReceiveRoute,
+  DashboardMobileTransferRoute: DashboardMobileTransferRoute,
+  DashboardMobileIndexRoute: DashboardMobileIndexRoute,
+}
+
+const DashboardMobileRouteRouteWithChildren =
+  DashboardMobileRouteRoute._addFileChildren(DashboardMobileRouteRouteChildren)
+
 interface DashboardProductsRouteRouteChildren {
   DashboardProductsProductIdRoute: typeof DashboardProductsProductIdRoute
   DashboardProductsNewRoute: typeof DashboardProductsNewRoute
@@ -712,6 +860,7 @@ const DashboardProductsRouteRouteWithChildren =
   )
 
 interface DashboardSettingsRouteRouteChildren {
+  DashboardSettingsAuditRoute: typeof DashboardSettingsAuditRoute
   DashboardSettingsProfileRoute: typeof DashboardSettingsProfileRoute
   DashboardSettingsSecurityRoute: typeof DashboardSettingsSecurityRoute
   DashboardSettingsUserManagementRoute: typeof DashboardSettingsUserManagementRoute
@@ -720,6 +869,7 @@ interface DashboardSettingsRouteRouteChildren {
 
 const DashboardSettingsRouteRouteChildren: DashboardSettingsRouteRouteChildren =
   {
+    DashboardSettingsAuditRoute: DashboardSettingsAuditRoute,
     DashboardSettingsProfileRoute: DashboardSettingsProfileRoute,
     DashboardSettingsSecurityRoute: DashboardSettingsSecurityRoute,
     DashboardSettingsUserManagementRoute: DashboardSettingsUserManagementRoute,
@@ -733,8 +883,10 @@ const DashboardSettingsRouteRouteWithChildren =
 
 interface DashboardRouteRouteChildren {
   DashboardCategoriesRouteRoute: typeof DashboardCategoriesRouteRouteWithChildren
+  DashboardMobileRouteRoute: typeof DashboardMobileRouteRouteWithChildren
   DashboardProductsRouteRoute: typeof DashboardProductsRouteRouteWithChildren
   DashboardSettingsRouteRoute: typeof DashboardSettingsRouteRouteWithChildren
+  DashboardApprovalsRoute: typeof DashboardApprovalsRoute
   DashboardCustomersRoute: typeof DashboardCustomersRoute
   DashboardGoodsReceiptsRoute: typeof DashboardGoodsReceiptsRoute
   DashboardKitsRoute: typeof DashboardKitsRoute
@@ -751,8 +903,10 @@ interface DashboardRouteRouteChildren {
 
 const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardCategoriesRouteRoute: DashboardCategoriesRouteRouteWithChildren,
+  DashboardMobileRouteRoute: DashboardMobileRouteRouteWithChildren,
   DashboardProductsRouteRoute: DashboardProductsRouteRouteWithChildren,
   DashboardSettingsRouteRoute: DashboardSettingsRouteRouteWithChildren,
+  DashboardApprovalsRoute: DashboardApprovalsRoute,
   DashboardCustomersRoute: DashboardCustomersRoute,
   DashboardGoodsReceiptsRoute: DashboardGoodsReceiptsRoute,
   DashboardKitsRoute: DashboardKitsRoute,

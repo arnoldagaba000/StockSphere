@@ -1,6 +1,7 @@
 import {
     Boxes,
     CircleDollarSign,
+    ClipboardCheck,
     FolderTree,
     LayoutDashboard,
     MapPinned,
@@ -9,6 +10,7 @@ import {
     PieChart,
     Settings,
     ShoppingCart,
+    Smartphone,
     UserCircle2,
     Warehouse,
 } from "lucide-react";
@@ -28,6 +30,11 @@ export const getNavData = (
         {
             title: "Security",
             to: "/settings/security",
+            activeOptions: { exact: false },
+        },
+        {
+            title: "Audit Trail",
+            to: "/settings/audit",
             activeOptions: { exact: false },
         },
     ];
@@ -87,6 +94,12 @@ export const getNavData = (
             activeOptions: { exact: false },
         },
         {
+            title: "Approvals",
+            to: "/approvals",
+            icon: ClipboardCheck,
+            activeOptions: { exact: false },
+        },
+        {
             title: "Kits",
             to: "/kits",
             icon: PackagePlus,
@@ -97,6 +110,29 @@ export const getNavData = (
             to: "/reports",
             icon: PieChart,
             activeOptions: { exact: false },
+        },
+        {
+            title: "Mobile Ops",
+            to: "/mobile/receive",
+            icon: Smartphone,
+            activeOptions: { exact: false },
+            items: [
+                {
+                    title: "Receive",
+                    to: "/mobile/receive",
+                    activeOptions: { exact: false },
+                },
+                {
+                    title: "Pick",
+                    to: "/mobile/pick",
+                    activeOptions: { exact: false },
+                },
+                {
+                    title: "Transfer",
+                    to: "/mobile/transfer",
+                    activeOptions: { exact: false },
+                },
+            ],
         },
         {
             title: "Purchasing",

@@ -31,7 +31,7 @@ const ForgotPasswordForm = () => {
             startTransition(async () => {
                 const { error } = await authClient.requestPasswordReset({
                     email: value.email,
-                    redirectTo: `${window.location.origin}/reset-password`,
+                    redirectTo: "/reset-password",
                 });
 
                 if (error) {
