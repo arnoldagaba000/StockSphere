@@ -27,7 +27,7 @@ function DashboardLayout() {
             <AppSidebar isImpersonating={isImpersonating} user={user} />
 
             <div className="flex flex-1 flex-col">
-                <Navbar />
+                <Navbar role={user.role} />
 
                 <main className="flex flex-1 p-4">
                     <Outlet />

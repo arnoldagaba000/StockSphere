@@ -1,5 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { Fragment, useMemo } from "react";
+import GlobalSearch from "@/components/layout/global-search";
 import ThemeToggler from "@/components/layout/theme-toggler";
 import {
     Breadcrumb,
@@ -23,7 +24,11 @@ const toTitleCase = (value: string) =>
         .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
         .join(" ");
 
-const Navbar = () => {
+interface NavbarProps {
+    role: string | null | undefined;
+}
+
+const Navbar = ({ role }: NavbarProps) => {
     const location = useLocation();
     const breadcrumbs = useMemo<BreadcrumbEntry[]>(() => {
         const pathname = location.pathname;
@@ -85,7 +90,10 @@ const Navbar = () => {
                     </Breadcrumb>
                 </div>
 
-                <ThemeToggler />
+                <div className="flex items-center gap-2">
+                    <GlobalSearch role={role} />
+                    <ThemeToggler />
+                </div>
             </div>
         </header>
     );
