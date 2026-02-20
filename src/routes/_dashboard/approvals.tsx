@@ -23,6 +23,7 @@ import {
 } from "@/features/products/manage-product-pricing";
 import { approvePurchaseOrder } from "@/features/purchases/approve-purchase-order";
 import { rejectPurchaseOrder } from "@/features/purchases/reject-purchase-order";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 type ApprovalInboxData = Awaited<ReturnType<typeof getApprovalInbox>>;
 type RunAction = (
@@ -46,12 +47,23 @@ const approvalsPageReducer = (
 
 export const Route = createFileRoute("/_dashboard/approvals")({
     component: ApprovalsPage,
-    loader: async () => await getApprovalInbox(),
+    loader: async () => {
+        const [approvalInbox, financialSettings] = await Promise.all([
+            getApprovalInbox(),
+            getFinancialSettings(),
+        ]);
+
+        return {
+            approvalInbox,
+            financialSettings,
+        };
+    },
 });
 
 function ApprovalsPage() {
     const router = useRouter();
-    const data = Route.useLoaderData();
+    const { approvalInbox, financialSettings } = Route.useLoaderData();
+    const { currencyCode } = financialSettings;
     const [state, setState] = useReducer(approvalsPageReducer, {
         actionKey: null,
         rejectionReason: "",
@@ -74,21 +86,22 @@ function ApprovalsPage() {
 
     return (
         <section className="space-y-4">
-            <ApprovalSummary data={data} />
+            <ApprovalSummary data={approvalInbox} />
             <ProductChangeRequestsSection
                 actionKey={state.actionKey}
-                data={data}
+                data={approvalInbox}
                 runAction={runAction}
             />
             <AdjustmentRequestsSection
                 actionKey={state.actionKey}
-                data={data}
+                data={approvalInbox}
                 rejectionReason={state.rejectionReason}
                 runAction={runAction}
             />
             <PurchaseOrdersSection
                 actionKey={state.actionKey}
-                data={data}
+                currencyCode={currencyCode}
+                data={approvalInbox}
                 onRejectionReasonChange={(rejectionReason) =>
                     setState({ rejectionReason })
                 }
@@ -396,12 +409,14 @@ function AdjustmentRequestsSection({
 
 function PurchaseOrdersSection({
     actionKey,
+    currencyCode,
     data,
     onRejectionReasonChange,
     rejectionReason,
     runAction,
 }: {
     actionKey: string | null;
+    currencyCode: string;
     data: ApprovalInboxData;
     onRejectionReasonChange: (value: string) => void;
     rejectionReason: string;
@@ -463,7 +478,8 @@ function PurchaseOrdersSection({
                                         </TableCell>
                                         <TableCell>
                                             {formatCurrencyFromMinorUnits(
-                                                order.totalAmount
+                                                order.totalAmount,
+                                                currencyCode
                                             )}
                                         </TableCell>
                                         <TableCell className="text-right">

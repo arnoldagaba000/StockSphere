@@ -31,6 +31,7 @@ import { deleteProduct } from "@/features/products/delete-product";
 import { exportProductsCsv } from "@/features/products/export-products-csv";
 import { getProductAnalytics } from "@/features/products/get-product-analytics";
 import { getProducts } from "@/features/products/get-products";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 type ProductListItem = Awaited<
     ReturnType<typeof getProducts>
@@ -44,6 +45,7 @@ type BulkAction = "activate" | "assignCategory" | "exportCsv" | "markInactive";
 interface ProductsLoaderData {
     analytics: Awaited<ReturnType<typeof getProductAnalytics>>;
     categories: CategoryListItem[];
+    financialSettings: Awaited<ReturnType<typeof getFinancialSettings>>;
     products: ProductListItem[];
 }
 
@@ -138,17 +140,20 @@ const toBulkAction = (value: string | null): BulkAction => {
 export const Route = createFileRoute("/_dashboard/products/")({
     component: ProductsPage,
     loader: async (): Promise<ProductsLoaderData> => {
-        const [productsResponse, categories, analytics] = await Promise.all([
-            getProducts({
-                data: {},
-            }),
-            getCategories(),
-            getProductAnalytics(),
-        ]);
+        const [productsResponse, categories, analytics, financialSettings] =
+            await Promise.all([
+                getProducts({
+                    data: {},
+                }),
+                getCategories(),
+                getProductAnalytics(),
+                getFinancialSettings(),
+            ]);
 
         return {
             analytics,
             categories,
+            financialSettings,
             products: productsResponse.products,
         };
     },
@@ -168,9 +173,10 @@ const triggerBrowserDownload = (filename: string, content: string): void => {
 
 interface ProductMetricsProps {
     analytics: ProductsLoaderData["analytics"];
+    currencyCode: string;
 }
 
-const ProductMetrics = ({ analytics }: ProductMetricsProps) => {
+const ProductMetrics = ({ analytics, currencyCode }: ProductMetricsProps) => {
     return (
         <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded-lg border p-3">
@@ -196,7 +202,10 @@ const ProductMetrics = ({ analytics }: ProductMetricsProps) => {
                     Estimated Stock Value
                 </p>
                 <p className="font-semibold text-2xl">
-                    {formatCurrencyFromMinorUnits(analytics.stockValueMinor)}
+                    {formatCurrencyFromMinorUnits(
+                        analytics.stockValueMinor,
+                        currencyCode
+                    )}
                 </p>
             </div>
         </div>
@@ -498,6 +507,7 @@ const ProductBulkActions = ({
 interface ProductTableProps {
     allVisibleSelected: boolean;
     categoryNameById: Map<string, string>;
+    currencyCode: string;
     deletingProductId: string | null;
     onSoftDelete: (productId: string) => void;
     selectedProductIds: string[];
@@ -508,6 +518,7 @@ interface ProductTableProps {
 const ProductTable = ({
     allVisibleSelected,
     categoryNameById,
+    currencyCode,
     deletingProductId,
     onSoftDelete,
     selectedProductIds,
@@ -584,7 +595,8 @@ const ProductTable = ({
                                 </TableCell>
                                 <TableCell>
                                     {formatCurrencyFromMinorUnits(
-                                        product.sellingPrice
+                                        product.sellingPrice,
+                                        currencyCode
                                     )}
                                 </TableCell>
                                 <TableCell>
@@ -645,7 +657,9 @@ const ProductTable = ({
 
 function ProductsPage() {
     const router = useRouter();
-    const { analytics, categories, products } = Route.useLoaderData();
+    const { analytics, categories, financialSettings, products } =
+        Route.useLoaderData();
+    const { currencyCode } = financialSettings;
     const [state, setState] = useReducer(productsPageReducer, {
         bulkAction: "markInactive" as BulkAction,
         bulkCategoryId: "none",
@@ -814,7 +828,7 @@ function ProductsPage() {
 
     return (
         <section className="w-full space-y-4">
-            <ProductMetrics analytics={analytics} />
+            <ProductMetrics analytics={analytics} currencyCode={currencyCode} />
             <ProductsHeader />
             <ProductFilters
                 applyFilters={() => {
@@ -847,6 +861,7 @@ function ProductsPage() {
             <ProductTable
                 allVisibleSelected={allVisibleSelected}
                 categoryNameById={categoryNameById}
+                currencyCode={currencyCode}
                 deletingProductId={deletingProductId}
                 onSoftDelete={(productId) => {
                     handleSoftDelete(productId).catch(() => undefined);

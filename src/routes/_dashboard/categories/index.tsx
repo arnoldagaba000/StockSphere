@@ -25,6 +25,7 @@ import {
 import { deleteCategory } from "@/features/categories/delete-category";
 import { getCategoryAnalytics } from "@/features/categories/get-category-analytics";
 import { listCategories } from "@/features/categories/list-categories";
+import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 type CategoryListItem = Awaited<ReturnType<typeof listCategories>>[number];
 type CategoryAnalyticsItem = Awaited<
@@ -34,14 +35,16 @@ type CategoryAnalyticsItem = Awaited<
 export const Route = createFileRoute("/_dashboard/categories/")({
     component: CategoriesPage,
     loader: async () => {
-        const [categories, analytics] = await Promise.all([
+        const [categories, analytics, financialSettings] = await Promise.all([
             listCategories({ data: { isActive: true } }),
             getCategoryAnalytics(),
+            getFinancialSettings(),
         ]);
 
         return {
             analytics: analytics.categories,
             categories,
+            financialSettings,
         };
     },
 });
@@ -180,6 +183,7 @@ const CategoriesFilters = ({
 interface CategoriesTableProps {
     analyticsByCategoryId: Map<string, CategoryAnalyticsItem>;
     categoryById: Map<string, CategoryListItem>;
+    currencyCode: string;
     deletingCategoryId: string | null;
     handleDeleteCategory: (categoryId: string) => void;
     hierarchicalCategories: ReturnType<typeof buildCategoryHierarchy>;
@@ -189,6 +193,7 @@ interface CategoriesTableProps {
 const CategoriesTable = ({
     analyticsByCategoryId,
     categoryById,
+    currencyCode,
     deletingCategoryId,
     handleDeleteCategory,
     hierarchicalCategories,
@@ -241,7 +246,8 @@ const CategoriesTable = ({
                                         {formatCurrencyFromMinorUnits(
                                             analyticsByCategoryId.get(
                                                 category.id
-                                            )?.estimatedStockValueMinor ?? 0
+                                            )?.estimatedStockValueMinor ?? 0,
+                                            currencyCode
                                         )}
                                     </TableCell>
                                     <TableCell>
@@ -325,7 +331,8 @@ const categoriesPageReducer = (
 
 function CategoriesPage() {
     const router = useRouter();
-    const { categories, analytics } = Route.useLoaderData();
+    const { categories, analytics, financialSettings } = Route.useLoaderData();
+    const { currencyCode } = financialSettings;
     const [state, patchState] = useReducer(categoriesPageReducer, {
         deletingCategoryId: null,
         filteredCategories: null,
@@ -457,6 +464,7 @@ function CategoriesPage() {
             <CategoriesTable
                 analyticsByCategoryId={analyticsByCategoryId}
                 categoryById={categoryById}
+                currencyCode={currencyCode}
                 deletingCategoryId={deletingCategoryId}
                 handleDeleteCategory={handleDeleteCategory}
                 hierarchicalCategories={hierarchicalCategories}
