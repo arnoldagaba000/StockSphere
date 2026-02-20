@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,45 @@ const toOptionalValue = (value: string): string | null => {
     return trimmedValue.length > 0 ? trimmedValue : null;
 };
 
+interface SuppliersPageState {
+    editingSupplierId: string | null;
+    form: SupplierFormState;
+    isRowBusyId: string | null;
+    isSubmitting: boolean;
+    pendingDeleteSupplierId: string | null;
+}
+
+type SuppliersPageAction =
+    | {
+          patch: Partial<SuppliersPageState>;
+          type: "patch";
+      }
+    | {
+          field: keyof SupplierFormState;
+          type: "patchForm";
+          value: string;
+      };
+
+const suppliersPageReducer = (
+    state: SuppliersPageState,
+    action: SuppliersPageAction
+): SuppliersPageState => {
+    if (action.type === "patch") {
+        return {
+            ...state,
+            ...action.patch,
+        };
+    }
+
+    return {
+        ...state,
+        form: {
+            ...state.form,
+            [action.field]: action.value,
+        },
+    };
+};
+
 export const Route = createFileRoute("/_dashboard/suppliers")({
     component: SuppliersPage,
     loader: () => getSuppliers({ data: { includeInactive: true } }),
@@ -55,15 +94,26 @@ export const Route = createFileRoute("/_dashboard/suppliers")({
 function SuppliersPage() {
     const router = useRouter();
     const suppliers = Route.useLoaderData();
-    const [form, setForm] = useState<SupplierFormState>(emptySupplierForm);
-    const [editingSupplierId, setEditingSupplierId] = useState<string | null>(
-        null
-    );
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isRowBusyId, setIsRowBusyId] = useState<string | null>(null);
-    const [pendingDeleteSupplierId, setPendingDeleteSupplierId] = useState<
-        string | null
-    >(null);
+    const [state, dispatch] = useReducer(suppliersPageReducer, {
+        editingSupplierId: null,
+        form: emptySupplierForm,
+        isRowBusyId: null,
+        isSubmitting: false,
+        pendingDeleteSupplierId: null,
+    });
+    const {
+        editingSupplierId,
+        form,
+        isRowBusyId,
+        isSubmitting,
+        pendingDeleteSupplierId,
+    } = state;
+    const patchState = (patch: Partial<SuppliersPageState>) => {
+        dispatch({
+            patch,
+            type: "patch",
+        });
+    };
 
     const editingSupplier = useMemo(
         () => suppliers.find((supplier) => supplier.id === editingSupplierId),
@@ -74,24 +124,32 @@ function SuppliersPage() {
         field: keyof SupplierFormState,
         value: string
     ): void => {
-        setForm((currentForm) => ({ ...currentForm, [field]: value }));
+        dispatch({
+            field,
+            type: "patchForm",
+            value,
+        });
     };
 
     const loadSupplierIntoForm = (supplier: SupplierRecord): void => {
-        setEditingSupplierId(supplier.id);
-        setForm({
-            code: supplier.code,
-            contactPerson: supplier.contactPerson ?? "",
-            email: supplier.email ?? "",
-            name: supplier.name,
-            paymentTerms: supplier.paymentTerms ?? "",
-            phone: supplier.phone ?? "",
+        patchState({
+            editingSupplierId: supplier.id,
+            form: {
+                code: supplier.code,
+                contactPerson: supplier.contactPerson ?? "",
+                email: supplier.email ?? "",
+                name: supplier.name,
+                paymentTerms: supplier.paymentTerms ?? "",
+                phone: supplier.phone ?? "",
+            },
         });
     };
 
     const resetForm = (): void => {
-        setEditingSupplierId(null);
-        setForm(emptySupplierForm);
+        patchState({
+            editingSupplierId: null,
+            form: emptySupplierForm,
+        });
     };
 
     const refresh = async (): Promise<void> => {
@@ -135,7 +193,7 @@ function SuppliersPage() {
 
     const handleSaveSupplier = async (): Promise<void> => {
         try {
-            setIsSubmitting(true);
+            patchState({ isSubmitting: true });
             if (editingSupplierId) {
                 await saveExistingSupplier(editingSupplierId);
             } else {
@@ -143,9 +201,9 @@ function SuppliersPage() {
             }
             resetForm();
             await refresh();
-            setIsSubmitting(false);
+            patchState({ isSubmitting: false });
         } catch (error) {
-            setIsSubmitting(false);
+            patchState({ isSubmitting: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -160,7 +218,7 @@ function SuppliersPage() {
             : "Supplier activated.";
 
         try {
-            setIsRowBusyId(supplier.id);
+            patchState({ isRowBusyId: supplier.id });
             await setSupplierActive({
                 data: {
                     isActive: !supplier.isActive,
@@ -169,9 +227,9 @@ function SuppliersPage() {
             });
             toast.success(successMessage);
             await refresh();
-            setIsRowBusyId(null);
+            patchState({ isRowBusyId: null });
         } catch (error) {
-            setIsRowBusyId(null);
+            patchState({ isRowBusyId: null });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -182,24 +240,24 @@ function SuppliersPage() {
 
     const handleDeleteSupplier = async (supplier: SupplierRecord) => {
         if (pendingDeleteSupplierId !== supplier.id) {
-            setPendingDeleteSupplierId(supplier.id);
+            patchState({ pendingDeleteSupplierId: supplier.id });
             return;
         }
 
         try {
-            setIsRowBusyId(supplier.id);
+            patchState({ isRowBusyId: supplier.id });
             await deleteSupplier({
                 data: { supplierId: supplier.id },
             });
             toast.success("Supplier deleted.");
-            setPendingDeleteSupplierId(null);
+            patchState({ pendingDeleteSupplierId: null });
             if (editingSupplierId === supplier.id) {
                 resetForm();
             }
             await refresh();
-            setIsRowBusyId(null);
+            patchState({ isRowBusyId: null });
         } catch (error) {
-            setIsRowBusyId(null);
+            patchState({ isRowBusyId: null });
             toast.error(
                 error instanceof Error
                     ? error.message
