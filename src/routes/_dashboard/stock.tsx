@@ -25,19 +25,19 @@ import { adjustStock } from "@/features/inventory/adjust-stock";
 import { approveAdjustment } from "@/features/inventory/approve-adjustment";
 import { createInitialStock } from "@/features/inventory/create-initial-stock";
 import { submitCycleCount } from "@/features/inventory/cycle-count";
+import { getBatchTraceability } from "@/features/inventory/get-batch-traceability";
+import { getExpiryAlerts as getExpiryAlertsReport } from "@/features/inventory/get-expiry-alerts";
 import {
     getInventoryKpis,
     getInventoryValuationReport,
 } from "@/features/inventory/get-inventory-reports";
 import { getMovementHistory } from "@/features/inventory/get-movement-history";
 import { getPutawaySuggestions } from "@/features/inventory/get-putaway-suggestions";
+import { getSerialHistory } from "@/features/inventory/get-serial-history";
 import { getStock } from "@/features/inventory/get-stock";
-import { getTrackingHistory } from "@/features/inventory/get-tracking-history";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
-import {
-    getExpiryAlerts,
-    updateStockExpiryStatus,
-} from "@/features/inventory/manage-expiry";
+import { updateStockExpiryStatus } from "@/features/inventory/manage-expiry";
+import { moveToQuarantine } from "@/features/inventory/quarantine-stock";
 import { receiveGoods } from "@/features/inventory/receive-goods";
 import { rejectAdjustment } from "@/features/inventory/reject-adjustment";
 import {
@@ -56,6 +56,10 @@ const formatQuantity = (value: number): string =>
 type StockData = Awaited<ReturnType<typeof getStock>>;
 type ValuationData = Awaited<ReturnType<typeof getInventoryValuationReport>>;
 type MovementHistoryData = Awaited<ReturnType<typeof getMovementHistory>>;
+type BatchTraceabilityData = Awaited<ReturnType<typeof getBatchTraceability>>;
+type SerialHistoryData = Awaited<ReturnType<typeof getSerialHistory>>;
+type ExpiryAlertsData = Awaited<ReturnType<typeof getExpiryAlertsReport>>;
+type InventoryKpis = Awaited<ReturnType<typeof getInventoryKpis>>;
 type StockItem = StockData["stockItems"][number];
 type Product = Awaited<ReturnType<typeof getProducts>>["products"][number];
 type Warehouse = Awaited<ReturnType<typeof getWarehouses>>[number];
@@ -81,6 +85,7 @@ interface StockPageState {
     entryQuantity: string;
     entryUnitCost: string;
     entryWarehouseId: string;
+    expiryAlerts: ExpiryAlertsData;
     movementHistory: MovementHistoryData | null;
     movementPage: string;
     movementProductId: string;
@@ -90,6 +95,9 @@ interface StockPageState {
     reserveQuantity: string;
     selectedStockItemId: string;
     stockData: StockData;
+    traceabilityData: BatchTraceabilityData | null;
+    quarantineReason: string;
+    serialHistoryData: SerialHistoryData | null;
     trackingBatch: string;
     trackingSerial: string;
     transferQuantity: string;
@@ -470,13 +478,20 @@ interface StockTrackingCardProps {
     entryProductId: string;
     entryQuantity: string;
     entryWarehouseId: string;
+    expiryAlerts: ExpiryAlertsData;
+    onLoadBatchTraceability: () => Promise<void>;
+    onLoadExpiryAlerts: () => Promise<void>;
+    onLoadSerialHistory: () => Promise<void>;
     runAction: (
         work: () => Promise<unknown>,
         successMessage: string
     ) => Promise<void>;
+    quarantineReason: string;
     selectedItem: StockItem | undefined;
     selectedStockItemId: string;
+    serialHistoryData: SerialHistoryData | null;
     setState: (action: StockPageAction) => void;
+    traceabilityData: BatchTraceabilityData | null;
     trackingBatch: string;
     trackingSerial: string;
 }
@@ -485,10 +500,17 @@ const StockTrackingCard = ({
     entryProductId,
     entryQuantity,
     entryWarehouseId,
+    expiryAlerts,
+    onLoadBatchTraceability,
+    onLoadExpiryAlerts,
+    onLoadSerialHistory,
     runAction,
+    quarantineReason,
     selectedItem,
     selectedStockItemId,
+    serialHistoryData,
     setState,
+    traceabilityData,
     trackingBatch,
     trackingSerial,
 }: StockTrackingCardProps) => {
@@ -510,48 +532,47 @@ const StockTrackingCard = ({
                 />
                 <div className="flex items-end">
                     <Button
-                        onClick={() =>
-                            runAction(
-                                () =>
-                                    getTrackingHistory({
-                                        data: {
-                                            batchNumber:
-                                                trackingBatch || undefined,
-                                            serialNumber:
-                                                trackingSerial || undefined,
-                                        },
-                                    }),
-                                "Tracking history loaded."
-                            )
-                        }
+                        onClick={() => {
+                            onLoadSerialHistory().catch(() => undefined);
+                        }}
                         variant="outline"
                     >
-                        Search Tracking
+                        Search Serial
                     </Button>
                 </div>
+                <div className="flex items-end">
+                    <Button
+                        onClick={() => {
+                            onLoadBatchTraceability().catch(() => undefined);
+                        }}
+                        variant="outline"
+                    >
+                        Trace Batch
+                    </Button>
+                </div>
+                <FieldInput
+                    label="Quarantine Reason"
+                    onChange={(value) => setState({ quarantineReason: value })}
+                    value={quarantineReason}
+                />
                 <div className="flex flex-wrap gap-2 md:col-span-3">
                     <Button
-                        onClick={() =>
-                            runAction(
-                                () =>
-                                    getExpiryAlerts({
-                                        data: { withinDays: 30 },
-                                    }),
-                                "Expiry alerts loaded."
-                            )
-                        }
+                        onClick={() => {
+                            onLoadExpiryAlerts().catch(() => undefined);
+                        }}
                         variant="outline"
                     >
                         Refresh Expiry Alerts
                     </Button>
                     <Button
-                        disabled={!selectedItem}
+                        disabled={!(selectedItem && quarantineReason.trim())}
                         onClick={() =>
                             runAction(
                                 () =>
-                                    updateStockExpiryStatus({
+                                    moveToQuarantine({
                                         data: {
-                                            operation: "QUARANTINE",
+                                            quarantineLocationId: null,
+                                            reason: quarantineReason.trim(),
                                             stockItemId: selectedStockItemId,
                                         },
                                     }),
@@ -606,6 +627,73 @@ const StockTrackingCard = ({
                         Generate Putaway Suggestions
                     </Button>
                 </div>
+                {expiryAlerts.length > 0 ? (
+                    <div className="md:col-span-3">
+                        <p className="font-medium text-sm">
+                            Expiry Alerts ({expiryAlerts.length})
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Top alert: {expiryAlerts[0]?.product.sku} -{" "}
+                            {expiryAlerts[0]?.daysUntilExpiry} days
+                        </p>
+                        <div className="mt-2 space-y-1 text-xs">
+                            {expiryAlerts.slice(0, 5).map((alert) => (
+                                <p key={alert.id}>
+                                    {alert.product.sku} |{" "}
+                                    {alert.location?.code ?? "NO-LOC"} |{" "}
+                                    {alert.daysUntilExpiry} days |{" "}
+                                    {formatQuantity(alert.availableQuantity)}{" "}
+                                    available
+                                </p>
+                            ))}
+                        </div>
+                    </div>
+                ) : null}
+                {serialHistoryData ? (
+                    <div className="md:col-span-3">
+                        <p className="font-medium text-sm">
+                            Serial History ({serialHistoryData.serialNumber})
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Movements:{" "}
+                            {serialHistoryData.movementHistory.length}
+                        </p>
+                        <div className="mt-2 space-y-1 text-xs">
+                            {serialHistoryData.movementHistory
+                                .slice(0, 5)
+                                .map((movement) => (
+                                    <p key={movement.id}>
+                                        {new Date(
+                                            movement.createdAt
+                                        ).toLocaleDateString()}{" "}
+                                        | {movement.type} |{" "}
+                                        {formatQuantity(movement.quantity)}
+                                    </p>
+                                ))}
+                        </div>
+                    </div>
+                ) : null}
+                {traceabilityData ? (
+                    <div className="md:col-span-3">
+                        <p className="font-medium text-sm">
+                            Batch Traceability ({traceabilityData.batchNumber})
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Received:{" "}
+                            {formatQuantity(
+                                traceabilityData.summary.totalReceived
+                            )}{" "}
+                            | Shipped:{" "}
+                            {formatQuantity(
+                                traceabilityData.summary.totalShipped
+                            )}{" "}
+                            | On Hand:{" "}
+                            {formatQuantity(
+                                traceabilityData.summary.totalOnHand
+                            )}
+                        </p>
+                    </div>
+                ) : null}
             </CardContent>
         </Card>
     );
@@ -863,106 +951,36 @@ const MovementHistoryCard = ({
     );
 };
 
-function StockPage() {
-    const { initialStock, initialValuation, kpis, products, warehouses } =
-        Route.useLoaderData();
-
-    const [state, setState] = useReducer(stockPageReducer, {
-        adjustmentApprovalNotes: "",
-        adjustmentId: "",
-        adjustmentRejectionReason: "",
-        adjustQuantity: "",
-        cycleQuantity: "",
-        entryProductId: products[0]?.id ?? "",
-        entryQuantity: "",
-        entryUnitCost: "",
-        entryWarehouseId: warehouses[0]?.id ?? "",
-        movementHistory: null,
-        movementPage: "1",
-        movementProductId: "",
-        movementType: "",
-        movementWarehouseId: "",
-        releaseQuantity: "",
-        reserveQuantity: "",
-        selectedStockItemId: "",
-        stockData: initialStock,
-        trackingBatch: "",
-        trackingSerial: "",
-        transferQuantity: "",
-        transferWarehouseId: warehouses[0]?.id ?? "",
-        valuation: initialValuation,
-    });
-
-    const loadMovementHistory = async () => {
-        const movementType =
-            state.movementType.length > 0
-                ? (state.movementType as
-                      | "ADJUSTMENT"
-                      | "ASSEMBLY"
-                      | "DISASSEMBLY"
-                      | "PURCHASE_RECEIPT"
-                      | "RETURN"
-                      | "SALES_SHIPMENT"
-                      | "TRANSFER")
-                : undefined;
-        const page = Number(state.movementPage) || 1;
-        const productId =
-            state.movementProductId.length > 0
-                ? state.movementProductId
-                : undefined;
-        const warehouseId =
-            state.movementWarehouseId.length > 0
-                ? state.movementWarehouseId
-                : undefined;
-
-        try {
-            const movementHistory = await getMovementHistory({
-                data: {
-                    movementType,
-                    page,
-                    pageSize: 25,
-                    productId,
-                    warehouseId,
-                },
-            });
-            setState({ movementHistory });
-            toast.success("Movement history loaded.");
-        } catch (error) {
-            toast.error(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to load movement history."
-            );
-        }
-    };
-
-    const refreshAll = async () => {
-        const [nextStock, nextValuation] = await Promise.all([
-            getStock({ data: { pageSize: 150 } }),
-            getInventoryValuationReport({ data: {} }),
-        ]);
-        setState({ stockData: nextStock, valuation: nextValuation });
-    };
-
-    const runAction = async (
+interface StockPageContentProps {
+    kpis: InventoryKpis;
+    loadBatchTraceability: () => Promise<void>;
+    loadExpiryAlerts: () => Promise<void>;
+    loadMovementHistory: () => Promise<void>;
+    loadSerialHistory: () => Promise<void>;
+    products: Product[];
+    runAction: (
         work: () => Promise<unknown>,
         successMessage: string
-    ) => {
-        try {
-            await work();
-            toast.success(successMessage);
-            await refreshAll();
-        } catch (error) {
-            toast.error(
-                error instanceof Error ? error.message : "Action failed."
-            );
-        }
-    };
+    ) => Promise<void>;
+    selectedItem: StockItem | undefined;
+    setState: (action: StockPageAction) => void;
+    state: StockPageState;
+    warehouses: Warehouse[];
+}
 
-    const selectedItem = state.stockData.stockItems.find(
-        (item) => item.id === state.selectedStockItemId
-    );
-
+const StockPageContent = ({
+    kpis,
+    loadBatchTraceability,
+    loadExpiryAlerts,
+    loadMovementHistory,
+    loadSerialHistory,
+    products,
+    runAction,
+    selectedItem,
+    setState,
+    state,
+    warehouses,
+}: StockPageContentProps) => {
     return (
         <section className="w-full space-y-4">
             <div>
@@ -1031,10 +1049,17 @@ function StockPage() {
                 entryProductId={state.entryProductId}
                 entryQuantity={state.entryQuantity}
                 entryWarehouseId={state.entryWarehouseId}
+                expiryAlerts={state.expiryAlerts}
+                onLoadBatchTraceability={loadBatchTraceability}
+                onLoadExpiryAlerts={loadExpiryAlerts}
+                onLoadSerialHistory={loadSerialHistory}
+                quarantineReason={state.quarantineReason}
                 runAction={runAction}
                 selectedItem={selectedItem}
                 selectedStockItemId={state.selectedStockItemId}
+                serialHistoryData={state.serialHistoryData}
                 setState={setState}
+                traceabilityData={state.traceabilityData}
                 trackingBatch={state.trackingBatch}
                 trackingSerial={state.trackingSerial}
             />
@@ -1130,6 +1155,195 @@ function StockPage() {
                 </CardContent>
             </Card>
         </section>
+    );
+};
+
+function StockPage() {
+    const { initialStock, initialValuation, kpis, products, warehouses } =
+        Route.useLoaderData();
+
+    const [state, setState] = useReducer(stockPageReducer, {
+        adjustmentApprovalNotes: "",
+        adjustmentId: "",
+        adjustmentRejectionReason: "",
+        adjustQuantity: "",
+        cycleQuantity: "",
+        entryProductId: products[0]?.id ?? "",
+        entryQuantity: "",
+        entryUnitCost: "",
+        entryWarehouseId: warehouses[0]?.id ?? "",
+        expiryAlerts: [],
+        movementHistory: null,
+        movementPage: "1",
+        movementProductId: "",
+        movementType: "",
+        movementWarehouseId: "",
+        releaseQuantity: "",
+        reserveQuantity: "",
+        quarantineReason: "",
+        selectedStockItemId: "",
+        serialHistoryData: null,
+        stockData: initialStock,
+        traceabilityData: null,
+        trackingBatch: "",
+        trackingSerial: "",
+        transferQuantity: "",
+        transferWarehouseId: warehouses[0]?.id ?? "",
+        valuation: initialValuation,
+    });
+
+    const loadExpiryAlerts = async () => {
+        const warehouseId =
+            state.entryWarehouseId.length > 0
+                ? state.entryWarehouseId
+                : undefined;
+        try {
+            const expiryAlerts = await getExpiryAlertsReport({
+                data: {
+                    daysAhead: 30,
+                    warehouseId,
+                },
+            });
+            setState({ expiryAlerts });
+            toast.success("Expiry alerts loaded.");
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load expiry alerts."
+            );
+        }
+    };
+
+    const loadSerialHistory = async () => {
+        if (state.trackingSerial.trim().length === 0) {
+            toast.error("Enter a serial number.");
+            return;
+        }
+        try {
+            const serialHistoryData = await getSerialHistory({
+                data: {
+                    serialNumber: state.trackingSerial.trim(),
+                },
+            });
+            setState({ serialHistoryData });
+            toast.success("Serial history loaded.");
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load serial history."
+            );
+        }
+    };
+
+    const loadBatchTraceability = async () => {
+        if (state.trackingBatch.trim().length === 0 || !state.entryProductId) {
+            toast.error("Select product and enter a batch number.");
+            return;
+        }
+        try {
+            const traceabilityData = await getBatchTraceability({
+                data: {
+                    batchNumber: state.trackingBatch.trim(),
+                    productId: state.entryProductId,
+                },
+            });
+            setState({ traceabilityData });
+            toast.success("Batch traceability loaded.");
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load batch traceability."
+            );
+        }
+    };
+
+    const loadMovementHistory = async () => {
+        const movementType =
+            state.movementType.length > 0
+                ? (state.movementType as
+                      | "ADJUSTMENT"
+                      | "ASSEMBLY"
+                      | "DISASSEMBLY"
+                      | "PURCHASE_RECEIPT"
+                      | "RETURN"
+                      | "SALES_SHIPMENT"
+                      | "TRANSFER")
+                : undefined;
+        const page = Number(state.movementPage) || 1;
+        const productId =
+            state.movementProductId.length > 0
+                ? state.movementProductId
+                : undefined;
+        const warehouseId =
+            state.movementWarehouseId.length > 0
+                ? state.movementWarehouseId
+                : undefined;
+
+        try {
+            const movementHistory = await getMovementHistory({
+                data: {
+                    movementType,
+                    page,
+                    pageSize: 25,
+                    productId,
+                    warehouseId,
+                },
+            });
+            setState({ movementHistory });
+            toast.success("Movement history loaded.");
+        } catch (error) {
+            toast.error(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to load movement history."
+            );
+        }
+    };
+
+    const refreshAll = async () => {
+        const [nextStock, nextValuation] = await Promise.all([
+            getStock({ data: { pageSize: 150 } }),
+            getInventoryValuationReport({ data: {} }),
+        ]);
+        setState({ stockData: nextStock, valuation: nextValuation });
+    };
+
+    const runAction = async (
+        work: () => Promise<unknown>,
+        successMessage: string
+    ) => {
+        try {
+            await work();
+            toast.success(successMessage);
+            await refreshAll();
+        } catch (error) {
+            toast.error(
+                error instanceof Error ? error.message : "Action failed."
+            );
+        }
+    };
+
+    const selectedItem = state.stockData.stockItems.find(
+        (item) => item.id === state.selectedStockItemId
+    );
+
+    return (
+        <StockPageContent
+            kpis={kpis}
+            loadBatchTraceability={loadBatchTraceability}
+            loadExpiryAlerts={loadExpiryAlerts}
+            loadMovementHistory={loadMovementHistory}
+            loadSerialHistory={loadSerialHistory}
+            products={products}
+            runAction={runAction}
+            selectedItem={selectedItem}
+            setState={setState}
+            state={state}
+            warehouses={warehouses}
+        />
     );
 }
 
