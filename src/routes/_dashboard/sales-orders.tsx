@@ -14,6 +14,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table,
     TableBody,
@@ -1249,7 +1250,11 @@ function renderSalesOrdersPage(
                             type="button"
                             variant="outline"
                         >
-                            {isLoadingOrders ? "Loading..." : "Apply Filters"}
+                            {isLoadingOrders ? (
+                                <Skeleton className="h-4 w-20" />
+                            ) : (
+                                "Apply Filters"
+                            )}
                         </Button>
                         <span className="text-muted-foreground text-sm">
                             Page {salesOrdersResponse.pagination.page} of{" "}
@@ -1448,9 +1453,10 @@ function renderSalesOrdersPage(
                     </CardHeader>
                     <CardContent className="space-y-4">
                         {isLoadingDetail ? (
-                            <p className="text-muted-foreground text-sm">
-                                Loading detail...
-                            </p>
+                            <div className="space-y-2">
+                                <Skeleton className="h-4 w-40" />
+                                <Skeleton className="h-4 w-72" />
+                            </div>
                         ) : (
                             <>
                                 <div className="text-sm">

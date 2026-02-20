@@ -24,6 +24,7 @@ import { formatCurrencyFromMinorUnits } from "@/components/features/products/uti
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getDashboardMetrics } from "@/features/reports/get-dashboard-metrics";
 import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
@@ -692,9 +693,7 @@ function EmptyChartMessage() {
 }
 
 function ChartLoadingState() {
-    return (
-        <div className="h-full w-full animate-pulse rounded-md bg-muted/60" />
-    );
+    return <Skeleton className="h-full w-full rounded-md" />;
 }
 
 const useElementSize = <TElement extends HTMLElement>() => {

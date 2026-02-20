@@ -12,6 +12,7 @@ import {
     CommandItem,
     CommandList,
 } from "@/components/ui/command";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     type GlobalSearchItem,
     globalSearch,
@@ -217,7 +218,10 @@ const GlobalSearch = ({ role }: GlobalSearchProps) => {
                             <CommandGroup heading="Entities">
                                 <CommandItem disabled value="searching">
                                     <SearchIcon className="h-4 w-4 text-muted-foreground" />
-                                    Searching...
+                                    <div className="flex w-full flex-col gap-1">
+                                        <Skeleton className="h-3.5 w-28" />
+                                        <Skeleton className="h-3 w-44" />
+                                    </div>
                                 </CommandItem>
                             </CommandGroup>
                         ) : null}
