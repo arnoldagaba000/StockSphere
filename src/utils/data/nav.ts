@@ -1,6 +1,7 @@
 import {
     Boxes,
     CircleDollarSign,
+    ClipboardCheck,
     FolderTree,
     LayoutDashboard,
     MapPinned,
@@ -28,6 +29,11 @@ export const getNavData = (
         {
             title: "Security",
             to: "/settings/security",
+            activeOptions: { exact: false },
+        },
+        {
+            title: "Audit Trail",
+            to: "/settings/audit",
             activeOptions: { exact: false },
         },
     ];
@@ -84,6 +90,12 @@ export const getNavData = (
             title: "Stock",
             to: "/stock",
             icon: PackageSearch,
+            activeOptions: { exact: false },
+        },
+        {
+            title: "Approvals",
+            to: "/approvals",
+            icon: ClipboardCheck,
             activeOptions: { exact: false },
         },
         {

@@ -24,6 +24,7 @@ import { Route as DashboardLocationsRouteImport } from './routes/_dashboard/loca
 import { Route as DashboardKitsRouteImport } from './routes/_dashboard/kits'
 import { Route as DashboardGoodsReceiptsRouteImport } from './routes/_dashboard/goods-receipts'
 import { Route as DashboardCustomersRouteImport } from './routes/_dashboard/customers'
+import { Route as DashboardApprovalsRouteImport } from './routes/_dashboard/approvals'
 import { Route as AuthResetPasswordRouteImport } from './routes/_auth/reset-password'
 import { Route as AuthRegisterRouteImport } from './routes/_auth/register'
 import { Route as AuthLoginRouteImport } from './routes/_auth/login'
@@ -38,6 +39,7 @@ import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as DashboardSettingsUserManagementRouteImport } from './routes/_dashboard/settings/user-management'
 import { Route as DashboardSettingsSecurityRouteImport } from './routes/_dashboard/settings/security'
 import { Route as DashboardSettingsProfileRouteImport } from './routes/_dashboard/settings/profile'
+import { Route as DashboardSettingsAuditRouteImport } from './routes/_dashboard/settings/audit'
 import { Route as DashboardProductsNewRouteImport } from './routes/_dashboard/products/new'
 import { Route as DashboardProductsProductIdRouteImport } from './routes/_dashboard/products/$productId'
 import { Route as DashboardCategoriesNewRouteImport } from './routes/_dashboard/categories/new'
@@ -116,6 +118,11 @@ const DashboardCustomersRoute = DashboardCustomersRouteImport.update({
   path: '/customers',
   getParentRoute: () => DashboardRouteRoute,
 } as any)
+const DashboardApprovalsRoute = DashboardApprovalsRouteImport.update({
+  id: '/approvals',
+  path: '/approvals',
+  getParentRoute: () => DashboardRouteRoute,
+} as any)
 const AuthResetPasswordRoute = AuthResetPasswordRouteImport.update({
   id: '/reset-password',
   path: '/reset-password',
@@ -191,6 +198,11 @@ const DashboardSettingsProfileRoute =
     path: '/profile',
     getParentRoute: () => DashboardSettingsRouteRoute,
   } as any)
+const DashboardSettingsAuditRoute = DashboardSettingsAuditRouteImport.update({
+  id: '/audit',
+  path: '/audit',
+  getParentRoute: () => DashboardSettingsRouteRoute,
+} as any)
 const DashboardProductsNewRoute = DashboardProductsNewRouteImport.update({
   id: '/new',
   path: '/new',
@@ -224,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/approvals': typeof DashboardApprovalsRoute
   '/customers': typeof DashboardCustomersRoute
   '/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/kits': typeof DashboardKitsRoute
@@ -239,6 +252,7 @@ export interface FileRoutesByFullPath {
   '/categories/new': typeof DashboardCategoriesNewRoute
   '/products/$productId': typeof DashboardProductsProductIdRoute
   '/products/new': typeof DashboardProductsNewRoute
+  '/settings/audit': typeof DashboardSettingsAuditRoute
   '/settings/profile': typeof DashboardSettingsProfileRoute
   '/settings/security': typeof DashboardSettingsSecurityRoute
   '/settings/user-management': typeof DashboardSettingsUserManagementRoute
@@ -254,6 +268,7 @@ export interface FileRoutesByTo {
   '/login': typeof AuthLoginRoute
   '/register': typeof AuthRegisterRoute
   '/reset-password': typeof AuthResetPasswordRoute
+  '/approvals': typeof DashboardApprovalsRoute
   '/customers': typeof DashboardCustomersRoute
   '/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/kits': typeof DashboardKitsRoute
@@ -269,6 +284,7 @@ export interface FileRoutesByTo {
   '/categories/new': typeof DashboardCategoriesNewRoute
   '/products/$productId': typeof DashboardProductsProductIdRoute
   '/products/new': typeof DashboardProductsNewRoute
+  '/settings/audit': typeof DashboardSettingsAuditRoute
   '/settings/profile': typeof DashboardSettingsProfileRoute
   '/settings/security': typeof DashboardSettingsSecurityRoute
   '/settings/user-management': typeof DashboardSettingsUserManagementRoute
@@ -289,6 +305,7 @@ export interface FileRoutesById {
   '/_auth/login': typeof AuthLoginRoute
   '/_auth/register': typeof AuthRegisterRoute
   '/_auth/reset-password': typeof AuthResetPasswordRoute
+  '/_dashboard/approvals': typeof DashboardApprovalsRoute
   '/_dashboard/customers': typeof DashboardCustomersRoute
   '/_dashboard/goods-receipts': typeof DashboardGoodsReceiptsRoute
   '/_dashboard/kits': typeof DashboardKitsRoute
@@ -305,6 +322,7 @@ export interface FileRoutesById {
   '/_dashboard/categories/new': typeof DashboardCategoriesNewRoute
   '/_dashboard/products/$productId': typeof DashboardProductsProductIdRoute
   '/_dashboard/products/new': typeof DashboardProductsNewRoute
+  '/_dashboard/settings/audit': typeof DashboardSettingsAuditRoute
   '/_dashboard/settings/profile': typeof DashboardSettingsProfileRoute
   '/_dashboard/settings/security': typeof DashboardSettingsSecurityRoute
   '/_dashboard/settings/user-management': typeof DashboardSettingsUserManagementRoute
@@ -325,6 +343,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/approvals'
     | '/customers'
     | '/goods-receipts'
     | '/kits'
@@ -340,6 +359,7 @@ export interface FileRouteTypes {
     | '/categories/new'
     | '/products/$productId'
     | '/products/new'
+    | '/settings/audit'
     | '/settings/profile'
     | '/settings/security'
     | '/settings/user-management'
@@ -355,6 +375,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/reset-password'
+    | '/approvals'
     | '/customers'
     | '/goods-receipts'
     | '/kits'
@@ -370,6 +391,7 @@ export interface FileRouteTypes {
     | '/categories/new'
     | '/products/$productId'
     | '/products/new'
+    | '/settings/audit'
     | '/settings/profile'
     | '/settings/security'
     | '/settings/user-management'
@@ -389,6 +411,7 @@ export interface FileRouteTypes {
     | '/_auth/login'
     | '/_auth/register'
     | '/_auth/reset-password'
+    | '/_dashboard/approvals'
     | '/_dashboard/customers'
     | '/_dashboard/goods-receipts'
     | '/_dashboard/kits'
@@ -405,6 +428,7 @@ export interface FileRouteTypes {
     | '/_dashboard/categories/new'
     | '/_dashboard/products/$productId'
     | '/_dashboard/products/new'
+    | '/_dashboard/settings/audit'
     | '/_dashboard/settings/profile'
     | '/_dashboard/settings/security'
     | '/_dashboard/settings/user-management'
@@ -528,6 +552,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCustomersRouteImport
       parentRoute: typeof DashboardRouteRoute
     }
+    '/_dashboard/approvals': {
+      id: '/_dashboard/approvals'
+      path: '/approvals'
+      fullPath: '/approvals'
+      preLoaderRoute: typeof DashboardApprovalsRouteImport
+      parentRoute: typeof DashboardRouteRoute
+    }
     '/_auth/reset-password': {
       id: '/_auth/reset-password'
       path: '/reset-password'
@@ -626,6 +657,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardSettingsProfileRouteImport
       parentRoute: typeof DashboardSettingsRouteRoute
     }
+    '/_dashboard/settings/audit': {
+      id: '/_dashboard/settings/audit'
+      path: '/audit'
+      fullPath: '/settings/audit'
+      preLoaderRoute: typeof DashboardSettingsAuditRouteImport
+      parentRoute: typeof DashboardSettingsRouteRoute
+    }
     '/_dashboard/products/new': {
       id: '/_dashboard/products/new'
       path: '/new'
@@ -712,6 +750,7 @@ const DashboardProductsRouteRouteWithChildren =
   )
 
 interface DashboardSettingsRouteRouteChildren {
+  DashboardSettingsAuditRoute: typeof DashboardSettingsAuditRoute
   DashboardSettingsProfileRoute: typeof DashboardSettingsProfileRoute
   DashboardSettingsSecurityRoute: typeof DashboardSettingsSecurityRoute
   DashboardSettingsUserManagementRoute: typeof DashboardSettingsUserManagementRoute
@@ -720,6 +759,7 @@ interface DashboardSettingsRouteRouteChildren {
 
 const DashboardSettingsRouteRouteChildren: DashboardSettingsRouteRouteChildren =
   {
+    DashboardSettingsAuditRoute: DashboardSettingsAuditRoute,
     DashboardSettingsProfileRoute: DashboardSettingsProfileRoute,
     DashboardSettingsSecurityRoute: DashboardSettingsSecurityRoute,
     DashboardSettingsUserManagementRoute: DashboardSettingsUserManagementRoute,
@@ -735,6 +775,7 @@ interface DashboardRouteRouteChildren {
   DashboardCategoriesRouteRoute: typeof DashboardCategoriesRouteRouteWithChildren
   DashboardProductsRouteRoute: typeof DashboardProductsRouteRouteWithChildren
   DashboardSettingsRouteRoute: typeof DashboardSettingsRouteRouteWithChildren
+  DashboardApprovalsRoute: typeof DashboardApprovalsRoute
   DashboardCustomersRoute: typeof DashboardCustomersRoute
   DashboardGoodsReceiptsRoute: typeof DashboardGoodsReceiptsRoute
   DashboardKitsRoute: typeof DashboardKitsRoute
@@ -753,6 +794,7 @@ const DashboardRouteRouteChildren: DashboardRouteRouteChildren = {
   DashboardCategoriesRouteRoute: DashboardCategoriesRouteRouteWithChildren,
   DashboardProductsRouteRoute: DashboardProductsRouteRouteWithChildren,
   DashboardSettingsRouteRoute: DashboardSettingsRouteRouteWithChildren,
+  DashboardApprovalsRoute: DashboardApprovalsRoute,
   DashboardCustomersRoute: DashboardCustomersRoute,
   DashboardGoodsReceiptsRoute: DashboardGoodsReceiptsRoute,
   DashboardKitsRoute: DashboardKitsRoute,
