@@ -79,6 +79,588 @@ const purchaseOrdersPageReducer = (
     ...patch,
 });
 
+type PurchaseOrderList = Awaited<ReturnType<typeof getPurchaseOrders>>;
+type ProductList = Awaited<ReturnType<typeof getProducts>>["products"];
+type SupplierList = Awaited<ReturnType<typeof getSuppliers>>;
+type PurchasingReport = Awaited<ReturnType<typeof getPurchasingReport>>;
+
+interface PurchaseOrderOverviewSectionProps {
+    report: PurchasingReport;
+}
+
+const PurchaseOrderOverviewSection = ({
+    report,
+}: PurchaseOrderOverviewSectionProps) => {
+    return (
+        <>
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <MetricCard
+                    label="30-Day Spend"
+                    value={formatCurrencyFromMinorUnits(report.recentSpend)}
+                />
+                <MetricCard
+                    label="30-Day Orders"
+                    value={String(report.recentOrderCount)}
+                />
+                <MetricCard
+                    label="Open POs"
+                    value={String(
+                        report.statusBreakdown
+                            .filter((entry) =>
+                                ["DRAFT", "SUBMITTED", "APPROVED"].includes(
+                                    entry.status
+                                )
+                            )
+                            .reduce((sum, entry) => sum + entry.count, 0)
+                    )}
+                />
+                <MetricCard
+                    label="Received POs"
+                    value={String(
+                        report.statusBreakdown
+                            .filter((entry) =>
+                                ["PARTIALLY_RECEIVED", "RECEIVED"].includes(
+                                    entry.status
+                                )
+                            )
+                            .reduce((sum, entry) => sum + entry.count, 0)
+                    )}
+                />
+            </div>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Top Supplier Performance (30 Days)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Supplier</TableHead>
+                                <TableHead>Orders</TableHead>
+                                <TableHead>Received</TableHead>
+                                <TableHead>Open</TableHead>
+                                <TableHead className="text-right">
+                                    Spend
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {report.supplierPerformance.map((supplier) => (
+                                <TableRow key={supplier.id}>
+                                    <TableCell>{supplier.name}</TableCell>
+                                    <TableCell>{supplier.orderCount}</TableCell>
+                                    <TableCell>
+                                        {supplier.receivedOrders}
+                                    </TableCell>
+                                    <TableCell>{supplier.openOrders}</TableCell>
+                                    <TableCell className="text-right">
+                                        {formatCurrencyFromMinorUnits(
+                                            supplier.totalSpend
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+        </>
+    );
+};
+
+interface CreatePurchaseOrderSectionProps {
+    expectedDate: string;
+    isSaving: boolean;
+    items: PurchaseOrderFormItem[];
+    onAddLineItem: () => void;
+    onCreatePurchaseOrder: () => void;
+    onPatchState: (patch: Partial<PurchaseOrdersPageState>) => void;
+    onRemoveLineItem: (index: number) => void;
+    onUpdateItem: (
+        index: number,
+        patch: Partial<PurchaseOrderFormItem>
+    ) => void;
+    products: ProductList;
+    shippingCost: string;
+    subtotal: number;
+    supplierId: string;
+    suppliers: SupplierList;
+    taxAmount: string;
+    total: number;
+}
+
+const CreatePurchaseOrderSection = ({
+    expectedDate,
+    isSaving,
+    items,
+    onAddLineItem,
+    onCreatePurchaseOrder,
+    onPatchState,
+    onRemoveLineItem,
+    onUpdateItem,
+    products,
+    shippingCost,
+    subtotal,
+    supplierId,
+    suppliers,
+    taxAmount,
+    total,
+}: CreatePurchaseOrderSectionProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Create Purchase Order</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-3">
+                    <div className="space-y-2">
+                        <Label>Supplier</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onPatchState({
+                                    supplierId: value ?? "",
+                                })
+                            }
+                            value={supplierId}
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select supplier" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {suppliers.map((supplier) => (
+                                    <SelectItem
+                                        key={supplier.id}
+                                        value={supplier.id}
+                                    >
+                                        {supplier.code} - {supplier.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="expected-date">Expected Date</Label>
+                        <Input
+                            id="expected-date"
+                            onChange={(event) =>
+                                onPatchState({
+                                    expectedDate: event.target.value,
+                                })
+                            }
+                            type="date"
+                            value={expectedDate}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="tax-amount">Tax (UGX)</Label>
+                        <Input
+                            id="tax-amount"
+                            onChange={(event) =>
+                                onPatchState({
+                                    taxAmount: event.target.value,
+                                })
+                            }
+                            type="number"
+                            value={taxAmount}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="shipping-cost">
+                            Shipping Cost (UGX)
+                        </Label>
+                        <Input
+                            id="shipping-cost"
+                            onChange={(event) =>
+                                onPatchState({
+                                    shippingCost: event.target.value,
+                                })
+                            }
+                            type="number"
+                            value={shippingCost}
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-3">
+                    {items.map((item, index) => (
+                        <div
+                            className="grid gap-3 md:grid-cols-4"
+                            key={item.id}
+                        >
+                            <Select
+                                onValueChange={(value) =>
+                                    onUpdateItem(index, {
+                                        productId: value ?? "",
+                                    })
+                                }
+                                value={item.productId}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Product" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {products.map((product) => (
+                                        <SelectItem
+                                            key={product.id}
+                                            value={product.id}
+                                        >
+                                            {product.sku} - {product.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <Input
+                                onChange={(event) =>
+                                    onUpdateItem(index, {
+                                        quantity: event.target.value,
+                                    })
+                                }
+                                placeholder="Quantity"
+                                type="number"
+                                value={item.quantity}
+                            />
+                            <Input
+                                onChange={(event) =>
+                                    onUpdateItem(index, {
+                                        unitPrice: event.target.value,
+                                    })
+                                }
+                                placeholder="Unit price (UGX)"
+                                type="number"
+                                value={item.unitPrice}
+                            />
+                            <Button
+                                disabled={items.length <= 1}
+                                onClick={() => onRemoveLineItem(index)}
+                                type="button"
+                                variant="outline"
+                            >
+                                Remove
+                            </Button>
+                        </div>
+                    ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                        onClick={onAddLineItem}
+                        type="button"
+                        variant="outline"
+                    >
+                        Add Line
+                    </Button>
+                    <p className="text-muted-foreground text-sm">
+                        Subtotal: {formatCurrencyFromMinorUnits(subtotal)} |
+                        Total: {formatCurrencyFromMinorUnits(total)}
+                    </p>
+                </div>
+
+                <Button
+                    disabled={isSaving || !supplierId}
+                    onClick={onCreatePurchaseOrder}
+                >
+                    {isSaving ? "Creating..." : "Create Draft"}
+                </Button>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface PurchaseOrderListSectionProps {
+    cancelReason: string;
+    isTransitioningId: string | null;
+    onLoadDetail: (purchaseOrderId: string) => void;
+    onPatchState: (patch: Partial<PurchaseOrdersPageState>) => void;
+    onTransitionOrder: (
+        purchaseOrderId: string,
+        action: TransitionAction
+    ) => void;
+    purchaseOrders: PurchaseOrderList;
+}
+
+const PurchaseOrderListSection = ({
+    cancelReason,
+    isTransitioningId,
+    onLoadDetail,
+    onPatchState,
+    onTransitionOrder,
+    purchaseOrders,
+}: PurchaseOrderListSectionProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Purchase Order List</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="mb-3 grid gap-2 md:max-w-md">
+                    <Label htmlFor="po-cancel-reason">
+                        Cancel Reason (optional)
+                    </Label>
+                    <Input
+                        id="po-cancel-reason"
+                        onChange={(event) =>
+                            onPatchState({
+                                cancelReason: event.target.value,
+                            })
+                        }
+                        placeholder="Reason included in audit trail"
+                        value={cancelReason}
+                    />
+                </div>
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Order #</TableHead>
+                            <TableHead>Supplier</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Total</TableHead>
+                            <TableHead className="text-right">
+                                Actions
+                            </TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {purchaseOrders.map((order) => (
+                            <TableRow key={order.id}>
+                                <TableCell>{order.orderNumber}</TableCell>
+                                <TableCell>{order.supplier.name}</TableCell>
+                                <TableCell>
+                                    <Badge variant="secondary">
+                                        {order.status}
+                                    </Badge>
+                                </TableCell>
+                                <TableCell>
+                                    {formatCurrencyFromMinorUnits(
+                                        order.totalAmount
+                                    )}
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <div className="flex flex-wrap justify-end gap-2">
+                                        <Button
+                                            onClick={() =>
+                                                onLoadDetail(order.id)
+                                            }
+                                            size="sm"
+                                            variant="outline"
+                                        >
+                                            View
+                                        </Button>
+                                        {order.status === "DRAFT" ? (
+                                            <Button
+                                                disabled={
+                                                    isTransitioningId ===
+                                                    order.id
+                                                }
+                                                onClick={() =>
+                                                    onTransitionOrder(
+                                                        order.id,
+                                                        "submit"
+                                                    )
+                                                }
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Submit
+                                            </Button>
+                                        ) : null}
+                                        {order.status === "SUBMITTED" ? (
+                                            <>
+                                                <Button
+                                                    disabled={
+                                                        isTransitioningId ===
+                                                        order.id
+                                                    }
+                                                    onClick={() =>
+                                                        onTransitionOrder(
+                                                            order.id,
+                                                            "approve"
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                >
+                                                    Approve
+                                                </Button>
+                                                <Button
+                                                    disabled={
+                                                        isTransitioningId ===
+                                                        order.id
+                                                    }
+                                                    onClick={() =>
+                                                        onTransitionOrder(
+                                                            order.id,
+                                                            "reject"
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    Reject
+                                                </Button>
+                                            </>
+                                        ) : null}
+                                        {(order.status === "APPROVED" ||
+                                            order.status ===
+                                                "PARTIALLY_RECEIVED") && (
+                                            <Button
+                                                disabled={
+                                                    isTransitioningId ===
+                                                    order.id
+                                                }
+                                                onClick={() =>
+                                                    onTransitionOrder(
+                                                        order.id,
+                                                        "markOrdered"
+                                                    )
+                                                }
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Mark Ordered
+                                            </Button>
+                                        )}
+                                        {[
+                                            "DRAFT",
+                                            "SUBMITTED",
+                                            "APPROVED",
+                                        ].includes(order.status) ? (
+                                            <Button
+                                                disabled={
+                                                    isTransitioningId ===
+                                                    order.id
+                                                }
+                                                onClick={() =>
+                                                    onTransitionOrder(
+                                                        order.id,
+                                                        "cancel"
+                                                    )
+                                                }
+                                                size="sm"
+                                                variant="destructive"
+                                            >
+                                                Cancel
+                                            </Button>
+                                        ) : null}
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
+    );
+};
+
+interface PurchaseOrderDetailSectionProps {
+    isLoadingDetail: boolean;
+    selectedOrderDetail: PurchaseOrderDetail | null;
+}
+
+const PurchaseOrderDetailSection = ({
+    isLoadingDetail,
+    selectedOrderDetail,
+}: PurchaseOrderDetailSectionProps) => {
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Purchase Order Detail</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {isLoadingDetail ? (
+                    <p className="text-muted-foreground text-sm">
+                        Loading detail...
+                    </p>
+                ) : null}
+                {selectedOrderDetail || isLoadingDetail ? null : (
+                    <p className="text-muted-foreground text-sm">
+                        Select an order from the list to inspect item-level
+                        progress and receipts.
+                    </p>
+                )}
+                {selectedOrderDetail ? (
+                    <>
+                        <div className="grid gap-2 md:grid-cols-3">
+                            <p className="text-sm">
+                                <span className="text-muted-foreground">
+                                    Order:
+                                </span>{" "}
+                                {selectedOrderDetail.orderNumber}
+                            </p>
+                            <p className="text-sm">
+                                <span className="text-muted-foreground">
+                                    Supplier:
+                                </span>{" "}
+                                {selectedOrderDetail.supplier.name}
+                            </p>
+                            <p className="text-sm">
+                                <span className="text-muted-foreground">
+                                    Status:
+                                </span>{" "}
+                                {selectedOrderDetail.status}
+                            </p>
+                        </div>
+
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>SKU</TableHead>
+                                    <TableHead>Product</TableHead>
+                                    <TableHead>Ordered</TableHead>
+                                    <TableHead>Received</TableHead>
+                                    <TableHead>Outstanding</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {selectedOrderDetail.items.map((item) => (
+                                    <TableRow key={item.id}>
+                                        <TableCell>
+                                            {item.product.sku}
+                                        </TableCell>
+                                        <TableCell>
+                                            {item.product.name}
+                                        </TableCell>
+                                        <TableCell>{item.quantity}</TableCell>
+                                        <TableCell>
+                                            {item.receivedQuantity}
+                                        </TableCell>
+                                        <TableCell>
+                                            {Math.max(
+                                                0,
+                                                item.quantity -
+                                                    item.receivedQuantity
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+
+                        <div className="space-y-1">
+                            <p className="font-medium text-sm">Receipts</p>
+                            {selectedOrderDetail.receipts.length === 0 ? (
+                                <p className="text-muted-foreground text-sm">
+                                    No receipts posted yet.
+                                </p>
+                            ) : (
+                                selectedOrderDetail.receipts.map((receipt) => (
+                                    <p className="text-sm" key={receipt.id}>
+                                        {receipt.receiptNumber} •{" "}
+                                        {new Date(
+                                            receipt.receivedDate
+                                        ).toLocaleDateString()}{" "}
+                                        • {receipt.items.length} lines
+                                    </p>
+                                ))
+                            )}
+                        </div>
+                    </>
+                ) : null}
+            </CardContent>
+        </Card>
+    );
+};
+
 export const Route = createFileRoute("/_dashboard/purchase-orders")({
     component: PurchaseOrdersPage,
     loader: async () => {
@@ -298,503 +880,46 @@ function PurchaseOrdersPage() {
                 </p>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <MetricCard
-                    label="30-Day Spend"
-                    value={formatCurrencyFromMinorUnits(report.recentSpend)}
-                />
-                <MetricCard
-                    label="30-Day Orders"
-                    value={String(report.recentOrderCount)}
-                />
-                <MetricCard
-                    label="Open POs"
-                    value={String(
-                        report.statusBreakdown
-                            .filter((entry) =>
-                                ["DRAFT", "SUBMITTED", "APPROVED"].includes(
-                                    entry.status
-                                )
-                            )
-                            .reduce((sum, entry) => sum + entry.count, 0)
-                    )}
-                />
-                <MetricCard
-                    label="Received POs"
-                    value={String(
-                        report.statusBreakdown
-                            .filter((entry) =>
-                                ["PARTIALLY_RECEIVED", "RECEIVED"].includes(
-                                    entry.status
-                                )
-                            )
-                            .reduce((sum, entry) => sum + entry.count, 0)
-                    )}
-                />
-            </div>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Top Supplier Performance (30 Days)</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Supplier</TableHead>
-                                <TableHead>Orders</TableHead>
-                                <TableHead>Received</TableHead>
-                                <TableHead>Open</TableHead>
-                                <TableHead className="text-right">
-                                    Spend
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {report.supplierPerformance.map((supplier) => (
-                                <TableRow key={supplier.id}>
-                                    <TableCell>{supplier.name}</TableCell>
-                                    <TableCell>{supplier.orderCount}</TableCell>
-                                    <TableCell>
-                                        {supplier.receivedOrders}
-                                    </TableCell>
-                                    <TableCell>{supplier.openOrders}</TableCell>
-                                    <TableCell className="text-right">
-                                        {formatCurrencyFromMinorUnits(
-                                            supplier.totalSpend
-                                        )}
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Create Purchase Order</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-3">
-                        <div className="space-y-2">
-                            <Label>Supplier</Label>
-                            <Select
-                                onValueChange={(value) =>
-                                    patchState({
-                                        supplierId: value ?? "",
-                                    })
-                                }
-                                value={supplierId}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select supplier" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {suppliers.map((supplier) => (
-                                        <SelectItem
-                                            key={supplier.id}
-                                            value={supplier.id}
-                                        >
-                                            {supplier.code} - {supplier.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="expected-date">Expected Date</Label>
-                            <Input
-                                id="expected-date"
-                                onChange={(event) =>
-                                    patchState({
-                                        expectedDate: event.target.value,
-                                    })
-                                }
-                                type="date"
-                                value={expectedDate}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="tax-amount">Tax (UGX)</Label>
-                            <Input
-                                id="tax-amount"
-                                onChange={(event) =>
-                                    patchState({
-                                        taxAmount: event.target.value,
-                                    })
-                                }
-                                type="number"
-                                value={taxAmount}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="shipping-cost">
-                                Shipping Cost (UGX)
-                            </Label>
-                            <Input
-                                id="shipping-cost"
-                                onChange={(event) =>
-                                    patchState({
-                                        shippingCost: event.target.value,
-                                    })
-                                }
-                                type="number"
-                                value={shippingCost}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="space-y-3">
-                        {items.map((item, index) => (
-                            <div
-                                className="grid gap-3 md:grid-cols-4"
-                                key={item.id}
-                            >
-                                <Select
-                                    onValueChange={(value) =>
-                                        updateItem(index, {
-                                            productId: value ?? "",
-                                        })
-                                    }
-                                    value={item.productId}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Product" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {products.map((product) => (
-                                            <SelectItem
-                                                key={product.id}
-                                                value={product.id}
-                                            >
-                                                {product.sku} - {product.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <Input
-                                    onChange={(event) =>
-                                        updateItem(index, {
-                                            quantity: event.target.value,
-                                        })
-                                    }
-                                    placeholder="Quantity"
-                                    type="number"
-                                    value={item.quantity}
-                                />
-                                <Input
-                                    onChange={(event) =>
-                                        updateItem(index, {
-                                            unitPrice: event.target.value,
-                                        })
-                                    }
-                                    placeholder="Unit price (UGX)"
-                                    type="number"
-                                    value={item.unitPrice}
-                                />
-                                <Button
-                                    disabled={items.length <= 1}
-                                    onClick={() => removeLineItem(index)}
-                                    type="button"
-                                    variant="outline"
-                                >
-                                    Remove
-                                </Button>
-                            </div>
-                        ))}
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Button
-                            onClick={addLineItem}
-                            type="button"
-                            variant="outline"
-                        >
-                            Add Line
-                        </Button>
-                        <p className="text-muted-foreground text-sm">
-                            Subtotal: {formatCurrencyFromMinorUnits(subtotal)} |
-                            Total: {formatCurrencyFromMinorUnits(total)}
-                        </p>
-                    </div>
-
-                    <Button
-                        disabled={isSaving || !supplierId}
-                        onClick={handleCreatePurchaseOrder}
-                    >
-                        {isSaving ? "Creating..." : "Create Draft"}
-                    </Button>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Purchase Order List</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    <div className="mb-3 grid gap-2 md:max-w-md">
-                        <Label htmlFor="po-cancel-reason">
-                            Cancel Reason (optional)
-                        </Label>
-                        <Input
-                            id="po-cancel-reason"
-                            onChange={(event) =>
-                                patchState({
-                                    cancelReason: event.target.value,
-                                })
-                            }
-                            placeholder="Reason included in audit trail"
-                            value={cancelReason}
-                        />
-                    </div>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Order #</TableHead>
-                                <TableHead>Supplier</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Total</TableHead>
-                                <TableHead className="text-right">
-                                    Actions
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {purchaseOrders.map((order) => (
-                                <TableRow key={order.id}>
-                                    <TableCell>{order.orderNumber}</TableCell>
-                                    <TableCell>{order.supplier.name}</TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary">
-                                            {order.status}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        {formatCurrencyFromMinorUnits(
-                                            order.totalAmount
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex flex-wrap justify-end gap-2">
-                                            <Button
-                                                onClick={() =>
-                                                    loadPurchaseOrderDetail(
-                                                        order.id
-                                                    )
-                                                }
-                                                size="sm"
-                                                variant="outline"
-                                            >
-                                                View
-                                            </Button>
-                                            {order.status === "DRAFT" ? (
-                                                <Button
-                                                    disabled={
-                                                        isTransitioningId ===
-                                                        order.id
-                                                    }
-                                                    onClick={() =>
-                                                        transitionOrder(
-                                                            order.id,
-                                                            "submit"
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="outline"
-                                                >
-                                                    Submit
-                                                </Button>
-                                            ) : null}
-                                            {order.status === "SUBMITTED" ? (
-                                                <>
-                                                    <Button
-                                                        disabled={
-                                                            isTransitioningId ===
-                                                            order.id
-                                                        }
-                                                        onClick={() =>
-                                                            transitionOrder(
-                                                                order.id,
-                                                                "approve"
-                                                            )
-                                                        }
-                                                        size="sm"
-                                                    >
-                                                        Approve
-                                                    </Button>
-                                                    <Button
-                                                        disabled={
-                                                            isTransitioningId ===
-                                                            order.id
-                                                        }
-                                                        onClick={() =>
-                                                            transitionOrder(
-                                                                order.id,
-                                                                "reject"
-                                                            )
-                                                        }
-                                                        size="sm"
-                                                        variant="outline"
-                                                    >
-                                                        Reject
-                                                    </Button>
-                                                </>
-                                            ) : null}
-                                            {(order.status === "APPROVED" ||
-                                                order.status ===
-                                                    "PARTIALLY_RECEIVED") && (
-                                                <Button
-                                                    disabled={
-                                                        isTransitioningId ===
-                                                        order.id
-                                                    }
-                                                    onClick={() =>
-                                                        transitionOrder(
-                                                            order.id,
-                                                            "markOrdered"
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="outline"
-                                                >
-                                                    Mark Ordered
-                                                </Button>
-                                            )}
-                                            {[
-                                                "DRAFT",
-                                                "SUBMITTED",
-                                                "APPROVED",
-                                            ].includes(order.status) ? (
-                                                <Button
-                                                    disabled={
-                                                        isTransitioningId ===
-                                                        order.id
-                                                    }
-                                                    onClick={() =>
-                                                        transitionOrder(
-                                                            order.id,
-                                                            "cancel"
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="destructive"
-                                                >
-                                                    Cancel
-                                                </Button>
-                                            ) : null}
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
-                </CardContent>
-            </Card>
-
-            <Card>
-                <CardHeader>
-                    <CardTitle>Purchase Order Detail</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    {isLoadingDetail ? (
-                        <p className="text-muted-foreground text-sm">
-                            Loading detail...
-                        </p>
-                    ) : null}
-                    {selectedOrderDetail || isLoadingDetail ? null : (
-                        <p className="text-muted-foreground text-sm">
-                            Select an order from the list to inspect item-level
-                            progress and receipts.
-                        </p>
-                    )}
-                    {selectedOrderDetail ? (
-                        <>
-                            <div className="grid gap-2 md:grid-cols-3">
-                                <p className="text-sm">
-                                    <span className="text-muted-foreground">
-                                        Order:
-                                    </span>{" "}
-                                    {selectedOrderDetail.orderNumber}
-                                </p>
-                                <p className="text-sm">
-                                    <span className="text-muted-foreground">
-                                        Supplier:
-                                    </span>{" "}
-                                    {selectedOrderDetail.supplier.name}
-                                </p>
-                                <p className="text-sm">
-                                    <span className="text-muted-foreground">
-                                        Status:
-                                    </span>{" "}
-                                    {selectedOrderDetail.status}
-                                </p>
-                            </div>
-
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead>SKU</TableHead>
-                                        <TableHead>Product</TableHead>
-                                        <TableHead>Ordered</TableHead>
-                                        <TableHead>Received</TableHead>
-                                        <TableHead>Outstanding</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {selectedOrderDetail.items.map((item) => (
-                                        <TableRow key={item.id}>
-                                            <TableCell>
-                                                {item.product.sku}
-                                            </TableCell>
-                                            <TableCell>
-                                                {item.product.name}
-                                            </TableCell>
-                                            <TableCell>
-                                                {item.quantity}
-                                            </TableCell>
-                                            <TableCell>
-                                                {item.receivedQuantity}
-                                            </TableCell>
-                                            <TableCell>
-                                                {Math.max(
-                                                    0,
-                                                    item.quantity -
-                                                        item.receivedQuantity
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-
-                            <div className="space-y-1">
-                                <p className="font-medium text-sm">Receipts</p>
-                                {selectedOrderDetail.receipts.length === 0 ? (
-                                    <p className="text-muted-foreground text-sm">
-                                        No receipts posted yet.
-                                    </p>
-                                ) : (
-                                    selectedOrderDetail.receipts.map(
-                                        (receipt) => (
-                                            <p
-                                                className="text-sm"
-                                                key={receipt.id}
-                                            >
-                                                {receipt.receiptNumber} •{" "}
-                                                {new Date(
-                                                    receipt.receivedDate
-                                                ).toLocaleDateString()}{" "}
-                                                • {receipt.items.length} lines
-                                            </p>
-                                        )
-                                    )
-                                )}
-                            </div>
-                        </>
-                    ) : null}
-                </CardContent>
-            </Card>
+            <PurchaseOrderOverviewSection report={report} />
+            <CreatePurchaseOrderSection
+                expectedDate={expectedDate}
+                isSaving={isSaving}
+                items={items}
+                onAddLineItem={addLineItem}
+                onCreatePurchaseOrder={() => {
+                    handleCreatePurchaseOrder().catch(() => undefined);
+                }}
+                onPatchState={patchState}
+                onRemoveLineItem={removeLineItem}
+                onUpdateItem={updateItem}
+                products={products}
+                shippingCost={shippingCost}
+                subtotal={subtotal}
+                supplierId={supplierId}
+                suppliers={suppliers}
+                taxAmount={taxAmount}
+                total={total}
+            />
+            <PurchaseOrderListSection
+                cancelReason={cancelReason}
+                isTransitioningId={isTransitioningId}
+                onLoadDetail={(purchaseOrderId) => {
+                    loadPurchaseOrderDetail(purchaseOrderId).catch(
+                        () => undefined
+                    );
+                }}
+                onPatchState={patchState}
+                onTransitionOrder={(purchaseOrderId, action) => {
+                    transitionOrder(purchaseOrderId, action).catch(
+                        () => undefined
+                    );
+                }}
+                purchaseOrders={purchaseOrders}
+            />
+            <PurchaseOrderDetailSection
+                isLoadingDetail={isLoadingDetail}
+                selectedOrderDetail={selectedOrderDetail}
+            />
         </section>
     );
 }
