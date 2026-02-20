@@ -3,7 +3,7 @@ import {
     useNavigate,
     useRouter,
 } from "@tanstack/react-router";
-import { useState } from "react";
+import { useReducer } from "react";
 import toast from "react-hot-toast";
 import ProductForm, {
     type ProductFormValues,
@@ -73,6 +73,36 @@ interface ProductEditLoaderData {
     suppliers: Awaited<ReturnType<typeof listSuppliers>>;
     variants: Awaited<ReturnType<typeof listProductVariants>>;
 }
+
+interface EditProductPageState {
+    isSubmitting: boolean;
+    mediaAltText: string;
+    mediaUrl: string;
+    scheduleCostPrice: string;
+    scheduleEffectiveAt: string;
+    scheduleReason: string;
+    scheduleSellingPrice: string;
+    supplierId: string;
+    supplierSku: string;
+    variantAttributes: string;
+    variantName: string;
+    variantSku: string;
+}
+
+type EditProductPageAction =
+    | Partial<EditProductPageState>
+    | ((state: EditProductPageState) => Partial<EditProductPageState>);
+
+const editProductPageReducer = (
+    state: EditProductPageState,
+    action: EditProductPageAction
+): EditProductPageState => {
+    const patch = typeof action === "function" ? action(state) : action;
+    return {
+        ...state,
+        ...patch,
+    };
+};
 
 const hasPendingApprovalResponse = (response: unknown): boolean => {
     if (typeof response !== "object" || response === null) {
@@ -193,22 +223,38 @@ function EditProductPage() {
         variants,
     } = Route.useLoaderData();
     const categoryOptions = buildCategoryHierarchy(categories);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [supplierId, setSupplierId] = useState("none");
-    const [supplierSku, setSupplierSku] = useState("");
-    const [variantName, setVariantName] = useState("");
-    const [variantSku, setVariantSku] = useState("");
-    const [variantAttributes, setVariantAttributes] = useState("");
-    const [mediaUrl, setMediaUrl] = useState("");
-    const [mediaAltText, setMediaAltText] = useState("");
-    const [scheduleCostPrice, setScheduleCostPrice] = useState("");
-    const [scheduleSellingPrice, setScheduleSellingPrice] = useState("");
-    const [scheduleEffectiveAt, setScheduleEffectiveAt] = useState("");
-    const [scheduleReason, setScheduleReason] = useState("");
+    const [state, setState] = useReducer(editProductPageReducer, {
+        isSubmitting: false,
+        mediaAltText: "",
+        mediaUrl: "",
+        scheduleCostPrice: "",
+        scheduleEffectiveAt: "",
+        scheduleReason: "",
+        scheduleSellingPrice: "",
+        supplierId: "none",
+        supplierSku: "",
+        variantAttributes: "",
+        variantName: "",
+        variantSku: "",
+    });
+    const {
+        isSubmitting,
+        mediaAltText,
+        mediaUrl,
+        scheduleCostPrice,
+        scheduleEffectiveAt,
+        scheduleReason,
+        scheduleSellingPrice,
+        supplierId,
+        supplierSku,
+        variantAttributes,
+        variantName,
+        variantSku,
+    } = state;
 
     const handleSubmit = async (formData: ProductSubmitData) => {
         try {
-            setIsSubmitting(true);
+            setState({ isSubmitting: true });
             const response = await updateProduct({
                 data: {
                     ...formData,
@@ -220,15 +266,15 @@ function EditProductPage() {
             if (hasPendingApproval) {
                 toast.success("Critical change submitted for approval.");
                 await router.invalidate();
-                setIsSubmitting(false);
+                setState({ isSubmitting: false });
                 return;
             }
 
             toast.success("Product updated.");
             await navigate({ to: "/products" });
-            setIsSubmitting(false);
+            setState({ isSubmitting: false });
         } catch (error) {
-            setIsSubmitting(false);
+            setState({ isSubmitting: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -262,7 +308,7 @@ function EditProductPage() {
                     <div className="grid gap-3 md:grid-cols-3">
                         <Select
                             onValueChange={(value) =>
-                                setSupplierId(value ?? "none")
+                                setState({ supplierId: value ?? "none" })
                             }
                             value={supplierId}
                         >
@@ -285,7 +331,9 @@ function EditProductPage() {
                         </Select>
                         <Input
                             onChange={(event) =>
-                                setSupplierSku(event.target.value)
+                                setState({
+                                    supplierSku: event.target.value,
+                                })
                             }
                             placeholder="Supplier SKU"
                             value={supplierSku}
@@ -310,8 +358,10 @@ function EditProductPage() {
                                     },
                                 });
                                 toast.success("Supplier linked.");
-                                setSupplierId("none");
-                                setSupplierSku("");
+                                setState({
+                                    supplierId: "none",
+                                    supplierSku: "",
+                                });
                                 await router.invalidate();
                             }}
                         >
@@ -376,21 +426,23 @@ function EditProductPage() {
                     <div className="grid gap-3 md:grid-cols-4">
                         <Input
                             onChange={(event) =>
-                                setVariantName(event.target.value)
+                                setState({ variantName: event.target.value })
                             }
                             placeholder="Variant name"
                             value={variantName}
                         />
                         <Input
                             onChange={(event) =>
-                                setVariantSku(event.target.value)
+                                setState({ variantSku: event.target.value })
                             }
                             placeholder="Variant SKU"
                             value={variantSku}
                         />
                         <Input
                             onChange={(event) =>
-                                setVariantAttributes(event.target.value)
+                                setState({
+                                    variantAttributes: event.target.value,
+                                })
                             }
                             placeholder='Attributes JSON e.g {"size":"M"}'
                             value={variantAttributes}
@@ -418,9 +470,11 @@ function EditProductPage() {
                                     },
                                 });
                                 toast.success("Variant saved.");
-                                setVariantName("");
-                                setVariantSku("");
-                                setVariantAttributes("");
+                                setState({
+                                    variantAttributes: "",
+                                    variantName: "",
+                                    variantSku: "",
+                                });
                                 await router.invalidate();
                             }}
                         >
@@ -477,14 +531,16 @@ function EditProductPage() {
                     <div className="grid gap-3 md:grid-cols-3">
                         <Input
                             onChange={(event) =>
-                                setMediaUrl(event.target.value)
+                                setState({ mediaUrl: event.target.value })
                             }
                             placeholder="https://image-url"
                             value={mediaUrl}
                         />
                         <Input
                             onChange={(event) =>
-                                setMediaAltText(event.target.value)
+                                setState({
+                                    mediaAltText: event.target.value,
+                                })
                             }
                             placeholder="Alt text"
                             value={mediaAltText}
@@ -504,8 +560,7 @@ function EditProductPage() {
                                     },
                                 });
                                 toast.success("Media added.");
-                                setMediaUrl("");
-                                setMediaAltText("");
+                                setState({ mediaAltText: "", mediaUrl: "" });
                                 await router.invalidate();
                             }}
                         >
@@ -585,7 +640,9 @@ function EditProductPage() {
                     <div className="grid gap-3 md:grid-cols-4">
                         <Input
                             onChange={(event) =>
-                                setScheduleCostPrice(event.target.value)
+                                setState({
+                                    scheduleCostPrice: event.target.value,
+                                })
                             }
                             placeholder="Cost price (UGX)"
                             step={1}
@@ -594,7 +651,9 @@ function EditProductPage() {
                         />
                         <Input
                             onChange={(event) =>
-                                setScheduleSellingPrice(event.target.value)
+                                setState({
+                                    scheduleSellingPrice: event.target.value,
+                                })
                             }
                             placeholder="Selling price (UGX)"
                             step={1}
@@ -603,14 +662,18 @@ function EditProductPage() {
                         />
                         <Input
                             onChange={(event) =>
-                                setScheduleEffectiveAt(event.target.value)
+                                setState({
+                                    scheduleEffectiveAt: event.target.value,
+                                })
                             }
                             type="datetime-local"
                             value={scheduleEffectiveAt}
                         />
                         <Input
                             onChange={(event) =>
-                                setScheduleReason(event.target.value)
+                                setState({
+                                    scheduleReason: event.target.value,
+                                })
                             }
                             placeholder="Reason"
                             value={scheduleReason}
@@ -641,10 +704,12 @@ function EditProductPage() {
                                     },
                                 });
                                 toast.success("Price schedule created.");
-                                setScheduleCostPrice("");
-                                setScheduleSellingPrice("");
-                                setScheduleEffectiveAt("");
-                                setScheduleReason("");
+                                setState({
+                                    scheduleCostPrice: "",
+                                    scheduleEffectiveAt: "",
+                                    scheduleReason: "",
+                                    scheduleSellingPrice: "",
+                                });
                                 await router.invalidate();
                             }}
                         >

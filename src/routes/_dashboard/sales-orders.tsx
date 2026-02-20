@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
@@ -90,6 +90,50 @@ const emptyFilters: SalesListFilters = {
     status: "",
 };
 
+interface SalesOrdersPageState {
+    cancelReason: string;
+    customerId: string;
+    draftLines: SalesOrderLineItemFormState[];
+    draftNotes: string;
+    draftRequiredDate: string;
+    draftShippingAddress: string;
+    draftShippingCost: string;
+    draftTaxAmount: string;
+    isActionBusyId: string | null;
+    isCreating: boolean;
+    isLoadingDetail: boolean;
+    isLoadingOrders: boolean;
+    isSavingDraft: boolean;
+    isShipping: boolean;
+    items: SalesOrderLineItemFormState[];
+    listFilters: SalesListFilters;
+    requiredDate: string;
+    salesOrdersResponse: SalesOrdersListResponse;
+    selectedOrderDetail: SalesOrderDetailResponse | null;
+    selectedOrderId: string | null;
+    shipmentCarrier: string;
+    shipmentLines: ShipmentLineFormState[];
+    shipmentTrackingNumber: string;
+    shippingAddress: string;
+    shippingCost: string;
+    taxAmount: string;
+}
+
+type SalesOrdersPageAction =
+    | Partial<SalesOrdersPageState>
+    | ((state: SalesOrdersPageState) => Partial<SalesOrdersPageState>);
+
+const salesOrdersPageReducer = (
+    state: SalesOrdersPageState,
+    action: SalesOrdersPageAction
+): SalesOrdersPageState => {
+    const patch = typeof action === "function" ? action(state) : action;
+    return {
+        ...state,
+        ...patch,
+    };
+};
+
 const buildSalesOrdersQuery = (
     filters: SalesListFilters,
     page: number
@@ -136,46 +180,180 @@ export const Route = createFileRoute("/_dashboard/sales-orders")({
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: page coordinates multiple workflows (create/filter/detail/shipment) in one route component.
 function SalesOrdersPage() {
     const { customers, initialSalesOrders, products } = Route.useLoaderData();
+    const [state, patchState] = useReducer(salesOrdersPageReducer, {
+        cancelReason: "",
+        customerId: customers[0]?.id ?? "",
+        draftLines: [],
+        draftNotes: "",
+        draftRequiredDate: "",
+        draftShippingAddress: "",
+        draftShippingCost: "0",
+        draftTaxAmount: "0",
+        isActionBusyId: null,
+        isCreating: false,
+        isLoadingDetail: false,
+        isLoadingOrders: false,
+        isSavingDraft: false,
+        isShipping: false,
+        items: [createSalesLineItem(products[0]?.id ?? "")],
+        listFilters: emptyFilters,
+        requiredDate: "",
+        salesOrdersResponse: initialSalesOrders,
+        selectedOrderDetail: null,
+        selectedOrderId: null,
+        shipmentCarrier: "",
+        shipmentLines: [],
+        shipmentTrackingNumber: "",
+        shippingAddress: "",
+        shippingCost: "0",
+        taxAmount: "0",
+    });
+    const {
+        cancelReason,
+        customerId,
+        draftLines,
+        draftNotes,
+        draftRequiredDate,
+        draftShippingAddress,
+        draftShippingCost,
+        draftTaxAmount,
+        isActionBusyId,
+        isCreating,
+        isLoadingDetail,
+        isLoadingOrders,
+        isSavingDraft,
+        isShipping,
+        items,
+        listFilters,
+        requiredDate,
+        salesOrdersResponse,
+        selectedOrderDetail,
+        selectedOrderId,
+        shipmentCarrier,
+        shipmentLines,
+        shipmentTrackingNumber,
+        shippingAddress,
+        shippingCost,
+        taxAmount,
+    } = state;
 
-    const [customerId, setCustomerId] = useState(customers[0]?.id ?? "");
-    const [requiredDate, setRequiredDate] = useState("");
-    const [shippingAddress, setShippingAddress] = useState("");
-    const [taxAmount, setTaxAmount] = useState("0");
-    const [shippingCost, setShippingCost] = useState("0");
-    const [items, setItems] = useState<SalesOrderLineItemFormState[]>([
-        createSalesLineItem(products[0]?.id ?? ""),
-    ]);
-
-    const [listFilters, setListFilters] =
-        useState<SalesListFilters>(emptyFilters);
-    const [salesOrdersResponse, setSalesOrdersResponse] =
-        useState<SalesOrdersListResponse>(initialSalesOrders);
-    const [isLoadingOrders, setIsLoadingOrders] = useState(false);
-
-    const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
-    const [selectedOrderDetail, setSelectedOrderDetail] =
-        useState<SalesOrderDetailResponse | null>(null);
-    const [shipmentLines, setShipmentLines] = useState<ShipmentLineFormState[]>(
-        []
-    );
-    const [shipmentCarrier, setShipmentCarrier] = useState("");
-    const [shipmentTrackingNumber, setShipmentTrackingNumber] = useState("");
-    const [cancelReason, setCancelReason] = useState("");
-
-    const [draftNotes, setDraftNotes] = useState("");
-    const [draftRequiredDate, setDraftRequiredDate] = useState("");
-    const [draftShippingAddress, setDraftShippingAddress] = useState("");
-    const [draftTaxAmount, setDraftTaxAmount] = useState("0");
-    const [draftShippingCost, setDraftShippingCost] = useState("0");
-    const [draftLines, setDraftLines] = useState<SalesOrderLineItemFormState[]>(
-        []
-    );
-
-    const [isCreating, setIsCreating] = useState(false);
-    const [isLoadingDetail, setIsLoadingDetail] = useState(false);
-    const [isActionBusyId, setIsActionBusyId] = useState<string | null>(null);
-    const [isShipping, setIsShipping] = useState(false);
-    const [isSavingDraft, setIsSavingDraft] = useState(false);
+    const setCustomerId = (value: string): void => {
+        patchState({ customerId: value });
+    };
+    const setRequiredDate = (value: string): void => {
+        patchState({ requiredDate: value });
+    };
+    const setShippingAddress = (value: string): void => {
+        patchState({ shippingAddress: value });
+    };
+    const setTaxAmount = (value: string): void => {
+        patchState({ taxAmount: value });
+    };
+    const setShippingCost = (value: string): void => {
+        patchState({ shippingCost: value });
+    };
+    const setItems = (
+        next:
+            | SalesOrderLineItemFormState[]
+            | ((
+                  current: SalesOrderLineItemFormState[]
+              ) => SalesOrderLineItemFormState[])
+    ): void => {
+        patchState((currentState) => ({
+            items: typeof next === "function" ? next(currentState.items) : next,
+        }));
+    };
+    const setListFilters = (
+        next:
+            | SalesListFilters
+            | ((current: SalesListFilters) => SalesListFilters)
+    ): void => {
+        patchState((currentState) => ({
+            listFilters:
+                typeof next === "function"
+                    ? next(currentState.listFilters)
+                    : next,
+        }));
+    };
+    const setSalesOrdersResponse = (value: SalesOrdersListResponse): void => {
+        patchState({ salesOrdersResponse: value });
+    };
+    const setIsLoadingOrders = (value: boolean): void => {
+        patchState({ isLoadingOrders: value });
+    };
+    const setSelectedOrderId = (value: string | null): void => {
+        patchState({ selectedOrderId: value });
+    };
+    const setSelectedOrderDetail = (
+        value: SalesOrderDetailResponse | null
+    ): void => {
+        patchState({ selectedOrderDetail: value });
+    };
+    const setShipmentLines = (
+        next:
+            | ShipmentLineFormState[]
+            | ((current: ShipmentLineFormState[]) => ShipmentLineFormState[])
+    ): void => {
+        patchState((currentState) => ({
+            shipmentLines:
+                typeof next === "function"
+                    ? next(currentState.shipmentLines)
+                    : next,
+        }));
+    };
+    const setShipmentCarrier = (value: string): void => {
+        patchState({ shipmentCarrier: value });
+    };
+    const setShipmentTrackingNumber = (value: string): void => {
+        patchState({ shipmentTrackingNumber: value });
+    };
+    const setCancelReason = (value: string): void => {
+        patchState({ cancelReason: value });
+    };
+    const setDraftNotes = (value: string): void => {
+        patchState({ draftNotes: value });
+    };
+    const setDraftRequiredDate = (value: string): void => {
+        patchState({ draftRequiredDate: value });
+    };
+    const setDraftShippingAddress = (value: string): void => {
+        patchState({ draftShippingAddress: value });
+    };
+    const setDraftTaxAmount = (value: string): void => {
+        patchState({ draftTaxAmount: value });
+    };
+    const setDraftShippingCost = (value: string): void => {
+        patchState({ draftShippingCost: value });
+    };
+    const setDraftLines = (
+        next:
+            | SalesOrderLineItemFormState[]
+            | ((
+                  current: SalesOrderLineItemFormState[]
+              ) => SalesOrderLineItemFormState[])
+    ): void => {
+        patchState((currentState) => ({
+            draftLines:
+                typeof next === "function"
+                    ? next(currentState.draftLines)
+                    : next,
+        }));
+    };
+    const setIsCreating = (value: boolean): void => {
+        patchState({ isCreating: value });
+    };
+    const setIsLoadingDetail = (value: boolean): void => {
+        patchState({ isLoadingDetail: value });
+    };
+    const setIsActionBusyId = (value: string | null): void => {
+        patchState({ isActionBusyId: value });
+    };
+    const setIsShipping = (value: boolean): void => {
+        patchState({ isShipping: value });
+    };
+    const setIsSavingDraft = (value: boolean): void => {
+        patchState({ isSavingDraft: value });
+    };
 
     const subtotal = useMemo(
         () =>
