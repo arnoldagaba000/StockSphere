@@ -241,12 +241,12 @@ export const ROLE_HIERARCHY: Record<AppUserRole, number> = {
 };
 
 interface PermissionRule {
-    // Minimum role needed for additive permissions.
-    minRole?: AppUserRole;
     // Explicit allow-list for non-additive exceptions.
     allowedRoles?: readonly AppUserRole[];
     // True when extra business checks are required beyond role check.
     conditional?: boolean;
+    // Minimum role needed for additive permissions.
+    minRole?: AppUserRole;
 }
 
 /**
@@ -369,7 +369,7 @@ export const PERMISSION_RULES: Record<AppPermission, PermissionRule> = {
     [PERMISSIONS.INVENTORY_EXPIRY_DETAILS]: MIN("VIEWER"),
     [PERMISSIONS.INVENTORY_LOW_STOCK_ALERTS]: MIN("VIEWER"),
     [PERMISSIONS.INVENTORY_ADJUST_SMALL]: MIN("STAFF"),
-    [PERMISSIONS.INVENTORY_ADJUST_LARGE]: MIN("MANAGER", true),
+    [PERMISSIONS.INVENTORY_ADJUST_LARGE]: MIN("STAFF", true),
     [PERMISSIONS.INVENTORY_ADJUST_APPROVE]: MIN("MANAGER", true),
     [PERMISSIONS.INVENTORY_ADJUST_REJECT]: MIN("MANAGER", true),
     [PERMISSIONS.INVENTORY_TRANSFER_INITIATE]: MIN("STAFF"),

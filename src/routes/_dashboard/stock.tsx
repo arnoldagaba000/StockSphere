@@ -1314,8 +1314,16 @@ function StockPage() {
         successMessage: string
     ) => {
         try {
-            await work();
-            toast.success(successMessage);
+            const result = await work();
+            const resultMessage =
+                typeof result === "object" && result
+                    ? (result as { message?: unknown }).message
+                    : undefined;
+            const dynamicMessage =
+                typeof resultMessage === "string"
+                    ? resultMessage
+                    : successMessage;
+            toast.success(dynamicMessage);
             await refreshAll();
         } catch (error) {
             toast.error(

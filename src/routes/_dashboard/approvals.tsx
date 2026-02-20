@@ -15,6 +15,8 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { getApprovalInbox } from "@/features/approvals/get-approval-inbox";
+import { approveAdjustmentRequest } from "@/features/inventory/approve-adjustment-request";
+import { rejectAdjustmentRequest } from "@/features/inventory/reject-adjustment-request";
 import {
     approveProductChangeRequest,
     rejectProductChangeRequest,
@@ -24,7 +26,7 @@ import { rejectPurchaseOrder } from "@/features/purchases/reject-purchase-order"
 
 interface ApprovalsPageState {
     actionKey: string | null;
-    purchaseOrderRejectReason: string;
+    rejectionReason: string;
 }
 
 const approvalsPageReducer = (
@@ -45,7 +47,7 @@ function ApprovalsPage() {
     const data = Route.useLoaderData();
     const [state, setState] = useReducer(approvalsPageReducer, {
         actionKey: null,
-        purchaseOrderRejectReason: "",
+        rejectionReason: "",
     });
 
     const runAction = async (
@@ -73,23 +75,19 @@ function ApprovalsPage() {
                 <CardHeader>
                     <CardTitle>Approval Inbox</CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-3 md:grid-cols-2">
-                    <div className="rounded-md border p-3">
-                        <p className="font-medium text-sm">
-                            Pending Product Changes
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                            {data.pendingProductChanges.length} request(s)
-                        </p>
-                    </div>
-                    <div className="rounded-md border p-3">
-                        <p className="font-medium text-sm">
-                            Submitted Purchase Orders
-                        </p>
-                        <p className="text-muted-foreground text-xs">
-                            {data.submittedPurchaseOrders.length} request(s)
-                        </p>
-                    </div>
+                <CardContent className="grid gap-3 md:grid-cols-3">
+                    <SummaryCard
+                        label="Pending Product Changes"
+                        value={data.pendingProductChanges.length}
+                    />
+                    <SummaryCard
+                        label="Submitted Purchase Orders"
+                        value={data.submittedPurchaseOrders.length}
+                    />
+                    <SummaryCard
+                        label="Adjustment Approval Requests"
+                        value={data.pendingAdjustmentRequests.length}
+                    />
                 </CardContent>
             </Card>
 
@@ -112,14 +110,10 @@ function ApprovalsPage() {
                         </TableHeader>
                         <TableBody>
                             {data.pendingProductChanges.length === 0 ? (
-                                <TableRow>
-                                    <TableCell
-                                        className="text-center text-muted-foreground"
-                                        colSpan={5}
-                                    >
-                                        No pending product changes.
-                                    </TableCell>
-                                </TableRow>
+                                <EmptyRow
+                                    colSpan={5}
+                                    text="No pending product changes."
+                                />
                             ) : (
                                 data.pendingProductChanges.map((request) => {
                                     const approveKey = `product-approve-${request.id}`;
@@ -222,17 +216,164 @@ function ApprovalsPage() {
 
             <Card>
                 <CardHeader>
+                    <CardTitle>Inventory Adjustment Requests</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Created</TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Warehouse</TableHead>
+                                <TableHead>Requested By</TableHead>
+                                <TableHead>Difference</TableHead>
+                                <TableHead>Target Qty</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {data.pendingAdjustmentRequests.length === 0 ? (
+                                <EmptyRow
+                                    colSpan={7}
+                                    text="No pending adjustment requests."
+                                />
+                            ) : (
+                                data.pendingAdjustmentRequests.map(
+                                    (request) => {
+                                        const approveKey = `adjust-approve-${request.id}`;
+                                        const rejectKey = `adjust-reject-${request.id}`;
+                                        return (
+                                            <TableRow key={request.id}>
+                                                <TableCell>
+                                                    {new Date(
+                                                        request.createdAt
+                                                    ).toLocaleString()}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {
+                                                        request.stockItem
+                                                            .product.sku
+                                                    }{" "}
+                                                    -{" "}
+                                                    {
+                                                        request.stockItem
+                                                            .product.name
+                                                    }
+                                                </TableCell>
+                                                <TableCell>
+                                                    {
+                                                        request.stockItem
+                                                            .warehouse.code
+                                                    }{" "}
+                                                    -{" "}
+                                                    {
+                                                        request.stockItem
+                                                            .warehouse.name
+                                                    }
+                                                </TableCell>
+                                                <TableCell>
+                                                    {request.requestedBy.name ??
+                                                        request.requestedBy
+                                                            .email}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline">
+                                                        {
+                                                            request.requestedDifference
+                                                        }
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell>
+                                                    {request.countedQuantity}
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Button
+                                                            disabled={
+                                                                !data
+                                                                    .capabilities
+                                                                    .canResolveAdjustments ||
+                                                                state.actionKey ===
+                                                                    approveKey
+                                                            }
+                                                            onClick={() =>
+                                                                runAction(
+                                                                    approveKey,
+                                                                    () =>
+                                                                        approveAdjustmentRequest(
+                                                                            {
+                                                                                data: {
+                                                                                    requestId:
+                                                                                        request.id,
+                                                                                },
+                                                                            }
+                                                                        ),
+                                                                    "Adjustment request approved."
+                                                                )
+                                                            }
+                                                            size="sm"
+                                                            variant="outline"
+                                                        >
+                                                            Approve
+                                                        </Button>
+                                                        <Button
+                                                            disabled={
+                                                                !data
+                                                                    .capabilities
+                                                                    .canResolveAdjustments ||
+                                                                state.actionKey ===
+                                                                    rejectKey
+                                                            }
+                                                            onClick={() =>
+                                                                runAction(
+                                                                    rejectKey,
+                                                                    () =>
+                                                                        rejectAdjustmentRequest(
+                                                                            {
+                                                                                data: {
+                                                                                    reason:
+                                                                                        state.rejectionReason ||
+                                                                                        "Rejected from approval inbox",
+                                                                                    requestId:
+                                                                                        request.id,
+                                                                                },
+                                                                            }
+                                                                        ),
+                                                                    "Adjustment request rejected."
+                                                                )
+                                                            }
+                                                            size="sm"
+                                                            variant="destructive"
+                                                        >
+                                                            Reject
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    }
+                                )
+                            )}
+                        </TableBody>
+                    </Table>
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
                     <CardTitle>Submitted Purchase Orders</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     <Input
                         onChange={(event) =>
                             setState({
-                                purchaseOrderRejectReason: event.target.value,
+                                rejectionReason: event.target.value,
                             })
                         }
-                        placeholder="Optional rejection reason for purchase orders"
-                        value={state.purchaseOrderRejectReason}
+                        placeholder="Optional rejection reason"
+                        value={state.rejectionReason}
                     />
                     <Table>
                         <TableHeader>
@@ -249,14 +390,10 @@ function ApprovalsPage() {
                         </TableHeader>
                         <TableBody>
                             {data.submittedPurchaseOrders.length === 0 ? (
-                                <TableRow>
-                                    <TableCell
-                                        className="text-center text-muted-foreground"
-                                        colSpan={6}
-                                    >
-                                        No submitted purchase orders.
-                                    </TableCell>
-                                </TableRow>
+                                <EmptyRow
+                                    colSpan={6}
+                                    text="No submitted purchase orders."
+                                />
                             ) : (
                                 data.submittedPurchaseOrders.map((order) => {
                                     const approveKey = `po-approve-${order.id}`;
@@ -332,7 +469,7 @@ function ApprovalsPage() {
                                                                                 purchaseOrderId:
                                                                                     order.id,
                                                                                 reason:
-                                                                                    state.purchaseOrderRejectReason ||
+                                                                                    state.rejectionReason ||
                                                                                     undefined,
                                                                             },
                                                                         }
@@ -356,5 +493,27 @@ function ApprovalsPage() {
                 </CardContent>
             </Card>
         </section>
+    );
+}
+
+function SummaryCard({ label, value }: { label: string; value: number }) {
+    return (
+        <div className="rounded-md border p-3">
+            <p className="font-medium text-sm">{label}</p>
+            <p className="text-muted-foreground text-xs">{value} request(s)</p>
+        </div>
+    );
+}
+
+function EmptyRow({ colSpan, text }: { colSpan: number; text: string }) {
+    return (
+        <TableRow>
+            <TableCell
+                className="text-center text-muted-foreground"
+                colSpan={colSpan}
+            >
+                {text}
+            </TableCell>
+        </TableRow>
     );
 }

@@ -17,7 +17,7 @@ const toNullableNumber = (value: unknown): number | null => {
     return Number.isFinite(parsedValue) ? Math.round(parsedValue) : Number.NaN;
 };
 
-const APPROVER_ROLES = ["ADMIN", "SUPER_ADMIN"] as const;
+const APPROVER_ROLES = ["MANAGER", "ADMIN", "SUPER_ADMIN"] as const;
 type ApproverRole = (typeof APPROVER_ROLES)[number];
 
 const isApproverRole = (
@@ -240,7 +240,9 @@ export const approveProductChangeRequest = createServerFn({ method: "POST" })
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         if (!isApproverRole(context.session.user.role)) {
-            throw new Error("Only admins can approve change requests.");
+            throw new Error(
+                "Only managers and admins can approve change requests."
+            );
         }
 
         const request = await prisma.productChangeRequest.findUnique({
@@ -329,7 +331,9 @@ export const rejectProductChangeRequest = createServerFn({ method: "POST" })
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         if (!isApproverRole(context.session.user.role)) {
-            throw new Error("Only admins can reject change requests.");
+            throw new Error(
+                "Only managers and admins can reject change requests."
+            );
         }
 
         await prisma.productChangeRequest.update({

@@ -24,7 +24,7 @@ interface AuthorizableUser {
     role?: string | null;
 }
 
-const APPROVER_ROLES = ["ADMIN", "SUPER_ADMIN"] as const;
+const APPROVER_ROLES = ["MANAGER", "ADMIN", "SUPER_ADMIN"] as const;
 type ApproverRole = (typeof APPROVER_ROLES)[number];
 
 const isApproverRole = (
