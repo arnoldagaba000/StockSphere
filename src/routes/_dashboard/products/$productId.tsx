@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
@@ -88,6 +89,10 @@ interface EditProductPageState {
     isSubmitting: boolean;
     mediaAltText: string;
     mediaUrl: string;
+    quickVariantAttributeName: string;
+    quickVariantNamePrefix: string;
+    quickVariantSkuPrefix: string;
+    quickVariantValues: string;
     scheduleCostPrice: string;
     scheduleEffectiveAt: string;
     scheduleReason: string;
@@ -129,12 +134,39 @@ const hasPendingApprovalResponse = (response: unknown): boolean => {
 const parseVariantAttributes = (
     value: string
 ): Record<string, string> | null => {
-    if (!value) {
+    const trimmedValue = value.trim();
+    if (trimmedValue.length === 0) {
         return {};
     }
 
     try {
-        return JSON.parse(value) as Record<string, string>;
+        if (trimmedValue.startsWith("{")) {
+            return JSON.parse(trimmedValue) as Record<string, string>;
+        }
+
+        const pairs = trimmedValue
+            .split(",")
+            .map((part) => part.trim())
+            .filter(Boolean);
+        const attributes: Record<string, string> = {};
+
+        for (const pair of pairs) {
+            const delimiterIndex = pair.includes("=")
+                ? pair.indexOf("=")
+                : pair.indexOf(":");
+            if (delimiterIndex <= 0) {
+                return null;
+            }
+
+            const key = pair.slice(0, delimiterIndex).trim();
+            const rawValue = pair.slice(delimiterIndex + 1).trim();
+            if (!(key && rawValue)) {
+                return null;
+            }
+            attributes[key] = rawValue;
+        }
+
+        return attributes;
     } catch {
         return null;
     }
@@ -323,6 +355,10 @@ interface VariantsSectionProps {
     onRefresh: () => Promise<void>;
     onStatePatch: (patch: Partial<EditProductPageState>) => void;
     product: ProductEditLoaderData["product"];
+    quickVariantAttributeName: string;
+    quickVariantNamePrefix: string;
+    quickVariantSkuPrefix: string;
+    quickVariantValues: string;
     variantAttributes: string;
     variantName: string;
     variantSku: string;
@@ -333,50 +369,273 @@ const VariantsSection = ({
     onRefresh,
     onStatePatch,
     product,
+    quickVariantAttributeName,
+    quickVariantNamePrefix,
+    quickVariantSkuPrefix,
+    quickVariantValues,
     variantAttributes,
     variantName,
     variantSku,
     variants,
 }: VariantsSectionProps) => {
+    const attributeKeyPreview = quickVariantAttributeName.trim().toLowerCase();
+    const quickValues = Array.from(
+        new Set(
+            quickVariantValues
+                .split(",")
+                .map((value) => value.trim())
+                .filter(Boolean)
+        )
+    );
+    const namePrefixPreview = quickVariantNamePrefix.trim() || product.name;
+    const skuPrefixPreview = (
+        quickVariantSkuPrefix.trim() || product.sku
+    ).toUpperCase();
+
     return (
         <Card className={CARD_SHELL_CLASS}>
-            <CardHeader>
+            <CardHeader className="space-y-1">
                 <CardTitle>Variants</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Create variants in bulk or add a single custom variant.
+                </p>
             </CardHeader>
-            <CardContent className="space-y-3">
-                <div className="grid gap-3 md:grid-cols-4">
-                    <Input
-                        className={SECTION_INPUT_CLASS}
-                        onChange={(event) =>
-                            onStatePatch({ variantName: event.target.value })
-                        }
-                        placeholder="Variant name"
-                        value={variantName}
-                    />
-                    <Input
-                        className={SECTION_INPUT_CLASS}
-                        onChange={(event) =>
-                            onStatePatch({ variantSku: event.target.value })
-                        }
-                        placeholder="Variant SKU"
-                        value={variantSku}
-                    />
-                    <Input
-                        className={SECTION_INPUT_CLASS}
-                        onChange={(event) =>
-                            onStatePatch({
-                                variantAttributes: event.target.value,
-                            })
-                        }
-                        placeholder='Attributes JSON e.g {"size":"M"}'
-                        value={variantAttributes}
-                    />
+            <CardContent className="space-y-4">
+                <div className="space-y-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+                    <div className="space-y-1">
+                        <p className="font-medium text-sm">
+                            Quick Variant Builder
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Example: attribute `size` + values `S, M, L` creates
+                            three variants immediately.
+                        </p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="quick-variant-attribute">
+                                Attribute
+                            </Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="quick-variant-attribute"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        quickVariantAttributeName:
+                                            event.target.value,
+                                    })
+                                }
+                                placeholder="size, color, material..."
+                                value={quickVariantAttributeName}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="quick-variant-values">Values</Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="quick-variant-values"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        quickVariantValues: event.target.value,
+                                    })
+                                }
+                                placeholder="S, M, L"
+                                value={quickVariantValues}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="quick-variant-name-prefix">
+                                Name Prefix
+                            </Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="quick-variant-name-prefix"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        quickVariantNamePrefix:
+                                            event.target.value,
+                                    })
+                                }
+                                placeholder={`Default: ${product.name}`}
+                                value={quickVariantNamePrefix}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="quick-variant-sku-prefix">
+                                SKU Prefix
+                            </Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="quick-variant-sku-prefix"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        quickVariantSkuPrefix:
+                                            event.target.value.toUpperCase(),
+                                    })
+                                }
+                                placeholder={`Default: ${product.sku}`}
+                                value={quickVariantSkuPrefix}
+                            />
+                        </div>
+                    </div>
+
+                    {quickValues.length > 0 ? (
+                        <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                            <p className="mb-2 text-muted-foreground text-xs">
+                                Preview ({quickValues.length})
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {quickValues.map((value) => {
+                                    const skuSuffix = value
+                                        .toUpperCase()
+                                        .replace(/[^A-Z0-9]+/g, "-")
+                                        .replace(/^-+|-+$/g, "");
+                                    return (
+                                        <span
+                                            className="rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-xs"
+                                            key={value}
+                                        >
+                                            {namePrefixPreview} {value} ·{" "}
+                                            {skuPrefixPreview}-{skuSuffix}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : null}
+
                     <Button
+                        disabled={
+                            !attributeKeyPreview || quickValues.length === 0
+                        }
+                        onClick={async () => {
+                            const attributeKey = attributeKeyPreview;
+                            if (!attributeKey) {
+                                toast.error("Enter an attribute name.");
+                                return;
+                            }
+
+                            const values = quickValues;
+                            if (values.length === 0) {
+                                toast.error(
+                                    "Enter at least one variant value."
+                                );
+                                return;
+                            }
+
+                            const namePrefix = namePrefixPreview;
+                            const skuPrefix = skuPrefixPreview;
+
+                            let createdCount = 0;
+                            const failedValues: string[] = [];
+                            for (const value of values) {
+                                const skuSuffix = value
+                                    .toUpperCase()
+                                    .replace(/[^A-Z0-9]+/g, "-")
+                                    .replace(/^-+|-+$/g, "");
+                                const nextSku = `${skuPrefix}-${skuSuffix}`;
+                                const nextName = `${namePrefix} ${value}`;
+
+                                try {
+                                    await upsertProductVariant({
+                                        data: {
+                                            attributes: {
+                                                [attributeKey]: value,
+                                            },
+                                            barcode: null,
+                                            costPrice: null,
+                                            isActive: true,
+                                            name: nextName,
+                                            productId: product.id,
+                                            sellingPrice: null,
+                                            sku: nextSku,
+                                        },
+                                    });
+                                    createdCount += 1;
+                                } catch {
+                                    failedValues.push(value);
+                                }
+                            }
+
+                            if (createdCount > 0) {
+                                toast.success(
+                                    `Created ${createdCount} variants.`
+                                );
+                            }
+                            if (failedValues.length > 0) {
+                                toast.error(
+                                    `Failed: ${failedValues.join(", ")}`
+                                );
+                            }
+
+                            onStatePatch({
+                                quickVariantAttributeName: "",
+                                quickVariantNamePrefix: "",
+                                quickVariantSkuPrefix: "",
+                                quickVariantValues: "",
+                            });
+                            await onRefresh();
+                        }}
+                        variant="outline"
+                    >
+                        Create Variants From List
+                    </Button>
+                </div>
+                <div className="space-y-3 rounded-xl border border-border/70 p-3">
+                    <p className="font-medium text-sm">Manual Variant</p>
+                    <div className="grid gap-3 md:grid-cols-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="manual-variant-name">Name</Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="manual-variant-name"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        variantName: event.target.value,
+                                    })
+                                }
+                                placeholder="Variant name"
+                                value={variantName}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="manual-variant-sku">SKU</Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="manual-variant-sku"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        variantSku: event.target.value,
+                                    })
+                                }
+                                placeholder="Variant SKU"
+                                value={variantSku}
+                            />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor="manual-variant-attributes">
+                                Attributes
+                            </Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="manual-variant-attributes"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        variantAttributes: event.target.value,
+                                    })
+                                }
+                                placeholder="size=M, color=Red (or JSON)"
+                                value={variantAttributes}
+                            />
+                        </div>
+                    </div>
+                    <Button
+                        disabled={!(variantName.trim() && variantSku.trim())}
                         onClick={async () => {
                             const attributes =
                                 parseVariantAttributes(variantAttributes);
                             if (!attributes) {
-                                toast.error("Invalid variant attributes JSON.");
+                                toast.error("Invalid attributes format.");
                                 return;
                             }
                             await upsertProductVariant({
@@ -409,38 +668,65 @@ const VariantsSection = ({
                             <TableRow>
                                 <TableHead>Name</TableHead>
                                 <TableHead>SKU</TableHead>
+                                <TableHead>Attributes</TableHead>
                                 <TableHead className="text-right">
                                     Action
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {variants.map((variant) => (
-                                <TableRow key={variant.id}>
-                                    <TableCell>{variant.name}</TableCell>
-                                    <TableCell>{variant.sku}</TableCell>
-                                    <TableCell className="text-right">
-                                        <Button
-                                            onClick={async () => {
-                                                await deleteProductVariant({
-                                                    data: {
-                                                        id: variant.id,
-                                                        productId: product.id,
-                                                    },
-                                                });
-                                                toast.success(
-                                                    "Variant removed."
-                                                );
-                                                await onRefresh();
-                                            }}
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            Remove
-                                        </Button>
+                            {variants.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        className="text-muted-foreground"
+                                        colSpan={4}
+                                    >
+                                        No variants yet. Use Quick Variant
+                                        Builder above.
                                     </TableCell>
                                 </TableRow>
-                            ))}
+                            ) : (
+                                variants.map((variant) => (
+                                    <TableRow key={variant.id}>
+                                        <TableCell>{variant.name}</TableCell>
+                                        <TableCell>{variant.sku}</TableCell>
+                                        <TableCell className="text-muted-foreground text-xs">
+                                            {Object.entries(
+                                                (variant.attributes as Record<
+                                                    string,
+                                                    string
+                                                >) ?? {}
+                                            )
+                                                .map(
+                                                    ([key, value]) =>
+                                                        `${key}: ${value}`
+                                                )
+                                                .join(" • ") || "—"}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button
+                                                onClick={async () => {
+                                                    await deleteProductVariant({
+                                                        data: {
+                                                            id: variant.id,
+                                                            productId:
+                                                                product.id,
+                                                        },
+                                                    });
+                                                    toast.success(
+                                                        "Variant removed."
+                                                    );
+                                                    await onRefresh();
+                                                }}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Remove
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </div>
@@ -973,6 +1259,10 @@ function EditProductPage() {
         isSubmitting: false,
         mediaAltText: "",
         mediaUrl: "",
+        quickVariantAttributeName: "",
+        quickVariantNamePrefix: "",
+        quickVariantSkuPrefix: "",
+        quickVariantValues: "",
         scheduleCostPrice: "",
         scheduleEffectiveAt: "",
         scheduleReason: "",
@@ -987,6 +1277,10 @@ function EditProductPage() {
         isSubmitting,
         mediaAltText,
         mediaUrl,
+        quickVariantAttributeName,
+        quickVariantNamePrefix,
+        quickVariantSkuPrefix,
+        quickVariantValues,
         scheduleCostPrice,
         scheduleEffectiveAt,
         scheduleReason,
@@ -1066,6 +1360,10 @@ function EditProductPage() {
                 onRefresh={() => router.invalidate()}
                 onStatePatch={setState}
                 product={product}
+                quickVariantAttributeName={quickVariantAttributeName}
+                quickVariantNamePrefix={quickVariantNamePrefix}
+                quickVariantSkuPrefix={quickVariantSkuPrefix}
+                quickVariantValues={quickVariantValues}
                 variantAttributes={variantAttributes}
                 variantName={variantName}
                 variantSku={variantSku}
