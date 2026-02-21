@@ -32,6 +32,10 @@ export const getActivityLogs = createServerFn({ method: "GET" })
             context.session.user,
             PERMISSIONS.AUDIT_LOG_FILTER_BY_USER
         );
+        const canExport = canUser(
+            context.session.user,
+            PERMISSIONS.AUDIT_LOG_EXPORT
+        );
 
         if (!canViewOwn) {
             throw new Error(
@@ -92,6 +96,7 @@ export const getActivityLogs = createServerFn({ method: "GET" })
 
         return {
             capabilities: {
+                canExport,
                 canFilterByEntity,
                 canFilterByUser,
                 canViewAll,

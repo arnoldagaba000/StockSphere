@@ -1,6 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { SearchIcon } from "lucide-react";
+import {
+    FolderTreeIcon,
+    MapPinIcon,
+    PackageIcon,
+    SearchIcon,
+    ShoppingCartIcon,
+    StoreIcon,
+    TruckIcon,
+    UsersIcon,
+    WarehouseIcon,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +87,7 @@ const groupSearchItems = (items: SearchItem[]) => {
 const GlobalSearch = ({ role }: GlobalSearchProps) => {
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
+    const [shortcutLabel, setShortcutLabel] = useState("Ctrl K");
     const [queryText, setQueryText] = useState("");
     const searchItems = useMemo(() => buildSearchItems(role), [role]);
     const groupedSearchItems = useMemo(
@@ -84,18 +95,19 @@ const GlobalSearch = ({ role }: GlobalSearchProps) => {
         [searchItems]
     );
     const trimmedQueryText = queryText.trim();
+    const debouncedQueryText = useDebouncedValue(trimmedQueryText, 250);
 
     const { data: entityResults = [], isFetching: isEntitySearchLoading } =
         useQuery({
-            enabled: isOpen && trimmedQueryText.length >= 2,
+            enabled: isOpen && debouncedQueryText.length >= 2,
             queryFn: () =>
                 globalSearch({
                     data: {
                         limit: 5,
-                        query: trimmedQueryText,
+                        query: debouncedQueryText,
                     },
                 }),
-            queryKey: ["global-search", trimmedQueryText],
+            queryKey: ["global-search", debouncedQueryText],
             staleTime: 30 * 1000,
         });
     const groupedEntityResults = useMemo(
@@ -121,6 +133,13 @@ const GlobalSearch = ({ role }: GlobalSearchProps) => {
         };
     }, []);
 
+    useEffect(() => {
+        const isMacPlatform = window.navigator.platform
+            .toLowerCase()
+            .includes("mac");
+        setShortcutLabel(isMacPlatform ? "⌘ K" : "Ctrl K");
+    }, []);
+
     const handleSelectItem = (to: string) => {
         setIsOpen(false);
         setQueryText("");
@@ -143,7 +162,7 @@ const GlobalSearch = ({ role }: GlobalSearchProps) => {
                     <span className="hidden sm:inline">Search anything...</span>
                 </span>
                 <span className="hidden rounded-md border bg-background px-1.5 py-0.5 font-mono text-[10px] leading-none lg:inline-flex">
-                    Ctrl K
+                    {shortcutLabel}
                 </span>
             </Button>
 
@@ -166,7 +185,7 @@ const GlobalSearch = ({ role }: GlobalSearchProps) => {
                     />
                     <CommandList>
                         <CommandEmpty>
-                            {trimmedQueryText.length < 2
+                            {debouncedQueryText.length < 2
                                 ? "Type at least 2 characters to search entities."
                                 : "No matching results."}
                         </CommandEmpty>
@@ -201,7 +220,10 @@ const GlobalSearch = ({ role }: GlobalSearchProps) => {
                                         }
                                         value={`${item.label} ${item.description}`}
                                     >
-                                        <SearchIcon className="h-4 w-4 text-muted-foreground" />
+                                        <EntityIcon
+                                            className="h-4 w-4 text-muted-foreground"
+                                            group={item.group}
+                                        />
                                         <div className="flex min-w-0 flex-col">
                                             <span className="truncate">
                                                 {item.label}
@@ -232,6 +254,34 @@ const GlobalSearch = ({ role }: GlobalSearchProps) => {
     );
 };
 
+function EntityIcon({
+    className,
+    group,
+}: {
+    className?: string;
+    group: string;
+}) {
+    switch (group) {
+        case "Products":
+            return <PackageIcon className={className} />;
+        case "Categories":
+            return <FolderTreeIcon className={className} />;
+        case "Customers":
+            return <UsersIcon className={className} />;
+        case "Suppliers":
+            return <TruckIcon className={className} />;
+        case "Purchase Orders":
+        case "Sales Orders":
+            return <ShoppingCartIcon className={className} />;
+        case "Warehouses":
+            return <WarehouseIcon className={className} />;
+        case "Locations":
+            return <MapPinIcon className={className} />;
+        default:
+            return <StoreIcon className={className} />;
+    }
+}
+
 const groupEntityResults = (items: GlobalSearchItem[]) => {
     const groupedItems = new Map<string, GlobalSearchItem[]>();
 
@@ -241,6 +291,22 @@ const groupEntityResults = (items: GlobalSearchItem[]) => {
     }
 
     return [...groupedItems.entries()];
+};
+
+const useDebouncedValue = (value: string, delayMs: number): string => {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+
+    useEffect(() => {
+        const timeoutId = window.setTimeout(() => {
+            setDebouncedValue(value);
+        }, delayMs);
+
+        return () => {
+            window.clearTimeout(timeoutId);
+        };
+    }, [delayMs, value]);
+
+    return debouncedValue;
 };
 
 export default GlobalSearch;

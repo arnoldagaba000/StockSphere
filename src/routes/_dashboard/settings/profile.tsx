@@ -99,7 +99,14 @@ function ProfileSettingsPage() {
     };
 
     return (
-        <div className="space-y-4">
+        <section className="w-full min-w-0 max-w-4xl space-y-4">
+            <div className="space-y-1">
+                <h1 className="font-semibold text-2xl">Profile Settings</h1>
+                <p className="text-muted-foreground text-sm">
+                    Manage your display identity and avatar used across the
+                    platform.
+                </p>
+            </div>
             <Card className="border border-border/70">
                 <CardHeader className="pb-2">
                     <CardTitle className="flex items-center gap-2">
@@ -190,6 +197,6 @@ function ProfileSettingsPage() {
                     </Button>
                 </CardContent>
             </Card>
-        </div>
+        </section>
     );
 }

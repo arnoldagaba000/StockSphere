@@ -241,6 +241,80 @@ export const globalSearch = createServerFn({ method: "GET" })
               })
             : Promise.resolve([]);
 
+        const warehousePromise = canUser(
+            sessionUser,
+            PERMISSIONS.WAREHOUSES_VIEW_LIST
+        )
+            ? prisma.warehouse.findMany({
+                  orderBy: [{ updatedAt: "desc" }],
+                  select: {
+                      code: true,
+                      id: true,
+                      name: true,
+                  },
+                  take: searchLimit,
+                  where: {
+                      deletedAt: null,
+                      OR: [
+                          {
+                              code: {
+                                  contains: searchValue,
+                                  mode: "insensitive",
+                              },
+                          },
+                          {
+                              name: {
+                                  contains: searchValue,
+                                  mode: "insensitive",
+                              },
+                          },
+                      ],
+                  },
+              })
+            : Promise.resolve([]);
+
+        const locationPromise = canUser(sessionUser, PERMISSIONS.LOCATIONS_VIEW)
+            ? prisma.location.findMany({
+                  orderBy: [{ updatedAt: "desc" }],
+                  select: {
+                      code: true,
+                      id: true,
+                      name: true,
+                      warehouse: {
+                          select: {
+                              name: true,
+                          },
+                      },
+                  },
+                  take: searchLimit,
+                  where: {
+                      deletedAt: null,
+                      OR: [
+                          {
+                              code: {
+                                  contains: searchValue,
+                                  mode: "insensitive",
+                              },
+                          },
+                          {
+                              name: {
+                                  contains: searchValue,
+                                  mode: "insensitive",
+                              },
+                          },
+                          {
+                              warehouse: {
+                                  name: {
+                                      contains: searchValue,
+                                      mode: "insensitive",
+                                  },
+                              },
+                          },
+                      ],
+                  },
+              })
+            : Promise.resolve([]);
+
         const [
             products,
             categories,
@@ -248,6 +322,8 @@ export const globalSearch = createServerFn({ method: "GET" })
             suppliers,
             purchaseOrders,
             salesOrders,
+            warehouses,
+            locations,
         ] = await Promise.all([
             productPromise,
             categoryPromise,
@@ -255,6 +331,8 @@ export const globalSearch = createServerFn({ method: "GET" })
             supplierPromise,
             purchaseOrderPromise,
             salesOrderPromise,
+            warehousePromise,
+            locationPromise,
         ]);
 
         return [
@@ -275,14 +353,14 @@ export const globalSearch = createServerFn({ method: "GET" })
             ...customers.map((item) => ({
                 description: `Customer Code: ${item.code}`,
                 group: "Customers",
-                href: "/customers",
+                href: `/customers/${item.id}`,
                 id: `customer-${item.id}`,
                 label: item.name,
             })),
             ...suppliers.map((item) => ({
                 description: `Supplier Code: ${item.code}`,
                 group: "Suppliers",
-                href: "/suppliers",
+                href: `/suppliers/${item.id}`,
                 id: `supplier-${item.id}`,
                 label: item.name,
             })),
@@ -299,6 +377,20 @@ export const globalSearch = createServerFn({ method: "GET" })
                 href: "/sales-orders",
                 id: `so-${item.id}`,
                 label: item.orderNumber,
+            })),
+            ...warehouses.map((item) => ({
+                description: `Code: ${item.code}`,
+                group: "Warehouses",
+                href: `/warehouses/${item.id}`,
+                id: `warehouse-${item.id}`,
+                label: item.name,
+            })),
+            ...locations.map((item) => ({
+                description: `${item.warehouse.name} · ${item.code}`,
+                group: "Locations",
+                href: `/locations/${item.id}`,
+                id: `location-${item.id}`,
+                label: item.name,
             })),
         ] satisfies GlobalSearchItem[];
     });
