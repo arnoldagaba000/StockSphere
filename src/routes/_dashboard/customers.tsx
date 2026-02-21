@@ -37,21 +37,29 @@ import {
 import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 interface CustomerFormState {
+    address: string;
+    city: string;
     code: string;
+    country: string;
     creditLimit: string;
     email: string;
     name: string;
     paymentTerms: string;
     phone: string;
+    taxId: string;
 }
 
 const emptyForm: CustomerFormState = {
+    address: "",
+    city: "",
     code: "",
+    country: "",
     creditLimit: "",
     email: "",
     name: "",
     paymentTerms: "",
     phone: "",
+    taxId: "",
 };
 
 const toOptional = (value: string): string | null => {
@@ -216,6 +224,50 @@ const CustomerForm = ({
                         placeholder="0"
                         type="number"
                         value={form.creditLimit}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-tax-id">Tax ID</Label>
+                    <Input
+                        id="customer-tax-id"
+                        onChange={(event) =>
+                            onFormFieldChange("taxId", event.target.value)
+                        }
+                        placeholder="TIN/VAT number"
+                        value={form.taxId}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-country">Country</Label>
+                    <Input
+                        id="customer-country"
+                        onChange={(event) =>
+                            onFormFieldChange("country", event.target.value)
+                        }
+                        placeholder="Country"
+                        value={form.country}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-city">City</Label>
+                    <Input
+                        id="customer-city"
+                        onChange={(event) =>
+                            onFormFieldChange("city", event.target.value)
+                        }
+                        placeholder="City / Town"
+                        value={form.city}
+                    />
+                </div>
+                <div className="space-y-2 md:col-span-3">
+                    <Label htmlFor="customer-address">Address</Label>
+                    <Input
+                        id="customer-address"
+                        onChange={(event) =>
+                            onFormFieldChange("address", event.target.value)
+                        }
+                        placeholder="Street / Building / Box"
+                        value={form.address}
                     />
                 </div>
                 <div className="flex gap-2 md:col-span-3">
@@ -562,7 +614,10 @@ function CustomersPage() {
         setState({
             editingCustomerId: customer.id,
             form: {
+                address: customer.address ?? "",
+                city: customer.city ?? "",
                 code: customer.code,
+                country: customer.country ?? "",
                 creditLimit:
                     customer.creditLimit !== null
                         ? String(customer.creditLimit)
@@ -571,6 +626,7 @@ function CustomersPage() {
                 name: customer.name,
                 paymentTerms: customer.paymentTerms ?? "",
                 phone: customer.phone ?? "",
+                taxId: customer.taxId ?? "",
             },
         });
     };
@@ -591,16 +647,16 @@ function CustomersPage() {
             if (editingCustomerId) {
                 await updateCustomer({
                     data: {
-                        address: null,
-                        city: null,
-                        country: null,
+                        address: toOptional(form.address),
+                        city: toOptional(form.city),
+                        country: toOptional(form.country),
                         creditLimit: creditLimitValue,
                         customerId: editingCustomerId,
                         email: toOptional(form.email),
                         name: form.name.trim(),
                         paymentTerms: toOptional(form.paymentTerms),
                         phone: toOptional(form.phone),
-                        taxId: null,
+                        taxId: toOptional(form.taxId),
                     },
                 });
                 toast.success("Customer updated.");
@@ -613,17 +669,17 @@ function CustomersPage() {
 
                 await createCustomer({
                     data: {
-                        address: null,
-                        city: null,
+                        address: toOptional(form.address),
+                        city: toOptional(form.city),
                         code: form.code.trim().toUpperCase(),
-                        country: null,
+                        country: toOptional(form.country),
                         creditLimit: creditLimitValue,
                         email: toOptional(form.email),
                         isActive: true,
                         name: form.name.trim(),
                         paymentTerms: toOptional(form.paymentTerms),
                         phone: toOptional(form.phone),
-                        taxId: null,
+                        taxId: toOptional(form.taxId),
                     },
                 });
                 toast.success("Customer created.");

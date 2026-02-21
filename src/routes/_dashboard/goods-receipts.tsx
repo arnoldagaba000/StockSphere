@@ -22,6 +22,7 @@ import {
     TableRow,
 } from "@/components/ui/table";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
+import { getLocations } from "@/features/location/get-locations";
 import { getGoodsReceipts } from "@/features/purchases/get-goods-receipts";
 import { getPurchaseOrderDetail } from "@/features/purchases/get-purchase-order-detail";
 import { getPurchaseOrders } from "@/features/purchases/get-purchase-orders";
@@ -31,6 +32,7 @@ import { voidGoodsReceipt } from "@/features/purchases/void-goods-receipt";
 interface ReceiptLineInput {
     batchNumber: string;
     expiryDate: string;
+    locationId: string;
     productId: string;
     quantity: string;
     serialNumber: string;
@@ -45,12 +47,14 @@ const createEmptyLineInput = (
 ): ReceiptLineInput => ({
     batchNumber: "",
     expiryDate: "",
+    locationId: "",
     productId,
     quantity: quantity > 0 ? String(quantity) : "",
     serialNumber: "",
 });
 
 type GoodsReceiptList = Awaited<ReturnType<typeof getGoodsReceipts>>;
+type LocationList = Awaited<ReturnType<typeof getLocations>>;
 type PurchaseOrderList = Awaited<ReturnType<typeof getPurchaseOrders>>;
 type WarehouseList = Awaited<ReturnType<typeof getWarehouses>>;
 
@@ -59,7 +63,9 @@ interface GoodsReceiptsState {
     isSubmitting: boolean;
     isVoidingId: string | null;
     lineInputs: ReceiptLineInputMap;
+    notes: string;
     purchaseOrderId: string;
+    receivedDate: string;
     selectedOrderDetail: PurchaseOrderDetail | null;
     voidReason: string;
     warehouseId: string;
@@ -107,6 +113,8 @@ interface PostGoodsReceiptCardProps {
     isLoadingOrder: boolean;
     isSubmitting: boolean;
     lineInputs: ReceiptLineInputMap;
+    locations: LocationList;
+    notes: string;
     onPatchState: (patch: Partial<GoodsReceiptsState>) => void;
     onReceive: () => void;
     onUpdateLineInput: (
@@ -115,6 +123,7 @@ interface PostGoodsReceiptCardProps {
     ) => void;
     purchaseOrderId: string;
     receivableOrders: PurchaseOrderList;
+    receivedDate: string;
     selectedOrderDetail: PurchaseOrderDetail | null;
     warehouseId: string;
     warehouses: WarehouseList;
@@ -124,6 +133,8 @@ const PostGoodsReceiptCard = ({
     isLoadingOrder,
     isSubmitting,
     lineInputs,
+    locations,
+    notes,
     onPatchState,
     onReceive,
     onUpdateLineInput,
@@ -132,6 +143,7 @@ const PostGoodsReceiptCard = ({
     selectedOrderDetail,
     warehouseId,
     warehouses,
+    receivedDate,
 }: PostGoodsReceiptCardProps) => {
     return (
         <Card>
@@ -195,6 +207,32 @@ const PostGoodsReceiptCard = ({
                             </SelectContent>
                         </Select>
                     </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="receipt-date">Receipt Date</Label>
+                        <Input
+                            id="receipt-date"
+                            onChange={(event) =>
+                                onPatchState({
+                                    receivedDate: event.target.value,
+                                })
+                            }
+                            type="date"
+                            value={receivedDate}
+                        />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="receipt-notes">Notes (optional)</Label>
+                        <Input
+                            id="receipt-notes"
+                            onChange={(event) =>
+                                onPatchState({
+                                    notes: event.target.value,
+                                })
+                            }
+                            placeholder="Reference number, transport, delivery notes..."
+                            value={notes}
+                        />
+                    </div>
                 </div>
 
                 {isLoadingOrder ? (
@@ -211,6 +249,7 @@ const PostGoodsReceiptCard = ({
                                 <TableHead>SKU</TableHead>
                                 <TableHead>Outstanding</TableHead>
                                 <TableHead>Receive Qty</TableHead>
+                                <TableHead>Location</TableHead>
                                 <TableHead>Batch</TableHead>
                                 <TableHead>Serial</TableHead>
                                 <TableHead>Expiry</TableHead>
@@ -250,6 +289,48 @@ const PostGoodsReceiptCard = ({
                                                 type="number"
                                                 value={input.quantity}
                                             />
+                                        </TableCell>
+                                        <TableCell>
+                                            <Select
+                                                onValueChange={(value) =>
+                                                    onUpdateLineInput(
+                                                        item.productId,
+                                                        {
+                                                            locationId:
+                                                                value ?? "",
+                                                        }
+                                                    )
+                                                }
+                                                value={input.locationId}
+                                            >
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Optional location" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {locations
+                                                        .filter(
+                                                            (location) =>
+                                                                location
+                                                                    .warehouse
+                                                                    .id ===
+                                                                warehouseId
+                                                        )
+                                                        .map((location) => (
+                                                            <SelectItem
+                                                                key={
+                                                                    location.id
+                                                                }
+                                                                value={
+                                                                    location.id
+                                                                }
+                                                            >
+                                                                {location.code}{" "}
+                                                                -{" "}
+                                                                {location.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                </SelectContent>
+                                            </Select>
                                         </TableCell>
                                         <TableCell>
                                             <Input
@@ -407,19 +488,22 @@ const ReceiptHistoryCard = ({
 export const Route = createFileRoute("/_dashboard/goods-receipts")({
     component: GoodsReceiptsPage,
     loader: async () => {
-        const [receipts, purchaseOrders, warehouses] = await Promise.all([
-            getGoodsReceipts({ data: {} }),
-            getPurchaseOrders({ data: {} }),
-            getWarehouses({ data: {} }),
-        ]);
+        const [locations, receipts, purchaseOrders, warehouses] =
+            await Promise.all([
+                getLocations({ data: {} }),
+                getGoodsReceipts({ data: {} }),
+                getPurchaseOrders({ data: {} }),
+                getWarehouses({ data: {} }),
+            ]);
 
-        return { purchaseOrders, receipts, warehouses };
+        return { locations, purchaseOrders, receipts, warehouses };
     },
 });
 
 function GoodsReceiptsPage() {
     const router = useRouter();
-    const { purchaseOrders, receipts, warehouses } = Route.useLoaderData();
+    const { locations, purchaseOrders, receipts, warehouses } =
+        Route.useLoaderData();
 
     const receivableOrders = useMemo(
         () =>
@@ -436,7 +520,9 @@ function GoodsReceiptsPage() {
         isSubmitting: false,
         isVoidingId: null,
         lineInputs: {},
+        notes: "",
         purchaseOrderId: receivableOrders[0]?.id ?? "",
+        receivedDate: "",
         selectedOrderDetail: null,
         voidReason: "",
         warehouseId: warehouses[0]?.id ?? "",
@@ -446,7 +532,9 @@ function GoodsReceiptsPage() {
         isSubmitting,
         isVoidingId,
         lineInputs,
+        notes,
         purchaseOrderId,
+        receivedDate,
         selectedOrderDetail,
         voidReason,
         warehouseId,
@@ -540,10 +628,10 @@ function GoodsReceiptsPage() {
                     expiryDate: input?.expiryDate
                         ? new Date(input.expiryDate)
                         : null,
+                    locationId: input?.locationId?.trim() || null,
                     productId: orderItem.productId,
                     quantity,
                     serialNumber: input?.serialNumber?.trim() || null,
-                    unitCost: null,
                     warehouseId,
                 };
             })
@@ -559,13 +647,16 @@ function GoodsReceiptsPage() {
             await receiveGoods({
                 data: {
                     items: receiptItems,
-                    notes: null,
+                    notes: notes.trim().length > 0 ? notes.trim() : null,
                     purchaseOrderId: selectedOrderDetail.id,
+                    receivedDate: receivedDate
+                        ? new Date(receivedDate)
+                        : new Date(),
                 },
             });
             toast.success("Goods receipt posted.");
             await refresh();
-            patchState({ isSubmitting: false });
+            patchState({ isSubmitting: false, notes: "", receivedDate: "" });
         } catch (error) {
             patchState({ isSubmitting: false });
             toast.error(
@@ -614,6 +705,8 @@ function GoodsReceiptsPage() {
                 isLoadingOrder={isLoadingOrder}
                 isSubmitting={isSubmitting}
                 lineInputs={lineInputs}
+                locations={locations}
+                notes={notes}
                 onPatchState={patchState}
                 onReceive={() => {
                     handleReceive().catch(() => undefined);
@@ -621,6 +714,7 @@ function GoodsReceiptsPage() {
                 onUpdateLineInput={updateLineInput}
                 purchaseOrderId={purchaseOrderId}
                 receivableOrders={receivableOrders}
+                receivedDate={receivedDate}
                 selectedOrderDetail={selectedOrderDetail}
                 warehouseId={warehouseId}
                 warehouses={warehouses}

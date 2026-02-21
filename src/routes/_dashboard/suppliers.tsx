@@ -38,21 +38,29 @@ import {
 type SupplierRecord = Awaited<ReturnType<typeof getSuppliers>>[number];
 
 interface SupplierFormState {
+    address: string;
+    city: string;
     code: string;
     contactPerson: string;
+    country: string;
     email: string;
     name: string;
     paymentTerms: string;
     phone: string;
+    taxId: string;
 }
 
 const emptySupplierForm: SupplierFormState = {
+    address: "",
+    city: "",
     code: "",
     contactPerson: "",
+    country: "",
     email: "",
     name: "",
     paymentTerms: "",
     phone: "",
+    taxId: "",
 };
 
 const toOptionalValue = (value: string): string | null => {
@@ -208,6 +216,50 @@ const SupplierFormCard = ({
                         }
                         placeholder="Net 30"
                         value={form.paymentTerms}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-tax-id">Tax ID</Label>
+                    <Input
+                        id="supplier-tax-id"
+                        onChange={(event) =>
+                            onUpdateFormField("taxId", event.target.value)
+                        }
+                        placeholder="TIN/VAT number"
+                        value={form.taxId}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-country">Country</Label>
+                    <Input
+                        id="supplier-country"
+                        onChange={(event) =>
+                            onUpdateFormField("country", event.target.value)
+                        }
+                        placeholder="Country"
+                        value={form.country}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-city">City</Label>
+                    <Input
+                        id="supplier-city"
+                        onChange={(event) =>
+                            onUpdateFormField("city", event.target.value)
+                        }
+                        placeholder="City / Town"
+                        value={form.city}
+                    />
+                </div>
+                <div className="space-y-2 md:col-span-3">
+                    <Label htmlFor="supplier-address">Address</Label>
+                    <Input
+                        id="supplier-address"
+                        onChange={(event) =>
+                            onUpdateFormField("address", event.target.value)
+                        }
+                        placeholder="Street / Building / Box"
+                        value={form.address}
                     />
                 </div>
                 <div className="flex gap-2 md:col-span-3">
@@ -473,12 +525,16 @@ function SuppliersPage() {
         patchState({
             editingSupplierId: supplier.id,
             form: {
+                address: supplier.address ?? "",
+                city: supplier.city ?? "",
                 code: supplier.code,
                 contactPerson: supplier.contactPerson ?? "",
+                country: supplier.country ?? "",
                 email: supplier.email ?? "",
                 name: supplier.name,
                 paymentTerms: supplier.paymentTerms ?? "",
                 phone: supplier.phone ?? "",
+                taxId: supplier.taxId ?? "",
             },
         });
     };
@@ -495,26 +551,30 @@ function SuppliersPage() {
     };
 
     const createSupplierInput = () => ({
-        address: null,
-        city: null,
+        address: toOptionalValue(form.address),
+        city: toOptionalValue(form.city),
         code: form.code.trim().toUpperCase(),
         contactPerson: toOptionalValue(form.contactPerson),
-        country: null,
+        country: toOptionalValue(form.country),
         email: toOptionalValue(form.email),
         isActive: true,
         name: form.name.trim(),
         paymentTerms: toOptionalValue(form.paymentTerms),
         phone: toOptionalValue(form.phone),
-        taxId: null,
+        taxId: toOptionalValue(form.taxId),
     });
 
     const updateSupplierInput = (supplierId: string) => ({
+        address: toOptionalValue(form.address),
+        city: toOptionalValue(form.city),
         contactPerson: toOptionalValue(form.contactPerson),
+        country: toOptionalValue(form.country),
         email: toOptionalValue(form.email),
         name: form.name.trim(),
         paymentTerms: toOptionalValue(form.paymentTerms),
         phone: toOptionalValue(form.phone),
         supplierId,
+        taxId: toOptionalValue(form.taxId),
     });
 
     const saveExistingSupplier = async (supplierId: string) => {

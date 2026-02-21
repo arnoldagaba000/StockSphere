@@ -38,15 +38,19 @@ import { getFinancialSettings } from "@/features/settings/get-financial-settings
 
 interface PurchaseOrderFormItem {
     id: string;
+    notes: string;
     productId: string;
     quantity: string;
+    taxRate: string;
     unitPrice: string;
 }
 
 const createLineItem = (productId: string): PurchaseOrderFormItem => ({
     id: crypto.randomUUID(),
+    notes: "",
     productId,
     quantity: "",
+    taxRate: "0",
     unitPrice: "",
 });
 
@@ -66,6 +70,7 @@ interface PurchaseOrdersPageState {
     isSaving: boolean;
     isTransitioningId: string | null;
     items: PurchaseOrderFormItem[];
+    notes: string;
     selectedOrderDetail: PurchaseOrderDetail | null;
     selectedOrderId: string | null;
     shippingCost: string;
@@ -182,6 +187,7 @@ interface CreatePurchaseOrderSectionProps {
     expectedDate: string;
     isSaving: boolean;
     items: PurchaseOrderFormItem[];
+    notes: string;
     onAddLineItem: () => void;
     onCreatePurchaseOrder: () => void;
     onPatchState: (patch: Partial<PurchaseOrdersPageState>) => void;
@@ -216,6 +222,7 @@ const CreatePurchaseOrderSection = ({
     suppliers,
     taxAmount,
     total,
+    notes,
 }: CreatePurchaseOrderSectionProps) => {
     return (
         <Card>
@@ -290,12 +297,25 @@ const CreatePurchaseOrderSection = ({
                             value={shippingCost}
                         />
                     </div>
+                    <div className="space-y-2 md:col-span-3">
+                        <Label htmlFor="po-notes">Notes (optional)</Label>
+                        <Input
+                            id="po-notes"
+                            onChange={(event) =>
+                                onPatchState({
+                                    notes: event.target.value,
+                                })
+                            }
+                            placeholder="Delivery instructions, commercial notes..."
+                            value={notes}
+                        />
+                    </div>
                 </div>
 
                 <div className="space-y-3">
                     {items.map((item, index) => (
                         <div
-                            className="grid gap-3 md:grid-cols-4"
+                            className="grid gap-3 md:grid-cols-5"
                             key={item.id}
                         >
                             <Select
@@ -340,6 +360,18 @@ const CreatePurchaseOrderSection = ({
                                 type="number"
                                 value={item.unitPrice}
                             />
+                            <Input
+                                max={100}
+                                min={0}
+                                onChange={(event) =>
+                                    onUpdateItem(index, {
+                                        taxRate: event.target.value,
+                                    })
+                                }
+                                placeholder="Tax %"
+                                type="number"
+                                value={item.taxRate}
+                            />
                             <Button
                                 disabled={items.length <= 1}
                                 onClick={() => onRemoveLineItem(index)}
@@ -348,6 +380,16 @@ const CreatePurchaseOrderSection = ({
                             >
                                 Remove
                             </Button>
+                            <Input
+                                className="md:col-span-5"
+                                onChange={(event) =>
+                                    onUpdateItem(index, {
+                                        notes: event.target.value,
+                                    })
+                                }
+                                placeholder="Line notes (optional)"
+                                value={item.notes}
+                            />
                         </div>
                     ))}
                 </div>
@@ -721,6 +763,7 @@ function PurchaseOrdersPage() {
         shippingCost: "0",
         supplierId: suppliers[0]?.id ?? "",
         taxAmount: "0",
+        notes: "",
     });
     const {
         cancelReason,
@@ -734,6 +777,7 @@ function PurchaseOrdersPage() {
         shippingCost,
         supplierId,
         taxAmount,
+        notes,
     } = state;
 
     const subtotal = useMemo(
@@ -804,8 +848,10 @@ function PurchaseOrdersPage() {
     const handleCreatePurchaseOrder = async () => {
         const normalizedItems = items
             .map((item) => ({
+                notes: item.notes.trim().length > 0 ? item.notes.trim() : null,
                 productId: item.productId,
                 quantity: Number(item.quantity),
+                taxRate: Number(item.taxRate) || 0,
                 unitPrice: Number(item.unitPrice),
             }))
             .filter((item) => item.productId && item.quantity > 0);
@@ -825,13 +871,13 @@ function PurchaseOrdersPage() {
                 data: {
                     expectedDate: expectedDateValue,
                     items: normalizedItems.map((item) => ({
-                        notes: null,
+                        notes: item.notes,
                         productId: item.productId,
                         quantity: item.quantity,
-                        taxRate: 0,
+                        taxRate: item.taxRate,
                         unitPrice: item.unitPrice,
                     })),
-                    notes: null,
+                    notes: notes.trim().length > 0 ? notes.trim() : null,
                     shippingCost: shippingCostValue,
                     supplierId,
                     taxAmount: taxAmountValue,
@@ -841,6 +887,7 @@ function PurchaseOrdersPage() {
             patchState({
                 expectedDate: "",
                 items: [createLineItem(firstProductId)],
+                notes: "",
                 shippingCost: "0",
                 taxAmount: "0",
             });
@@ -913,6 +960,7 @@ function PurchaseOrdersPage() {
                 expectedDate={expectedDate}
                 isSaving={isSaving}
                 items={items}
+                notes={notes}
                 onAddLineItem={addLineItem}
                 onCreatePurchaseOrder={() => {
                     handleCreatePurchaseOrder().catch(() => undefined);

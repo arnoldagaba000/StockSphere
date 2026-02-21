@@ -828,15 +828,17 @@ function LocationsPage() {
 
     const loadLocations = useCallback(
         async (nextWarehouseId?: string) => {
+            const locationsQuery = {
+                archivedOnly: recordsView === "archived",
+                includeInactive: true,
+                warehouseId: nextWarehouseId || undefined,
+            };
+
             try {
                 await Promise.resolve();
                 patchState({ isLoadingLocations: true });
                 const result = await getLocations({
-                    data: {
-                        archivedOnly: recordsView === "archived",
-                        includeInactive: true,
-                        warehouseId: nextWarehouseId || undefined,
-                    },
+                    data: locationsQuery,
                 });
                 patchState({
                     isLoadingLocations: false,
