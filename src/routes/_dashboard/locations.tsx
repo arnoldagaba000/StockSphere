@@ -47,6 +47,11 @@ const LOCATION_TYPES: LocationType[] = [
     "STAGING",
 ];
 
+const SHORT_ID_LENGTH = 8;
+
+const formatEntityLabel = (name: string, id: string): string =>
+    `${name} · ${id.slice(0, SHORT_ID_LENGTH)}`;
+
 interface LocationsPageState {
     code: string;
     isActive: boolean;
@@ -121,7 +126,11 @@ const CreateLocationCard = ({
                                         key={warehouse.id}
                                         value={warehouse.id}
                                     >
-                                        {warehouse.code} - {warehouse.name}
+                                        {formatEntityLabel(
+                                            warehouse.name,
+                                            warehouse.id
+                                        )}{" "}
+                                        ({warehouse.code})
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -269,7 +278,11 @@ const LocationListCard = ({
                                     key={warehouse.id}
                                     value={warehouse.id}
                                 >
-                                    {warehouse.code} - {warehouse.name}
+                                    {formatEntityLabel(
+                                        warehouse.name,
+                                        warehouse.id
+                                    )}{" "}
+                                    ({warehouse.code})
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -316,10 +329,31 @@ const LocationListCard = ({
                             ? paginatedLocations.map((location) => (
                                   <TableRow key={location.id}>
                                       <TableCell>
-                                          {location.warehouse.code}
+                                          <div className="flex flex-col gap-0.5">
+                                              <span>
+                                                  {location.warehouse.name}
+                                              </span>
+                                              <span className="font-mono text-muted-foreground text-xs">
+                                                  {location.warehouse.id.slice(
+                                                      0,
+                                                      SHORT_ID_LENGTH
+                                                  )}{" "}
+                                                  ({location.warehouse.code})
+                                              </span>
+                                          </div>
                                       </TableCell>
                                       <TableCell>{location.code}</TableCell>
-                                      <TableCell>{location.name}</TableCell>
+                                      <TableCell>
+                                          <div className="flex flex-col gap-0.5">
+                                              <span>{location.name}</span>
+                                              <span className="font-mono text-muted-foreground text-xs">
+                                                  {location.id.slice(
+                                                      0,
+                                                      SHORT_ID_LENGTH
+                                                  )}
+                                              </span>
+                                          </div>
+                                      </TableCell>
                                       <TableCell>{location.type}</TableCell>
                                       <TableCell>
                                           {location.isActive
