@@ -46,7 +46,7 @@ const UserManagementTable = ({
     const canImpersonate = currentUserRole === "SUPER_ADMIN";
 
     return (
-        <Table className="min-w-220">
+        <Table className="min-w-[980px]">
             <TableHeader className="bg-muted/40">
                 <TableRow>
                     <TableHead className="px-4 py-3">Name</TableHead>
@@ -70,10 +70,10 @@ const UserManagementTable = ({
 
                     return (
                         <TableRow key={user.id}>
-                            <TableCell className="px-4 py-3 font-medium">
+                            <TableCell className="max-w-52 truncate px-4 py-3 font-medium">
                                 {user.name}
                             </TableCell>
-                            <TableCell className="px-4 py-3 text-muted-foreground">
+                            <TableCell className="max-w-72 truncate px-4 py-3 text-muted-foreground">
                                 {user.email}
                             </TableCell>
                             <TableCell className="px-4 py-3">
