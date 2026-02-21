@@ -40,6 +40,19 @@ export const getSupplier = createServerFn({ method: "GET" })
                     take: 10,
                     where: { deletedAt: null },
                 },
+                products: {
+                    include: {
+                        product: {
+                            select: {
+                                id: true,
+                                isActive: true,
+                                name: true,
+                                sku: true,
+                            },
+                        },
+                    },
+                    orderBy: [{ isPreferred: "desc" }, { createdAt: "asc" }],
+                },
             },
         });
 
@@ -47,5 +60,12 @@ export const getSupplier = createServerFn({ method: "GET" })
             throw new Error("Supplier not found.");
         }
 
-        return supplier;
+        return {
+            ...supplier,
+            products: supplier.products.map((productLink) => ({
+                ...productLink,
+                minimumOrderQty:
+                    productLink.minimumOrderQty?.toString() ?? null,
+            })),
+        };
     });
