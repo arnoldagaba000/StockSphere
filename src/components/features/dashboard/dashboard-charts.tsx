@@ -5,34 +5,8 @@ import {
     ArrowRightIcon,
     ArrowUpIcon,
 } from "lucide-react";
-import {
-    Area,
-    AreaChart,
-    CartesianGrid,
-    Cell,
-    Pie,
-    PieChart,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-
-const CHART_DONUT_COLORS = [
-    "var(--chart-1)",
-    "var(--chart-2)",
-    "var(--chart-3)",
-    "var(--chart-4)",
-] as const;
-const CHART_TREND_STROKE = "var(--primary)";
-const CHART_AXIS_TICK = "var(--foreground)";
-const CHART_GRID = "var(--border)";
-const CHART_TOOLTIP_BG = "var(--popover)";
-const CHART_TOOLTIP_BORDER = "var(--border)";
-const CHART_TOOLTIP_LABEL = "var(--foreground)";
-const CHART_TOOLTIP_TEXT = "var(--foreground)";
 
 interface QueueSlice {
     key: string;
@@ -52,6 +26,13 @@ interface DashboardChartsSectionProps {
     stockValueDeltaMinor: number;
     trendData: TrendPoint[];
 }
+
+const CHART_DONUT_COLORS = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+] as const;
 
 const toDeltaTone = (value: number): "negative" | "neutral" | "positive" => {
     if (value > 0) {
@@ -99,6 +80,27 @@ function TrendIcon({
     return <ArrowRightIcon className={className} />;
 }
 
+const buildTrendPath = (trendData: TrendPoint[]): string => {
+    if (trendData.length <= 1) {
+        return "";
+    }
+
+    const width = 100;
+    const height = 100;
+    const values = trendData.map((point) => point.valueMajor);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const range = Math.max(1, max - min);
+
+    return trendData
+        .map((point, index) => {
+            const x = (index / (trendData.length - 1)) * width;
+            const y = height - ((point.valueMajor - min) / range) * height;
+            return `${index === 0 ? "M" : "L"}${x.toFixed(2)} ${y.toFixed(2)}`;
+        })
+        .join(" ");
+};
+
 function TrendChartCard({
     currencyCode,
     stockValueDeltaMinor,
@@ -108,6 +110,8 @@ function TrendChartCard({
     stockValueDeltaMinor: number;
     trendData: TrendPoint[];
 }) {
+    const trendPath = buildTrendPath(trendData);
+
     return (
         <Card className="xl:col-span-2">
             <CardHeader className="pb-2">
@@ -123,70 +127,66 @@ function TrendChartCard({
                         here automatically.
                     </div>
                 ) : (
-                    <div className="h-72 w-full min-w-0 rounded-md border border-border/70 bg-background/65 p-2">
-                        <ResponsiveContainer height="100%" width="100%">
-                            <AreaChart data={trendData}>
-                                <defs>
-                                    <linearGradient
-                                        id="dashboardTrendGradient"
-                                        x1="0"
-                                        x2="0"
-                                        y1="0"
-                                        y2="1"
-                                    >
-                                        <stop
-                                            offset="5%"
-                                            stopColor={CHART_TREND_STROKE}
-                                            stopOpacity={0.36}
-                                        />
-                                        <stop
-                                            offset="95%"
-                                            stopColor={CHART_TREND_STROKE}
-                                            stopOpacity={0}
-                                        />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid
-                                    stroke={CHART_GRID}
-                                    strokeDasharray="3 3"
+                    <div className="h-72 w-full min-w-0 rounded-md border border-border/70 bg-background/65 p-3">
+                        <svg
+                            aria-label="Inventory value trend"
+                            className="h-full w-full"
+                            role="img"
+                            viewBox="0 0 100 100"
+                        >
+                            <line
+                                stroke="var(--border)"
+                                strokeWidth="0.5"
+                                x1="0"
+                                x2="100"
+                                y1="25"
+                                y2="25"
+                            />
+                            <line
+                                stroke="var(--border)"
+                                strokeWidth="0.5"
+                                x1="0"
+                                x2="100"
+                                y1="50"
+                                y2="50"
+                            />
+                            <line
+                                stroke="var(--border)"
+                                strokeWidth="0.5"
+                                x1="0"
+                                x2="100"
+                                y1="75"
+                                y2="75"
+                            />
+                            {trendPath ? (
+                                <path
+                                    d={trendPath}
+                                    fill="none"
+                                    stroke="var(--primary)"
+                                    strokeLinecap="round"
+                                    strokeWidth="2"
                                 />
-                                <XAxis
-                                    dataKey="dateLabel"
-                                    tick={{ fill: CHART_AXIS_TICK }}
-                                    tickMargin={8}
+                            ) : (
+                                <line
+                                    stroke="var(--primary)"
+                                    strokeLinecap="round"
+                                    strokeWidth="2"
+                                    x1="0"
+                                    x2="100"
+                                    y1="50"
+                                    y2="50"
                                 />
-                                <YAxis
-                                    tick={{ fill: CHART_AXIS_TICK }}
-                                    tickFormatter={(value) =>
-                                        Intl.NumberFormat("en-US", {
-                                            notation: "compact",
-                                        }).format(value)
-                                    }
-                                />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: CHART_TOOLTIP_BG,
-                                        borderColor: CHART_TOOLTIP_BORDER,
-                                        color: CHART_TOOLTIP_TEXT,
-                                    }}
-                                    formatter={(value) =>
-                                        formatCurrencyFromMinorUnits(
-                                            Math.round(Number(value) * 100),
-                                            currencyCode
-                                        )
-                                    }
-                                    itemStyle={{ color: CHART_TOOLTIP_TEXT }}
-                                    labelStyle={{ color: CHART_TOOLTIP_LABEL }}
-                                />
-                                <Area
-                                    dataKey="valueMajor"
-                                    fill="url(#dashboardTrendGradient)"
-                                    stroke={CHART_TREND_STROKE}
-                                    strokeWidth={2}
-                                    type="monotone"
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
+                            )}
+                        </svg>
+                        <div className="mt-2 flex justify-between text-muted-foreground text-xs">
+                            <span>{trendData[0]?.dateLabel}</span>
+                            <span>
+                                {trendData[
+                                    Math.floor((trendData.length - 1) / 2)
+                                ]?.dateLabel ?? ""}
+                            </span>
+                            <span>{trendData.at(-1)?.dateLabel}</span>
+                        </div>
                     </div>
                 )}
                 <p
@@ -210,6 +210,31 @@ function TrendChartCard({
     );
 }
 
+const buildQueueGradient = (
+    queueSlices: QueueSlice[],
+    queueTotal: number
+): string => {
+    if (queueTotal <= 0) {
+        return "conic-gradient(var(--muted) 0deg 360deg)";
+    }
+
+    let current = 0;
+    const segments = queueSlices.map((slice, index) => {
+        const segment = (slice.value / queueTotal) * 360;
+        const start = current;
+        const end = current + segment;
+        current = end;
+        const color = CHART_DONUT_COLORS[index % CHART_DONUT_COLORS.length];
+        return `${color} ${start.toFixed(2)}deg ${end.toFixed(2)}deg`;
+    });
+
+    if (current < 360) {
+        segments.push(`var(--muted) ${current.toFixed(2)}deg 360deg`);
+    }
+
+    return `conic-gradient(${segments.join(", ")})`;
+};
+
 function QueueDonutCard({
     queueSlices,
     queueTotal,
@@ -217,6 +242,8 @@ function QueueDonutCard({
     queueSlices: QueueSlice[];
     queueTotal: number;
 }) {
+    const gradient = buildQueueGradient(queueSlices, queueTotal);
+
     return (
         <Card>
             <CardHeader className="pb-2">
@@ -226,43 +253,20 @@ function QueueDonutCard({
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-                <div className="h-52 w-full min-w-0 rounded-md border border-border/70 bg-background/65 p-2">
-                    <ResponsiveContainer height="100%" width="100%">
-                        <PieChart>
-                            <Pie
-                                cx="50%"
-                                cy="50%"
-                                data={queueSlices}
-                                dataKey="value"
-                                innerRadius={50}
-                                nameKey="label"
-                                outerRadius={75}
-                                stroke="var(--border)"
-                                strokeWidth={1}
-                            >
-                                {queueSlices.map((slice, index) => (
-                                    <Cell
-                                        fill={
-                                            CHART_DONUT_COLORS[
-                                                index %
-                                                    CHART_DONUT_COLORS.length
-                                            ]
-                                        }
-                                        key={slice.key}
-                                    />
-                                ))}
-                            </Pie>
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: CHART_TOOLTIP_BG,
-                                    borderColor: CHART_TOOLTIP_BORDER,
-                                    color: CHART_TOOLTIP_TEXT,
-                                }}
-                                itemStyle={{ color: CHART_TOOLTIP_TEXT }}
-                                labelStyle={{ color: CHART_TOOLTIP_LABEL }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
+                <div className="grid place-items-center rounded-md border border-border/70 bg-background/65 p-4">
+                    <div
+                        className="relative h-40 w-40 rounded-full"
+                        style={{ background: gradient }}
+                    >
+                        <div className="absolute inset-[22%] grid place-items-center rounded-full bg-background/95 text-center">
+                            <p className="font-semibold text-xl">
+                                {queueTotal}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                                Queue Items
+                            </p>
+                        </div>
+                    </div>
                 </div>
                 {queueSlices.map((slice, index) => (
                     <div className="space-y-1 text-xs" key={slice.key}>
