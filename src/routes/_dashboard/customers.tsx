@@ -1,4 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    Link,
+    Outlet,
+    useLocation,
+    useRouter,
+} from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
@@ -31,21 +37,29 @@ import {
 import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 interface CustomerFormState {
+    address: string;
+    city: string;
     code: string;
+    country: string;
     creditLimit: string;
     email: string;
     name: string;
     paymentTerms: string;
     phone: string;
+    taxId: string;
 }
 
 const emptyForm: CustomerFormState = {
+    address: "",
+    city: "",
     code: "",
+    country: "",
     creditLimit: "",
     email: "",
     name: "",
     paymentTerms: "",
     phone: "",
+    taxId: "",
 };
 
 const toOptional = (value: string): string | null => {
@@ -60,8 +74,8 @@ interface CustomersPageState {
     form: CustomerFormState;
     isRowBusyId: string | null;
     isSubmitting: boolean;
-    list: CustomerListItem[];
     pendingDeleteCustomerId: string | null;
+    recordsView: "live" | "archived";
     search: string;
     statusFilter: "all" | "active" | "inactive";
 }
@@ -81,14 +95,17 @@ const customersPageReducer = (
 export const Route = createFileRoute("/_dashboard/customers")({
     component: CustomersPage,
     loader: async () => {
-        const [customers, financialSettings] = await Promise.all([
-            getCustomers({ data: {} }),
-            getFinancialSettings(),
-        ]);
+        const [archivedCustomers, financialSettings, liveCustomers] =
+            await Promise.all([
+                getCustomers({ data: { archivedOnly: true } }),
+                getFinancialSettings(),
+                getCustomers({ data: {} }),
+            ]);
 
         return {
-            customers,
+            archivedCustomers,
             financialSettings,
+            liveCustomers,
         };
     },
 });
@@ -209,6 +226,50 @@ const CustomerForm = ({
                         value={form.creditLimit}
                     />
                 </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-tax-id">Tax ID</Label>
+                    <Input
+                        id="customer-tax-id"
+                        onChange={(event) =>
+                            onFormFieldChange("taxId", event.target.value)
+                        }
+                        placeholder="TIN/VAT number"
+                        value={form.taxId}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-country">Country</Label>
+                    <Input
+                        id="customer-country"
+                        onChange={(event) =>
+                            onFormFieldChange("country", event.target.value)
+                        }
+                        placeholder="Country"
+                        value={form.country}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="customer-city">City</Label>
+                    <Input
+                        id="customer-city"
+                        onChange={(event) =>
+                            onFormFieldChange("city", event.target.value)
+                        }
+                        placeholder="City / Town"
+                        value={form.city}
+                    />
+                </div>
+                <div className="space-y-2 md:col-span-3">
+                    <Label htmlFor="customer-address">Address</Label>
+                    <Input
+                        id="customer-address"
+                        onChange={(event) =>
+                            onFormFieldChange("address", event.target.value)
+                        }
+                        placeholder="Street / Building / Box"
+                        value={form.address}
+                    />
+                </div>
                 <div className="flex gap-2 md:col-span-3">
                     <Button
                         disabled={
@@ -241,23 +302,126 @@ interface CustomersTableProps {
     isRowBusyId: string | null;
     onDeleteCustomer: (customerId: string) => void;
     onEditCustomer: (customerId: string) => void;
+    onRecordsViewChange: (recordsView: "live" | "archived") => void;
     onSearchChange: (value: string) => void;
     onStatusFilterChange: (value: "all" | "active" | "inactive" | null) => void;
     onToggleActive: (customerId: string) => void;
     pendingDeleteCustomerId: string | null;
+    recordsView: "live" | "archived";
     search: string;
     statusFilter: "all" | "active" | "inactive";
 }
+
+interface CustomerRowProps {
+    customer: CustomerListItem;
+    isRowBusyId: string | null;
+    onDeleteCustomer: (customerId: string) => void;
+    onEditCustomer: (customerId: string) => void;
+    onToggleActive: (customerId: string) => void;
+    pendingDeleteCustomerId: string | null;
+    recordsView: "live" | "archived";
+}
+
+const CustomerRow = ({
+    customer,
+    isRowBusyId,
+    onDeleteCustomer,
+    onEditCustomer,
+    onToggleActive,
+    pendingDeleteCustomerId,
+    recordsView,
+}: CustomerRowProps) => {
+    return (
+        <TableRow key={customer.id}>
+            <TableCell>{customer.code}</TableCell>
+            <TableCell>{customer.name}</TableCell>
+            <TableCell>
+                <div className="text-sm">
+                    <div>{customer.email ?? "-"}</div>
+                    <div className="text-muted-foreground">
+                        {customer.phone ?? "-"}
+                    </div>
+                </div>
+            </TableCell>
+            <TableCell className="text-right">
+                {(customer.creditLimit ?? 0).toLocaleString()}
+            </TableCell>
+            <TableCell>
+                <Badge variant={customer.isActive ? "secondary" : "outline"}>
+                    {customer.isActive ? "Active" : "Inactive"}
+                </Badge>
+            </TableCell>
+            <TableCell>
+                <div className="flex gap-2">
+                    <Button
+                        nativeButton={false}
+                        render={
+                            <Link
+                                params={{
+                                    customerId: customer.id,
+                                }}
+                                to="/customers/$customerId"
+                            />
+                        }
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                    >
+                        View
+                    </Button>
+                    {recordsView === "live" ? (
+                        <>
+                            <Button
+                                onClick={() => onEditCustomer(customer.id)}
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                            >
+                                Edit
+                            </Button>
+                            <Button
+                                disabled={isRowBusyId === customer.id}
+                                onClick={() => onToggleActive(customer.id)}
+                                size="sm"
+                                type="button"
+                                variant="outline"
+                            >
+                                {customer.isActive ? "Deactivate" : "Activate"}
+                            </Button>
+                            <Button
+                                disabled={isRowBusyId === customer.id}
+                                onClick={() => onDeleteCustomer(customer.id)}
+                                size="sm"
+                                type="button"
+                                variant={
+                                    pendingDeleteCustomerId === customer.id
+                                        ? "destructive"
+                                        : "outline"
+                                }
+                            >
+                                {pendingDeleteCustomerId === customer.id
+                                    ? "Confirm"
+                                    : "Delete"}
+                            </Button>
+                        </>
+                    ) : null}
+                </div>
+            </TableCell>
+        </TableRow>
+    );
+};
 
 const CustomersTable = ({
     filteredCustomers,
     isRowBusyId,
     onDeleteCustomer,
     onEditCustomer,
+    onRecordsViewChange,
     onSearchChange,
     onStatusFilterChange,
     onToggleActive,
     pendingDeleteCustomerId,
+    recordsView,
     search,
     statusFilter,
 }: CustomersTableProps) => {
@@ -267,7 +431,7 @@ const CustomersTable = ({
                 <CardTitle>Customer Directory</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-2">
                         <Label htmlFor="customer-search">Search</Label>
                         <Input
@@ -293,6 +457,29 @@ const CustomersTable = ({
                                 <SelectItem value="active">Active</SelectItem>
                                 <SelectItem value="inactive">
                                     Inactive
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Record View</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onRecordsViewChange(
+                                    (value as "live" | "archived") ?? "live"
+                                )
+                            }
+                            value={recordsView}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="live">
+                                    Live records
+                                </SelectItem>
+                                <SelectItem value="archived">
+                                    Archived records
                                 </SelectItem>
                             </SelectContent>
                         </Select>
@@ -324,88 +511,18 @@ const CustomersTable = ({
                             </TableRow>
                         ) : (
                             filteredCustomers.map((customer) => (
-                                <TableRow key={customer.id}>
-                                    <TableCell>{customer.code}</TableCell>
-                                    <TableCell>{customer.name}</TableCell>
-                                    <TableCell>
-                                        <div className="text-sm">
-                                            <div>{customer.email ?? "-"}</div>
-                                            <div className="text-muted-foreground">
-                                                {customer.phone ?? "-"}
-                                            </div>
-                                        </div>
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        {(
-                                            customer.creditLimit ?? 0
-                                        ).toLocaleString()}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            variant={
-                                                customer.isActive
-                                                    ? "secondary"
-                                                    : "outline"
-                                            }
-                                        >
-                                            {customer.isActive
-                                                ? "Active"
-                                                : "Inactive"}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                onClick={() =>
-                                                    onEditCustomer(customer.id)
-                                                }
-                                                size="sm"
-                                                type="button"
-                                                variant="outline"
-                                            >
-                                                Edit
-                                            </Button>
-                                            <Button
-                                                disabled={
-                                                    isRowBusyId === customer.id
-                                                }
-                                                onClick={() =>
-                                                    onToggleActive(customer.id)
-                                                }
-                                                size="sm"
-                                                type="button"
-                                                variant="outline"
-                                            >
-                                                {customer.isActive
-                                                    ? "Deactivate"
-                                                    : "Activate"}
-                                            </Button>
-                                            <Button
-                                                disabled={
-                                                    isRowBusyId === customer.id
-                                                }
-                                                onClick={() =>
-                                                    onDeleteCustomer(
-                                                        customer.id
-                                                    )
-                                                }
-                                                size="sm"
-                                                type="button"
-                                                variant={
-                                                    pendingDeleteCustomerId ===
-                                                    customer.id
-                                                        ? "destructive"
-                                                        : "outline"
-                                                }
-                                            >
-                                                {pendingDeleteCustomerId ===
-                                                customer.id
-                                                    ? "Confirm"
-                                                    : "Delete"}
-                                            </Button>
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
+                                <CustomerRow
+                                    customer={customer}
+                                    isRowBusyId={isRowBusyId}
+                                    key={customer.id}
+                                    onDeleteCustomer={onDeleteCustomer}
+                                    onEditCustomer={onEditCustomer}
+                                    onToggleActive={onToggleActive}
+                                    pendingDeleteCustomerId={
+                                        pendingDeleteCustomerId
+                                    }
+                                    recordsView={recordsView}
+                                />
                             ))
                         )}
                     </TableBody>
@@ -416,14 +533,17 @@ const CustomersTable = ({
 };
 
 function CustomersPage() {
-    const { customers, financialSettings } = Route.useLoaderData();
+    const location = useLocation();
+    const router = useRouter();
+    const { archivedCustomers, financialSettings, liveCustomers } =
+        Route.useLoaderData();
     const [state, setState] = useReducer(customersPageReducer, {
         editingCustomerId: null,
         form: emptyForm,
         isRowBusyId: null,
         isSubmitting: false,
-        list: customers,
         pendingDeleteCustomerId: null,
+        recordsView: "live",
         search: "",
         statusFilter: "all" as "all" | "active" | "inactive",
     });
@@ -432,11 +552,12 @@ function CustomersPage() {
         form,
         isRowBusyId,
         isSubmitting,
-        list,
         pendingDeleteCustomerId,
+        recordsView,
         search,
         statusFilter,
     } = state;
+    const list = recordsView === "archived" ? archivedCustomers : liveCustomers;
 
     const editingCustomer = useMemo(
         () => list.find((customer) => customer.id === editingCustomerId),
@@ -470,8 +591,7 @@ function CustomersPage() {
     }, [list, search, statusFilter]);
 
     const reload = async () => {
-        const fresh = await getCustomers({ data: {} });
-        setState({ list: fresh });
+        await router.invalidate();
     };
 
     const updateForm = (
@@ -494,7 +614,10 @@ function CustomersPage() {
         setState({
             editingCustomerId: customer.id,
             form: {
+                address: customer.address ?? "",
+                city: customer.city ?? "",
                 code: customer.code,
+                country: customer.country ?? "",
                 creditLimit:
                     customer.creditLimit !== null
                         ? String(customer.creditLimit)
@@ -503,6 +626,7 @@ function CustomersPage() {
                 name: customer.name,
                 paymentTerms: customer.paymentTerms ?? "",
                 phone: customer.phone ?? "",
+                taxId: customer.taxId ?? "",
             },
         });
     };
@@ -523,16 +647,16 @@ function CustomersPage() {
             if (editingCustomerId) {
                 await updateCustomer({
                     data: {
-                        address: null,
-                        city: null,
-                        country: null,
+                        address: toOptional(form.address),
+                        city: toOptional(form.city),
+                        country: toOptional(form.country),
                         creditLimit: creditLimitValue,
                         customerId: editingCustomerId,
                         email: toOptional(form.email),
                         name: form.name.trim(),
                         paymentTerms: toOptional(form.paymentTerms),
                         phone: toOptional(form.phone),
-                        taxId: null,
+                        taxId: toOptional(form.taxId),
                     },
                 });
                 toast.success("Customer updated.");
@@ -545,17 +669,17 @@ function CustomersPage() {
 
                 await createCustomer({
                     data: {
-                        address: null,
-                        city: null,
+                        address: toOptional(form.address),
+                        city: toOptional(form.city),
                         code: form.code.trim().toUpperCase(),
-                        country: null,
+                        country: toOptional(form.country),
                         creditLimit: creditLimitValue,
                         email: toOptional(form.email),
                         isActive: true,
                         name: form.name.trim(),
                         paymentTerms: toOptional(form.paymentTerms),
                         phone: toOptional(form.phone),
-                        taxId: null,
+                        taxId: toOptional(form.taxId),
                     },
                 });
                 toast.success("Customer created.");
@@ -634,6 +758,10 @@ function CustomersPage() {
         handleSaveCustomer().catch(() => undefined);
     };
 
+    if (location.pathname !== "/customers") {
+        return <Outlet />;
+    }
+
     return (
         <section className="w-full space-y-4">
             <div>
@@ -643,15 +771,17 @@ function CustomersPage() {
                 </p>
             </div>
 
-            <CustomerForm
-                currencyCode={financialSettings.currencyCode}
-                editingCustomer={editingCustomer}
-                form={form}
-                isSubmitting={isSubmitting}
-                onFormFieldChange={updateForm}
-                onResetForm={resetForm}
-                onSaveClick={handleSaveCustomerClick}
-            />
+            {recordsView === "live" ? (
+                <CustomerForm
+                    currencyCode={financialSettings.currencyCode}
+                    editingCustomer={editingCustomer}
+                    form={form}
+                    isSubmitting={isSubmitting}
+                    onFormFieldChange={updateForm}
+                    onResetForm={resetForm}
+                    onSaveClick={handleSaveCustomerClick}
+                />
+            ) : null}
 
             <CustomersTable
                 filteredCustomers={filteredCustomers}
@@ -660,6 +790,16 @@ function CustomersPage() {
                     handleDeleteCustomer(customerId).catch(() => undefined);
                 }}
                 onEditCustomer={loadCustomerIntoForm}
+                onRecordsViewChange={(nextView) =>
+                    setState({
+                        editingCustomerId: null,
+                        form: emptyForm,
+                        pendingDeleteCustomerId: null,
+                        recordsView: nextView,
+                        search: "",
+                        statusFilter: "all",
+                    })
+                }
                 onSearchChange={(value) => setState({ search: value })}
                 onStatusFilterChange={(value) =>
                     setState({
@@ -673,6 +813,7 @@ function CustomersPage() {
                     handleToggleActive(customerId).catch(() => undefined);
                 }}
                 pendingDeleteCustomerId={pendingDeleteCustomerId}
+                recordsView={recordsView}
                 search={search}
                 statusFilter={statusFilter}
             />

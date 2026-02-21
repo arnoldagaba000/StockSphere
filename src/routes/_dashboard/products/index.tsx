@@ -7,6 +7,7 @@ import {
 } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,12 @@ type ProductListItem = Awaited<
 >["products"][number];
 type CategoryListItem = Awaited<ReturnType<typeof getCategories>>[number];
 
+const CARD_SHELL_CLASS = "rounded-xl border border-border/70 bg-card shadow-sm";
+const SELECT_TRIGGER_CLASS =
+    "h-10 w-full rounded-xl border-border/70 bg-muted/35 px-3 shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_CONTENT_CLASS =
+    "rounded-xl border-border/70 bg-popover/98 shadow-xl";
+
 type TrackingFilter = "all" | "no" | "yes";
 type ProductStatusFilter = "active" | "all" | "inactive";
 type BulkAction = "activate" | "assignCategory" | "exportCsv" | "markInactive";
@@ -47,6 +54,18 @@ interface ProductsLoaderData {
     categories: CategoryListItem[];
     financialSettings: Awaited<ReturnType<typeof getFinancialSettings>>;
     products: ProductListItem[];
+}
+
+interface LoadAllProductsParams {
+    categoryId?: string;
+    includeDescendantCategories?: boolean;
+    isActive?: boolean;
+    maxSellingPrice?: number;
+    minSellingPrice?: number;
+    search?: string;
+    trackByBatch?: boolean;
+    trackByExpiry?: boolean;
+    trackBySerialNumber?: boolean;
 }
 
 interface ProductsPageState {
@@ -139,22 +158,78 @@ const toBulkAction = (value: string | null): BulkAction => {
 
 export const Route = createFileRoute("/_dashboard/products/")({
     component: ProductsPage,
+    staleTime: 0,
+    preloadStaleTime: 0,
     loader: async (): Promise<ProductsLoaderData> => {
-        const [productsResponse, categories, analytics, financialSettings] =
-            await Promise.all([
-                getProducts({
-                    data: {},
-                }),
-                getCategories(),
-                getProductAnalytics(),
-                getFinancialSettings(),
-            ]);
+        const loadAllProducts = async (
+            params: LoadAllProductsParams
+        ): Promise<ProductListItem[]> => {
+            const pageSize = 100;
+            const firstPage = await getProducts({
+                data: {
+                    ...params,
+                    page: 1,
+                    pageSize,
+                },
+            });
+
+            if (firstPage.pagination.totalPages <= 1) {
+                return firstPage.products;
+            }
+
+            const remainingPagePromises: ReturnType<typeof getProducts>[] = [];
+            for (
+                let page = 2;
+                page <= firstPage.pagination.totalPages;
+                page += 1
+            ) {
+                remainingPagePromises.push(
+                    getProducts({
+                        data: {
+                            ...params,
+                            page,
+                            pageSize,
+                        },
+                    })
+                );
+            }
+
+            const remainingPages = await Promise.all(remainingPagePromises);
+            return [
+                ...firstPage.products,
+                ...remainingPages.flatMap((page) => page.products),
+            ];
+        };
+
+        const [
+            activeProducts,
+            inactiveProducts,
+            categories,
+            analytics,
+            financialSettings,
+        ] = await Promise.all([
+            loadAllProducts({ isActive: true }),
+            loadAllProducts({ isActive: false }),
+            getCategories(),
+            getProductAnalytics(),
+            getFinancialSettings(),
+        ]);
+
+        const mergedProductsMap = new Map<string, ProductListItem>();
+        for (const product of activeProducts) {
+            mergedProductsMap.set(product.id, product);
+        }
+        for (const product of inactiveProducts) {
+            mergedProductsMap.set(product.id, product);
+        }
 
         return {
             analytics,
             categories,
             financialSettings,
-            products: productsResponse.products,
+            products: [...mergedProductsMap.values()].sort((left, right) =>
+                left.name.localeCompare(right.name)
+            ),
         };
     },
 });
@@ -179,35 +254,49 @@ interface ProductMetricsProps {
 const ProductMetrics = ({ analytics, currencyCode }: ProductMetricsProps) => {
     return (
         <div className="grid gap-3 md:grid-cols-4">
-            <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground text-xs">Total Products</p>
-                <p className="font-semibold text-2xl">
-                    {analytics.totalProducts}
-                </p>
-            </div>
-            <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground text-xs">Active</p>
-                <p className="font-semibold text-2xl">
-                    {analytics.activeProducts}
-                </p>
-            </div>
-            <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground text-xs">Inactive</p>
-                <p className="font-semibold text-2xl">
-                    {analytics.inactiveProducts}
-                </p>
-            </div>
-            <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground text-xs">
-                    Estimated Stock Value
-                </p>
-                <p className="font-semibold text-2xl">
-                    {formatCurrencyFromMinorUnits(
-                        analytics.stockValueMinor,
-                        currencyCode
-                    )}
-                </p>
-            </div>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Total Products
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {analytics.totalProducts}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Active
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {analytics.activeProducts}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Inactive
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {analytics.inactiveProducts}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Estimated Stock Value
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {formatCurrencyFromMinorUnits(
+                            analytics.stockValueMinor,
+                            currencyCode
+                        )}
+                    </p>
+                </CardContent>
+            </Card>
         </div>
     );
 };
@@ -260,10 +349,11 @@ const ProductFilters = ({
     trackingSerialValue,
 }: ProductFiltersProps) => {
     return (
-        <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+        <div className={`${CARD_SHELL_CLASS} grid gap-3 p-4 md:grid-cols-4`}>
             <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="product-search">Search</Label>
                 <Input
+                    className="h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                     id="product-search"
                     onChange={(event) =>
                         setState({ searchValue: event.target.value })
@@ -282,10 +372,10 @@ const ProductFilters = ({
                     }
                     value={statusValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
                         <SelectItem value="all">All</SelectItem>
@@ -300,10 +390,10 @@ const ProductFilters = ({
                     }
                     value={categoryValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="all">All categories</SelectItem>
                         {categoryOptions.map((category) => (
                             <SelectItem key={category.id} value={category.id}>
@@ -316,6 +406,7 @@ const ProductFilters = ({
             <div className="space-y-2">
                 <Label>Min Selling Price</Label>
                 <Input
+                    className="h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                     min={0}
                     onChange={(event) =>
                         setState({ minPriceValue: event.target.value })
@@ -328,6 +419,7 @@ const ProductFilters = ({
             <div className="space-y-2">
                 <Label>Max Selling Price</Label>
                 <Input
+                    className="h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                     min={0}
                     onChange={(event) =>
                         setState({ maxPriceValue: event.target.value })
@@ -347,10 +439,10 @@ const ProductFilters = ({
                     }
                     value={trackingBatchValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
@@ -367,10 +459,10 @@ const ProductFilters = ({
                     }
                     value={trackingSerialValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
@@ -387,10 +479,10 @@ const ProductFilters = ({
                     }
                     value={trackingExpiryValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
@@ -442,7 +534,7 @@ const ProductBulkActions = ({
     setState,
 }: ProductBulkActionsProps) => {
     return (
-        <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+        <div className={`${CARD_SHELL_CLASS} grid gap-3 p-4 md:grid-cols-4`}>
             <div className="space-y-2 md:col-span-2">
                 <Label>Bulk Action</Label>
                 <Select
@@ -451,10 +543,10 @@ const ProductBulkActions = ({
                     }
                     value={bulkAction}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="markInactive">
                             Mark Inactive
                         </SelectItem>
@@ -474,10 +566,10 @@ const ProductBulkActions = ({
                     }
                     value={bulkCategoryId}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="none">Select category</SelectItem>
                         {categoryOptions.map((category) => (
                             <SelectItem key={category.id} value={category.id}>
@@ -526,8 +618,8 @@ const ProductTable = ({
     visibleProducts,
 }: ProductTableProps) => {
     return (
-        <div className="overflow-hidden rounded-lg border">
-            <Table>
+        <div className={`${CARD_SHELL_CLASS} overflow-x-auto`}>
+            <Table className="min-w-[980px]">
                 <TableHeader>
                     <TableRow>
                         <TableHead className="w-10">
@@ -613,8 +705,9 @@ const ProductTable = ({
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <div className="flex justify-end gap-2">
+                                    <div className="flex flex-wrap justify-end gap-2">
                                         <Button
+                                            nativeButton={false}
                                             render={
                                                 <Link
                                                     params={{
@@ -673,7 +766,7 @@ function ProductsPage() {
         minPriceValue: "",
         searchValue: "",
         selectedProductIds: [],
-        statusValue: "active" as ProductStatusFilter,
+        statusValue: "all" as ProductStatusFilter,
         trackingBatchValue: "all" as TrackingFilter,
         trackingExpiryValue: "all" as TrackingFilter,
         trackingSerialValue: "all" as TrackingFilter,
@@ -704,6 +797,42 @@ function ProductsPage() {
         [categories]
     );
 
+    const loadAllProducts = async (
+        params: LoadAllProductsParams
+    ): Promise<ProductListItem[]> => {
+        const pageSize = 100;
+        const firstPage = await getProducts({
+            data: {
+                ...params,
+                page: 1,
+                pageSize,
+            },
+        });
+
+        if (firstPage.pagination.totalPages <= 1) {
+            return firstPage.products;
+        }
+
+        const remainingPagePromises: ReturnType<typeof getProducts>[] = [];
+        for (let page = 2; page <= firstPage.pagination.totalPages; page += 1) {
+            remainingPagePromises.push(
+                getProducts({
+                    data: {
+                        ...params,
+                        page,
+                        pageSize,
+                    },
+                })
+            );
+        }
+
+        const remainingPages = await Promise.all(remainingPagePromises);
+        return [
+            ...firstPage.products,
+            ...remainingPages.flatMap((page) => page.products),
+        ];
+    };
+
     const selectedProductsCount = selectedProductIds.length;
     const allVisibleSelected =
         visibleProducts.length > 0 &&
@@ -723,22 +852,20 @@ function ProductsPage() {
 
         try {
             setState({ isFiltering: true });
-            const response = await getProducts({
-                data: {
-                    categoryId: categoryIdValue,
-                    includeDescendantCategories: includeDescendants,
-                    isActive: isActiveValue,
-                    maxSellingPrice: maxSellingPriceValue,
-                    minSellingPrice: minSellingPriceValue,
-                    search: searchValue,
-                    trackByBatch: trackingFilterToBoolean(trackingBatchValue),
-                    trackByExpiry: trackingFilterToBoolean(trackingExpiryValue),
-                    trackBySerialNumber:
-                        trackingFilterToBoolean(trackingSerialValue),
-                },
+            const allFilteredProducts = await loadAllProducts({
+                categoryId: categoryIdValue,
+                includeDescendantCategories: includeDescendants,
+                isActive: isActiveValue,
+                maxSellingPrice: maxSellingPriceValue,
+                minSellingPrice: minSellingPriceValue,
+                search: searchValue,
+                trackByBatch: trackingFilterToBoolean(trackingBatchValue),
+                trackByExpiry: trackingFilterToBoolean(trackingExpiryValue),
+                trackBySerialNumber:
+                    trackingFilterToBoolean(trackingSerialValue),
             });
             setState({
-                filteredProducts: response.products,
+                filteredProducts: allFilteredProducts,
                 isFiltering: false,
                 selectedProductIds: [],
             });
@@ -827,7 +954,7 @@ function ProductsPage() {
     };
 
     return (
-        <section className="w-full space-y-4">
+        <section className="w-full space-y-5">
             <ProductMetrics analytics={analytics} currencyCode={currencyCode} />
             <ProductsHeader />
             <ProductFilters

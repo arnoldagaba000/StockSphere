@@ -1,4 +1,10 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    Link,
+    Outlet,
+    useLocation,
+    useRouter,
+} from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
@@ -6,6 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import {
     Table,
     TableBody,
@@ -25,21 +38,29 @@ import {
 type SupplierRecord = Awaited<ReturnType<typeof getSuppliers>>[number];
 
 interface SupplierFormState {
+    address: string;
+    city: string;
     code: string;
     contactPerson: string;
+    country: string;
     email: string;
     name: string;
     paymentTerms: string;
     phone: string;
+    taxId: string;
 }
 
 const emptySupplierForm: SupplierFormState = {
+    address: "",
+    city: "",
     code: "",
     contactPerson: "",
+    country: "",
     email: "",
     name: "",
     paymentTerms: "",
     phone: "",
+    taxId: "",
 };
 
 const toOptionalValue = (value: string): string | null => {
@@ -53,6 +74,7 @@ interface SuppliersPageState {
     isRowBusyId: string | null;
     isSubmitting: boolean;
     pendingDeleteSupplierId: string | null;
+    recordsView: "live" | "archived";
 }
 
 type SuppliersPageAction =
@@ -196,6 +218,50 @@ const SupplierFormCard = ({
                         value={form.paymentTerms}
                     />
                 </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-tax-id">Tax ID</Label>
+                    <Input
+                        id="supplier-tax-id"
+                        onChange={(event) =>
+                            onUpdateFormField("taxId", event.target.value)
+                        }
+                        placeholder="TIN/VAT number"
+                        value={form.taxId}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-country">Country</Label>
+                    <Input
+                        id="supplier-country"
+                        onChange={(event) =>
+                            onUpdateFormField("country", event.target.value)
+                        }
+                        placeholder="Country"
+                        value={form.country}
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="supplier-city">City</Label>
+                    <Input
+                        id="supplier-city"
+                        onChange={(event) =>
+                            onUpdateFormField("city", event.target.value)
+                        }
+                        placeholder="City / Town"
+                        value={form.city}
+                    />
+                </div>
+                <div className="space-y-2 md:col-span-3">
+                    <Label htmlFor="supplier-address">Address</Label>
+                    <Input
+                        id="supplier-address"
+                        onChange={(event) =>
+                            onUpdateFormField("address", event.target.value)
+                        }
+                        placeholder="Street / Building / Box"
+                        value={form.address}
+                    />
+                </div>
                 <div className="flex gap-2 md:col-span-3">
                     <Button
                         disabled={
@@ -223,8 +289,10 @@ interface SupplierListCardProps {
     isRowBusyId: string | null;
     onDeleteSupplier: (supplier: SupplierRecord) => void;
     onEditSupplier: (supplier: SupplierRecord) => void;
+    onRecordsViewChange: (recordsView: "live" | "archived") => void;
     onToggleSupplierActive: (supplier: SupplierRecord) => void;
     pendingDeleteSupplierId: string | null;
+    recordsView: "live" | "archived";
     suppliers: SupplierRecord[];
 }
 
@@ -232,14 +300,41 @@ const SupplierListCard = ({
     isRowBusyId,
     onDeleteSupplier,
     onEditSupplier,
+    onRecordsViewChange,
     onToggleSupplierActive,
     pendingDeleteSupplierId,
+    recordsView,
     suppliers,
 }: SupplierListCardProps) => {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Supplier List</CardTitle>
+                <div className="flex items-end justify-between gap-3">
+                    <CardTitle>Supplier List</CardTitle>
+                    <div className="w-full max-w-48 space-y-2">
+                        <Label>Record View</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onRecordsViewChange(
+                                    (value as "live" | "archived") ?? "live"
+                                )
+                            }
+                            value={recordsView}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="live">
+                                    Live records
+                                </SelectItem>
+                                <SelectItem value="archived">
+                                    Archived records
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
@@ -286,46 +381,72 @@ const SupplierListCard = ({
                                 <TableCell className="text-right">
                                     <div className="flex flex-wrap justify-end gap-2">
                                         <Button
-                                            disabled={
-                                                isRowBusyId === supplier.id
-                                            }
-                                            onClick={() =>
-                                                onEditSupplier(supplier)
-                                            }
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            Edit
-                                        </Button>
-                                        <Button
-                                            disabled={
-                                                isRowBusyId === supplier.id
-                                            }
-                                            onClick={() =>
-                                                onToggleSupplierActive(supplier)
+                                            nativeButton={false}
+                                            render={
+                                                <Link
+                                                    params={{
+                                                        supplierId: supplier.id,
+                                                    }}
+                                                    to="/suppliers/$supplierId"
+                                                />
                                             }
                                             size="sm"
                                             variant="outline"
                                         >
-                                            {supplier.isActive
-                                                ? "Deactivate"
-                                                : "Activate"}
+                                            View
                                         </Button>
-                                        <Button
-                                            disabled={
-                                                isRowBusyId === supplier.id
-                                            }
-                                            onClick={() =>
-                                                onDeleteSupplier(supplier)
-                                            }
-                                            size="sm"
-                                            variant="destructive"
-                                        >
-                                            {pendingDeleteSupplierId ===
-                                            supplier.id
-                                                ? "Confirm Delete"
-                                                : "Delete"}
-                                        </Button>
+                                        {recordsView === "live" ? (
+                                            <>
+                                                <Button
+                                                    disabled={
+                                                        isRowBusyId ===
+                                                        supplier.id
+                                                    }
+                                                    onClick={() =>
+                                                        onEditSupplier(supplier)
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    disabled={
+                                                        isRowBusyId ===
+                                                        supplier.id
+                                                    }
+                                                    onClick={() =>
+                                                        onToggleSupplierActive(
+                                                            supplier
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    {supplier.isActive
+                                                        ? "Deactivate"
+                                                        : "Activate"}
+                                                </Button>
+                                                <Button
+                                                    disabled={
+                                                        isRowBusyId ===
+                                                        supplier.id
+                                                    }
+                                                    onClick={() =>
+                                                        onDeleteSupplier(
+                                                            supplier
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="destructive"
+                                                >
+                                                    {pendingDeleteSupplierId ===
+                                                    supplier.id
+                                                        ? "Confirm Delete"
+                                                        : "Delete"}
+                                                </Button>
+                                            </>
+                                        ) : null}
                                     </div>
                                 </TableCell>
                             </TableRow>
@@ -339,18 +460,33 @@ const SupplierListCard = ({
 
 export const Route = createFileRoute("/_dashboard/suppliers")({
     component: SuppliersPage,
-    loader: () => getSuppliers({ data: { includeInactive: true } }),
+    loader: async () => {
+        const [archivedSuppliers, liveSuppliers] = await Promise.all([
+            getSuppliers({
+                data: { archivedOnly: true, includeInactive: true },
+            }),
+            getSuppliers({
+                data: { includeInactive: true },
+            }),
+        ]);
+        return {
+            archivedSuppliers,
+            liveSuppliers,
+        };
+    },
 });
 
 function SuppliersPage() {
+    const location = useLocation();
     const router = useRouter();
-    const suppliers = Route.useLoaderData();
+    const { archivedSuppliers, liveSuppliers } = Route.useLoaderData();
     const [state, dispatch] = useReducer(suppliersPageReducer, {
         editingSupplierId: null,
         form: emptySupplierForm,
         isRowBusyId: null,
         isSubmitting: false,
         pendingDeleteSupplierId: null,
+        recordsView: "live",
     });
     const {
         editingSupplierId,
@@ -358,7 +494,10 @@ function SuppliersPage() {
         isRowBusyId,
         isSubmitting,
         pendingDeleteSupplierId,
+        recordsView,
     } = state;
+    const suppliers =
+        recordsView === "archived" ? archivedSuppliers : liveSuppliers;
     const patchState = (patch: Partial<SuppliersPageState>) => {
         dispatch({
             patch,
@@ -386,12 +525,16 @@ function SuppliersPage() {
         patchState({
             editingSupplierId: supplier.id,
             form: {
+                address: supplier.address ?? "",
+                city: supplier.city ?? "",
                 code: supplier.code,
                 contactPerson: supplier.contactPerson ?? "",
+                country: supplier.country ?? "",
                 email: supplier.email ?? "",
                 name: supplier.name,
                 paymentTerms: supplier.paymentTerms ?? "",
                 phone: supplier.phone ?? "",
+                taxId: supplier.taxId ?? "",
             },
         });
     };
@@ -408,26 +551,30 @@ function SuppliersPage() {
     };
 
     const createSupplierInput = () => ({
-        address: null,
-        city: null,
+        address: toOptionalValue(form.address),
+        city: toOptionalValue(form.city),
         code: form.code.trim().toUpperCase(),
         contactPerson: toOptionalValue(form.contactPerson),
-        country: null,
+        country: toOptionalValue(form.country),
         email: toOptionalValue(form.email),
         isActive: true,
         name: form.name.trim(),
         paymentTerms: toOptionalValue(form.paymentTerms),
         phone: toOptionalValue(form.phone),
-        taxId: null,
+        taxId: toOptionalValue(form.taxId),
     });
 
     const updateSupplierInput = (supplierId: string) => ({
+        address: toOptionalValue(form.address),
+        city: toOptionalValue(form.city),
         contactPerson: toOptionalValue(form.contactPerson),
+        country: toOptionalValue(form.country),
         email: toOptionalValue(form.email),
         name: form.name.trim(),
         paymentTerms: toOptionalValue(form.paymentTerms),
         phone: toOptionalValue(form.phone),
         supplierId,
+        taxId: toOptionalValue(form.taxId),
     });
 
     const saveExistingSupplier = async (supplierId: string) => {
@@ -517,6 +664,10 @@ function SuppliersPage() {
         }
     };
 
+    if (location.pathname !== "/suppliers") {
+        return <Outlet />;
+    }
+
     return (
         <section className="w-full space-y-4">
             <div>
@@ -527,16 +678,18 @@ function SuppliersPage() {
                 </p>
             </div>
 
-            <SupplierFormCard
-                editingSupplier={editingSupplier}
-                form={form}
-                isSubmitting={isSubmitting}
-                onCancelEdit={resetForm}
-                onSaveSupplier={() => {
-                    handleSaveSupplier().catch(() => undefined);
-                }}
-                onUpdateFormField={updateFormField}
-            />
+            {recordsView === "live" ? (
+                <SupplierFormCard
+                    editingSupplier={editingSupplier}
+                    form={form}
+                    isSubmitting={isSubmitting}
+                    onCancelEdit={resetForm}
+                    onSaveSupplier={() => {
+                        handleSaveSupplier().catch(() => undefined);
+                    }}
+                    onUpdateFormField={updateFormField}
+                />
+            ) : null}
 
             <SupplierListCard
                 isRowBusyId={isRowBusyId}
@@ -544,10 +697,19 @@ function SuppliersPage() {
                     handleDeleteSupplier(supplier).catch(() => undefined);
                 }}
                 onEditSupplier={loadSupplierIntoForm}
+                onRecordsViewChange={(nextView) => {
+                    patchState({
+                        editingSupplierId: null,
+                        form: emptySupplierForm,
+                        pendingDeleteSupplierId: null,
+                        recordsView: nextView,
+                    });
+                }}
                 onToggleSupplierActive={(supplier) => {
                     handleToggleSupplierActive(supplier).catch(() => undefined);
                 }}
                 pendingDeleteSupplierId={pendingDeleteSupplierId}
+                recordsView={recordsView}
                 suppliers={suppliers}
             />
         </section>

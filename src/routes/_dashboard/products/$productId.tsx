@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
     Select,
     SelectContent,
@@ -63,6 +64,14 @@ import { updateProduct } from "@/features/products/update-product";
 import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 import { listSuppliers } from "@/features/suppliers/list-suppliers";
 
+const CARD_SHELL_CLASS = "rounded-xl border border-border/70 bg-card shadow-sm";
+const SELECT_TRIGGER_CLASS =
+    "h-10 w-full rounded-xl border-border/70 bg-muted/35 px-3 shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_CONTENT_CLASS =
+    "rounded-xl border-border/70 bg-popover/98 shadow-xl";
+const SECTION_INPUT_CLASS =
+    "h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55";
+
 interface ProductEditLoaderData {
     categories: Awaited<ReturnType<typeof getCategories>>;
     changeRequests: Awaited<ReturnType<typeof listProductChangeRequests>>;
@@ -80,6 +89,10 @@ interface EditProductPageState {
     isSubmitting: boolean;
     mediaAltText: string;
     mediaUrl: string;
+    quickVariantAttributeName: string;
+    quickVariantNamePrefix: string;
+    quickVariantSkuPrefix: string;
+    quickVariantValues: string;
     scheduleCostPrice: string;
     scheduleEffectiveAt: string;
     scheduleReason: string;
@@ -121,12 +134,39 @@ const hasPendingApprovalResponse = (response: unknown): boolean => {
 const parseVariantAttributes = (
     value: string
 ): Record<string, string> | null => {
-    if (!value) {
+    const trimmedValue = value.trim();
+    if (trimmedValue.length === 0) {
         return {};
     }
 
     try {
-        return JSON.parse(value) as Record<string, string>;
+        if (trimmedValue.startsWith("{")) {
+            return JSON.parse(trimmedValue) as Record<string, string>;
+        }
+
+        const pairs = trimmedValue
+            .split(",")
+            .map((part) => part.trim())
+            .filter(Boolean);
+        const attributes: Record<string, string> = {};
+
+        for (const pair of pairs) {
+            const delimiterIndex = pair.includes("=")
+                ? pair.indexOf("=")
+                : pair.indexOf(":");
+            if (delimiterIndex <= 0) {
+                return null;
+            }
+
+            const key = pair.slice(0, delimiterIndex).trim();
+            const rawValue = pair.slice(delimiterIndex + 1).trim();
+            if (!(key && rawValue)) {
+                return null;
+            }
+            attributes[key] = rawValue;
+        }
+
+        return attributes;
     } catch {
         return null;
     }
@@ -188,7 +228,7 @@ const SupplierLinksSection = ({
     suppliers,
 }: SupplierLinksSectionProps) => {
     return (
-        <Card>
+        <Card className={CARD_SHELL_CLASS}>
             <CardHeader>
                 <CardTitle>Supplier Links</CardTitle>
             </CardHeader>
@@ -200,10 +240,10 @@ const SupplierLinksSection = ({
                         }
                         value={supplierId}
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                             <SelectValue placeholder="Supplier" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className={SELECT_CONTENT_CLASS}>
                             <SelectItem value="none">
                                 Select supplier
                             </SelectItem>
@@ -218,6 +258,7 @@ const SupplierLinksSection = ({
                         </SelectContent>
                     </Select>
                     <Input
+                        className={SECTION_INPUT_CLASS}
                         onChange={(event) =>
                             onStatePatch({
                                 supplierSku: event.target.value,
@@ -256,46 +297,55 @@ const SupplierLinksSection = ({
                         Link Supplier
                     </Button>
                 </div>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Supplier</TableHead>
-                            <TableHead>Supplier SKU</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {productSuppliers.map((supplierLink) => (
-                            <TableRow key={supplierLink.id}>
-                                <TableCell>
-                                    {supplierLink.supplier.name}
-                                </TableCell>
-                                <TableCell>
-                                    {supplierLink.supplierSku ?? "—"}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                        onClick={async () => {
-                                            await unlinkSupplierFromProduct({
-                                                data: {
-                                                    productId: product.id,
-                                                    supplierId:
-                                                        supplierLink.supplierId,
-                                                },
-                                            });
-                                            toast.success("Supplier unlinked.");
-                                            await onRefresh();
-                                        }}
-                                        size="sm"
-                                        variant="outline"
-                                    >
-                                        Remove
-                                    </Button>
-                                </TableCell>
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[760px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Supplier</TableHead>
+                                <TableHead>Supplier SKU</TableHead>
+                                <TableHead className="text-right">
+                                    Action
+                                </TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {productSuppliers.map((supplierLink) => (
+                                <TableRow key={supplierLink.id}>
+                                    <TableCell>
+                                        {supplierLink.supplier.name}
+                                    </TableCell>
+                                    <TableCell>
+                                        {supplierLink.supplierSku ?? "—"}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <Button
+                                            onClick={async () => {
+                                                await unlinkSupplierFromProduct(
+                                                    {
+                                                        data: {
+                                                            productId:
+                                                                product.id,
+                                                            supplierId:
+                                                                supplierLink.supplierId,
+                                                        },
+                                                    }
+                                                );
+                                                toast.success(
+                                                    "Supplier unlinked."
+                                                );
+                                                await onRefresh();
+                                            }}
+                                            size="sm"
+                                            variant="outline"
+                                        >
+                                            Remove
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -305,57 +355,290 @@ interface VariantsSectionProps {
     onRefresh: () => Promise<void>;
     onStatePatch: (patch: Partial<EditProductPageState>) => void;
     product: ProductEditLoaderData["product"];
+    quickVariantAttributeName: string;
+    quickVariantNamePrefix: string;
+    quickVariantSkuPrefix: string;
+    quickVariantValues: string;
     variantAttributes: string;
     variantName: string;
     variantSku: string;
     variants: ProductEditLoaderData["variants"];
 }
 
-const VariantsSection = ({
+const VariantsSection = (props: VariantsSectionProps) =>
+    renderVariantsSection(props);
+
+const renderVariantsSection = ({
     onRefresh,
     onStatePatch,
     product,
+    quickVariantAttributeName,
+    quickVariantNamePrefix,
+    quickVariantSkuPrefix,
+    quickVariantValues,
     variantAttributes,
     variantName,
     variantSku,
     variants,
 }: VariantsSectionProps) => {
+    const attributeKeyPreview = quickVariantAttributeName.trim().toLowerCase();
+    const quickValues = Array.from(
+        new Set(
+            quickVariantValues
+                .split(",")
+                .map((value) => value.trim())
+                .filter(Boolean)
+        )
+    );
+    const namePrefixPreview = quickVariantNamePrefix.trim() || product.name;
+    const skuPrefixPreview = (
+        quickVariantSkuPrefix.trim() || product.sku
+    ).toUpperCase();
+
     return (
-        <Card>
-            <CardHeader>
+        <Card className={CARD_SHELL_CLASS}>
+            <CardHeader className="space-y-1">
                 <CardTitle>Variants</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Create variants in bulk or add a single custom variant.
+                </p>
             </CardHeader>
-            <CardContent className="space-y-3">
-                <div className="grid gap-3 md:grid-cols-4">
-                    <Input
-                        onChange={(event) =>
-                            onStatePatch({ variantName: event.target.value })
-                        }
-                        placeholder="Variant name"
-                        value={variantName}
-                    />
-                    <Input
-                        onChange={(event) =>
-                            onStatePatch({ variantSku: event.target.value })
-                        }
-                        placeholder="Variant SKU"
-                        value={variantSku}
-                    />
-                    <Input
-                        onChange={(event) =>
-                            onStatePatch({
-                                variantAttributes: event.target.value,
-                            })
-                        }
-                        placeholder='Attributes JSON e.g {"size":"M"}'
-                        value={variantAttributes}
-                    />
+            <CardContent className="space-y-4">
+                <div className="space-y-3 rounded-xl border border-border/70 bg-muted/25 p-3">
+                    <div className="space-y-1">
+                        <p className="font-medium text-sm">
+                            Quick Variant Builder
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Example: attribute `size` + values `S, M, L` creates
+                            three variants immediately.
+                        </p>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="quick-variant-attribute">
+                                Attribute
+                            </Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="quick-variant-attribute"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        quickVariantAttributeName:
+                                            event.target.value,
+                                    })
+                                }
+                                placeholder="size, color, material..."
+                                value={quickVariantAttributeName}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="quick-variant-values">Values</Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="quick-variant-values"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        quickVariantValues: event.target.value,
+                                    })
+                                }
+                                placeholder="S, M, L"
+                                value={quickVariantValues}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="quick-variant-name-prefix">
+                                Name Prefix
+                            </Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="quick-variant-name-prefix"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        quickVariantNamePrefix:
+                                            event.target.value,
+                                    })
+                                }
+                                placeholder={`Default: ${product.name}`}
+                                value={quickVariantNamePrefix}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="quick-variant-sku-prefix">
+                                SKU Prefix
+                            </Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="quick-variant-sku-prefix"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        quickVariantSkuPrefix:
+                                            event.target.value.toUpperCase(),
+                                    })
+                                }
+                                placeholder={`Default: ${product.sku}`}
+                                value={quickVariantSkuPrefix}
+                            />
+                        </div>
+                    </div>
+
+                    {quickValues.length > 0 ? (
+                        <div className="rounded-lg border border-border/70 bg-background/70 p-3">
+                            <p className="mb-2 text-muted-foreground text-xs">
+                                Preview ({quickValues.length})
+                            </p>
+                            <div className="flex flex-wrap gap-2">
+                                {quickValues.map((value) => {
+                                    const skuSuffix = value
+                                        .toUpperCase()
+                                        .replace(/[^A-Z0-9]+/g, "-")
+                                        .replace(/^-+|-+$/g, "");
+                                    return (
+                                        <span
+                                            className="rounded-md border border-border/70 bg-muted/35 px-2 py-1 text-xs"
+                                            key={value}
+                                        >
+                                            {namePrefixPreview} {value} ·{" "}
+                                            {skuPrefixPreview}-{skuSuffix}
+                                        </span>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ) : null}
+
                     <Button
+                        disabled={
+                            !attributeKeyPreview || quickValues.length === 0
+                        }
+                        onClick={async () => {
+                            const attributeKey = attributeKeyPreview;
+                            if (!attributeKey) {
+                                toast.error("Enter an attribute name.");
+                                return;
+                            }
+
+                            const values = quickValues;
+                            if (values.length === 0) {
+                                toast.error(
+                                    "Enter at least one variant value."
+                                );
+                                return;
+                            }
+
+                            const namePrefix = namePrefixPreview;
+                            const skuPrefix = skuPrefixPreview;
+
+                            let createdCount = 0;
+                            const failedValues: string[] = [];
+                            for (const value of values) {
+                                const skuSuffix = value
+                                    .toUpperCase()
+                                    .replace(/[^A-Z0-9]+/g, "-")
+                                    .replace(/^-+|-+$/g, "");
+                                const nextSku = `${skuPrefix}-${skuSuffix}`;
+                                const nextName = `${namePrefix} ${value}`;
+
+                                try {
+                                    await upsertProductVariant({
+                                        data: {
+                                            attributes: {
+                                                [attributeKey]: value,
+                                            },
+                                            barcode: null,
+                                            costPrice: null,
+                                            isActive: true,
+                                            name: nextName,
+                                            productId: product.id,
+                                            sellingPrice: null,
+                                            sku: nextSku,
+                                        },
+                                    });
+                                    createdCount += 1;
+                                } catch {
+                                    failedValues.push(value);
+                                }
+                            }
+
+                            if (createdCount > 0) {
+                                toast.success(
+                                    `Created ${createdCount} variants.`
+                                );
+                            }
+                            if (failedValues.length > 0) {
+                                toast.error(
+                                    `Failed: ${failedValues.join(", ")}`
+                                );
+                            }
+
+                            onStatePatch({
+                                quickVariantAttributeName: "",
+                                quickVariantNamePrefix: "",
+                                quickVariantSkuPrefix: "",
+                                quickVariantValues: "",
+                            });
+                            await onRefresh();
+                        }}
+                        variant="outline"
+                    >
+                        Create Variants From List
+                    </Button>
+                </div>
+                <div className="space-y-3 rounded-xl border border-border/70 p-3">
+                    <p className="font-medium text-sm">Manual Variant</p>
+                    <div className="grid gap-3 md:grid-cols-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="manual-variant-name">Name</Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="manual-variant-name"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        variantName: event.target.value,
+                                    })
+                                }
+                                placeholder="Variant name"
+                                value={variantName}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="manual-variant-sku">SKU</Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="manual-variant-sku"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        variantSku: event.target.value,
+                                    })
+                                }
+                                placeholder="Variant SKU"
+                                value={variantSku}
+                            />
+                        </div>
+                        <div className="space-y-2 md:col-span-2">
+                            <Label htmlFor="manual-variant-attributes">
+                                Attributes
+                            </Label>
+                            <Input
+                                className={SECTION_INPUT_CLASS}
+                                id="manual-variant-attributes"
+                                onChange={(event) =>
+                                    onStatePatch({
+                                        variantAttributes: event.target.value,
+                                    })
+                                }
+                                placeholder="size=M, color=Red (or JSON)"
+                                value={variantAttributes}
+                            />
+                        </div>
+                    </div>
+                    <Button
+                        disabled={!(variantName.trim() && variantSku.trim())}
                         onClick={async () => {
                             const attributes =
                                 parseVariantAttributes(variantAttributes);
                             if (!attributes) {
-                                toast.error("Invalid variant attributes JSON.");
+                                toast.error("Invalid attributes format.");
                                 return;
                             }
                             await upsertProductVariant({
@@ -382,41 +665,74 @@ const VariantsSection = ({
                         Add Variant
                     </Button>
                 </div>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Name</TableHead>
-                            <TableHead>SKU</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {variants.map((variant) => (
-                            <TableRow key={variant.id}>
-                                <TableCell>{variant.name}</TableCell>
-                                <TableCell>{variant.sku}</TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                        onClick={async () => {
-                                            await deleteProductVariant({
-                                                data: {
-                                                    id: variant.id,
-                                                    productId: product.id,
-                                                },
-                                            });
-                                            toast.success("Variant removed.");
-                                            await onRefresh();
-                                        }}
-                                        size="sm"
-                                        variant="outline"
-                                    >
-                                        Remove
-                                    </Button>
-                                </TableCell>
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[760px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Name</TableHead>
+                                <TableHead>SKU</TableHead>
+                                <TableHead>Attributes</TableHead>
+                                <TableHead className="text-right">
+                                    Action
+                                </TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {variants.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        className="text-muted-foreground"
+                                        colSpan={4}
+                                    >
+                                        No variants yet. Use Quick Variant
+                                        Builder above.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                variants.map((variant) => (
+                                    <TableRow key={variant.id}>
+                                        <TableCell>{variant.name}</TableCell>
+                                        <TableCell>{variant.sku}</TableCell>
+                                        <TableCell className="text-muted-foreground text-xs">
+                                            {Object.entries(
+                                                (variant.attributes as Record<
+                                                    string,
+                                                    string
+                                                >) ?? {}
+                                            )
+                                                .map(
+                                                    ([key, value]) =>
+                                                        `${key}: ${value}`
+                                                )
+                                                .join(" • ") || "—"}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <Button
+                                                onClick={async () => {
+                                                    await deleteProductVariant({
+                                                        data: {
+                                                            id: variant.id,
+                                                            productId:
+                                                                product.id,
+                                                        },
+                                                    });
+                                                    toast.success(
+                                                        "Variant removed."
+                                                    );
+                                                    await onRefresh();
+                                                }}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Remove
+                                            </Button>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -440,13 +756,14 @@ const MediaSection = ({
     productMedia,
 }: MediaSectionProps) => {
     return (
-        <Card>
+        <Card className={CARD_SHELL_CLASS}>
             <CardHeader>
                 <CardTitle>Media</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
                 <div className="grid gap-3 md:grid-cols-3">
                     <Input
+                        className={SECTION_INPUT_CLASS}
                         onChange={(event) =>
                             onStatePatch({ mediaUrl: event.target.value })
                         }
@@ -454,6 +771,7 @@ const MediaSection = ({
                         value={mediaUrl}
                     />
                     <Input
+                        className={SECTION_INPUT_CLASS}
                         onChange={(event) =>
                             onStatePatch({ mediaAltText: event.target.value })
                         }
@@ -482,63 +800,70 @@ const MediaSection = ({
                         Add Media
                     </Button>
                 </div>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>URL</TableHead>
-                            <TableHead>Primary</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {productMedia.map((media) => (
-                            <TableRow key={media.id}>
-                                <TableCell className="max-w-[320px] truncate">
-                                    {media.url}
-                                </TableCell>
-                                <TableCell>
-                                    {media.isPrimary ? "Yes" : "No"}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex justify-end gap-2">
-                                        <Button
-                                            onClick={async () => {
-                                                await setPrimaryProductMedia({
-                                                    data: {
-                                                        mediaId: media.id,
-                                                        productId: product.id,
-                                                    },
-                                                });
-                                                await onRefresh();
-                                            }}
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            Set Primary
-                                        </Button>
-                                        <Button
-                                            onClick={async () => {
-                                                await deleteProductMedia({
-                                                    data: {
-                                                        mediaId: media.id,
-                                                        productId: product.id,
-                                                    },
-                                                });
-                                                await onRefresh();
-                                            }}
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            Delete
-                                        </Button>
-                                    </div>
-                                </TableCell>
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[760px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>URL</TableHead>
+                                <TableHead>Primary</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {productMedia.map((media) => (
+                                <TableRow key={media.id}>
+                                    <TableCell className="max-w-[320px] truncate">
+                                        {media.url}
+                                    </TableCell>
+                                    <TableCell>
+                                        {media.isPrimary ? "Yes" : "No"}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                onClick={async () => {
+                                                    await setPrimaryProductMedia(
+                                                        {
+                                                            data: {
+                                                                mediaId:
+                                                                    media.id,
+                                                                productId:
+                                                                    product.id,
+                                                            },
+                                                        }
+                                                    );
+                                                    await onRefresh();
+                                                }}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Set Primary
+                                            </Button>
+                                            <Button
+                                                onClick={async () => {
+                                                    await deleteProductMedia({
+                                                        data: {
+                                                            mediaId: media.id,
+                                                            productId:
+                                                                product.id,
+                                                        },
+                                                    });
+                                                    await onRefresh();
+                                                }}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Delete
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -568,13 +893,14 @@ const PriceSchedulingSection = ({
     scheduleSellingPrice,
 }: PriceSchedulingSectionProps) => {
     return (
-        <Card>
+        <Card className={CARD_SHELL_CLASS}>
             <CardHeader>
                 <CardTitle>Price Scheduling</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
                 <div className="grid gap-3 md:grid-cols-4">
                     <Input
+                        className={SECTION_INPUT_CLASS}
                         onChange={(event) =>
                             onStatePatch({
                                 scheduleCostPrice: event.target.value,
@@ -586,6 +912,7 @@ const PriceSchedulingSection = ({
                         value={scheduleCostPrice}
                     />
                     <Input
+                        className={SECTION_INPUT_CLASS}
                         onChange={(event) =>
                             onStatePatch({
                                 scheduleSellingPrice: event.target.value,
@@ -597,6 +924,7 @@ const PriceSchedulingSection = ({
                         value={scheduleSellingPrice}
                     />
                     <Input
+                        className={SECTION_INPUT_CLASS}
                         onChange={(event) =>
                             onStatePatch({
                                 scheduleEffectiveAt: event.target.value,
@@ -606,6 +934,7 @@ const PriceSchedulingSection = ({
                         value={scheduleEffectiveAt}
                     />
                     <Input
+                        className={SECTION_INPUT_CLASS}
                         onChange={(event) =>
                             onStatePatch({
                                 scheduleReason: event.target.value,
@@ -662,49 +991,60 @@ const PriceSchedulingSection = ({
                         Apply Due Schedules
                     </Button>
                 </div>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Effective At</TableHead>
-                            <TableHead>Selling Price</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">Action</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {priceSchedules.map((schedule) => (
-                            <TableRow key={schedule.id}>
-                                <TableCell>
-                                    {formatUtcDateTime(schedule.effectiveAt)}
-                                </TableCell>
-                                <TableCell>
-                                    {formatCurrencyFromMinorUnits(
-                                        schedule.sellingPrice,
-                                        currencyCode
-                                    )}
-                                </TableCell>
-                                <TableCell>{schedule.status}</TableCell>
-                                <TableCell className="text-right">
-                                    <Button
-                                        disabled={schedule.status !== "PENDING"}
-                                        onClick={async () => {
-                                            await cancelProductPriceSchedule({
-                                                data: {
-                                                    scheduleId: schedule.id,
-                                                },
-                                            });
-                                            await onRefresh();
-                                        }}
-                                        size="sm"
-                                        variant="outline"
-                                    >
-                                        Cancel
-                                    </Button>
-                                </TableCell>
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[760px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Effective At</TableHead>
+                                <TableHead>Selling Price</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">
+                                    Action
+                                </TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {priceSchedules.map((schedule) => (
+                                <TableRow key={schedule.id}>
+                                    <TableCell>
+                                        {formatUtcDateTime(
+                                            schedule.effectiveAt
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {formatCurrencyFromMinorUnits(
+                                            schedule.sellingPrice,
+                                            currencyCode
+                                        )}
+                                    </TableCell>
+                                    <TableCell>{schedule.status}</TableCell>
+                                    <TableCell className="text-right">
+                                        <Button
+                                            disabled={
+                                                schedule.status !== "PENDING"
+                                            }
+                                            onClick={async () => {
+                                                await cancelProductPriceSchedule(
+                                                    {
+                                                        data: {
+                                                            scheduleId:
+                                                                schedule.id,
+                                                        },
+                                                    }
+                                                );
+                                                await onRefresh();
+                                            }}
+                                            size="sm"
+                                            variant="outline"
+                                        >
+                                            Cancel
+                                        </Button>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -720,78 +1060,80 @@ const ChangeRequestsSection = ({
     onRefresh,
 }: ChangeRequestsSectionProps) => {
     return (
-        <Card>
+        <Card className={CARD_SHELL_CLASS}>
             <CardHeader>
                 <CardTitle>Pending Change Requests</CardTitle>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Created</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {changeRequests.map((request) => (
-                            <TableRow key={request.id}>
-                                <TableCell>{request.changeType}</TableCell>
-                                <TableCell>{request.status}</TableCell>
-                                <TableCell>
-                                    {formatUtcDateTime(request.createdAt)}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex justify-end gap-2">
-                                        <Button
-                                            disabled={
-                                                request.status !== "PENDING"
-                                            }
-                                            onClick={async () => {
-                                                await approveProductChangeRequest(
-                                                    {
-                                                        data: {
-                                                            requestId:
-                                                                request.id,
-                                                        },
-                                                    }
-                                                );
-                                                await onRefresh();
-                                            }}
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            Approve
-                                        </Button>
-                                        <Button
-                                            disabled={
-                                                request.status !== "PENDING"
-                                            }
-                                            onClick={async () => {
-                                                await rejectProductChangeRequest(
-                                                    {
-                                                        data: {
-                                                            requestId:
-                                                                request.id,
-                                                        },
-                                                    }
-                                                );
-                                                await onRefresh();
-                                            }}
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            Reject
-                                        </Button>
-                                    </div>
-                                </TableCell>
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[760px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Created</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {changeRequests.map((request) => (
+                                <TableRow key={request.id}>
+                                    <TableCell>{request.changeType}</TableCell>
+                                    <TableCell>{request.status}</TableCell>
+                                    <TableCell>
+                                        {formatUtcDateTime(request.createdAt)}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex justify-end gap-2">
+                                            <Button
+                                                disabled={
+                                                    request.status !== "PENDING"
+                                                }
+                                                onClick={async () => {
+                                                    await approveProductChangeRequest(
+                                                        {
+                                                            data: {
+                                                                requestId:
+                                                                    request.id,
+                                                            },
+                                                        }
+                                                    );
+                                                    await onRefresh();
+                                                }}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Approve
+                                            </Button>
+                                            <Button
+                                                disabled={
+                                                    request.status !== "PENDING"
+                                                }
+                                                onClick={async () => {
+                                                    await rejectProductChangeRequest(
+                                                        {
+                                                            data: {
+                                                                requestId:
+                                                                    request.id,
+                                                            },
+                                                        }
+                                                    );
+                                                    await onRefresh();
+                                                }}
+                                                size="sm"
+                                                variant="outline"
+                                            >
+                                                Reject
+                                            </Button>
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -807,45 +1149,47 @@ const PriceHistorySection = ({
     priceHistory,
 }: PriceHistorySectionProps) => {
     return (
-        <Card>
+        <Card className={CARD_SHELL_CLASS}>
             <CardHeader>
                 <CardTitle>Price History</CardTitle>
             </CardHeader>
             <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Effective At</TableHead>
-                            <TableHead>Cost Price</TableHead>
-                            <TableHead>Selling Price</TableHead>
-                            <TableHead>Reason</TableHead>
-                            <TableHead>By</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {priceHistory.map((entry) => (
-                            <TableRow key={entry.createdAt.toISOString()}>
-                                <TableCell>
-                                    {formatUtcDateTime(entry.effectiveAt)}
-                                </TableCell>
-                                <TableCell>
-                                    {formatCurrencyFromMinorUnits(
-                                        entry.costPrice,
-                                        currencyCode
-                                    )}
-                                </TableCell>
-                                <TableCell>
-                                    {formatCurrencyFromMinorUnits(
-                                        entry.sellingPrice,
-                                        currencyCode
-                                    )}
-                                </TableCell>
-                                <TableCell>{entry.reason ?? "—"}</TableCell>
-                                <TableCell>{entry.actorName}</TableCell>
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[760px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Effective At</TableHead>
+                                <TableHead>Cost Price</TableHead>
+                                <TableHead>Selling Price</TableHead>
+                                <TableHead>Reason</TableHead>
+                                <TableHead>By</TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {priceHistory.map((entry) => (
+                                <TableRow key={entry.createdAt.toISOString()}>
+                                    <TableCell>
+                                        {formatUtcDateTime(entry.effectiveAt)}
+                                    </TableCell>
+                                    <TableCell>
+                                        {formatCurrencyFromMinorUnits(
+                                            entry.costPrice,
+                                            currencyCode
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {formatCurrencyFromMinorUnits(
+                                            entry.sellingPrice,
+                                            currencyCode
+                                        )}
+                                    </TableCell>
+                                    <TableCell>{entry.reason ?? "—"}</TableCell>
+                                    <TableCell>{entry.actorName}</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -918,6 +1262,10 @@ function EditProductPage() {
         isSubmitting: false,
         mediaAltText: "",
         mediaUrl: "",
+        quickVariantAttributeName: "",
+        quickVariantNamePrefix: "",
+        quickVariantSkuPrefix: "",
+        quickVariantValues: "",
         scheduleCostPrice: "",
         scheduleEffectiveAt: "",
         scheduleReason: "",
@@ -932,6 +1280,10 @@ function EditProductPage() {
         isSubmitting,
         mediaAltText,
         mediaUrl,
+        quickVariantAttributeName,
+        quickVariantNamePrefix,
+        quickVariantSkuPrefix,
+        quickVariantValues,
         scheduleCostPrice,
         scheduleEffectiveAt,
         scheduleReason,
@@ -975,9 +1327,16 @@ function EditProductPage() {
     };
 
     return (
-        <div className="w-full space-y-4">
-            <Card>
-                <CardHeader>
+        <div className="w-full space-y-5">
+            <div>
+                <h1 className="font-semibold text-2xl">Edit Product</h1>
+                <p className="text-muted-foreground text-sm">
+                    Manage product master data, suppliers, variants, media, and
+                    controlled pricing changes.
+                </p>
+            </div>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardHeader className="space-y-1">
                     <CardTitle>Edit Product</CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -1004,6 +1363,10 @@ function EditProductPage() {
                 onRefresh={() => router.invalidate()}
                 onStatePatch={setState}
                 product={product}
+                quickVariantAttributeName={quickVariantAttributeName}
+                quickVariantNamePrefix={quickVariantNamePrefix}
+                quickVariantSkuPrefix={quickVariantSkuPrefix}
+                quickVariantValues={quickVariantValues}
                 variantAttributes={variantAttributes}
                 variantName={variantName}
                 variantSku={variantSku}

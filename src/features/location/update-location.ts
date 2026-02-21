@@ -121,3 +121,51 @@ export const archiveLocation = createServerFn({ method: "POST" })
 
         return updated;
     });
+
+const deleteLocationSchema = z.object({
+    id: z.string().min(1),
+});
+
+export const deleteLocation = createServerFn({ method: "POST" })
+    .inputValidator(deleteLocationSchema)
+    .middleware([authMiddleware])
+    .handler(async ({ context, data }) => {
+        if (!canUser(context.session.user, PERMISSIONS.LOCATIONS_DELETE)) {
+            throw new Error("You do not have permission to delete locations.");
+        }
+
+        const location = await prisma.location.findFirst({
+            where: { deletedAt: null, id: data.id },
+            include: {
+                _count: {
+                    select: {
+                        stockItems: true,
+                    },
+                },
+            },
+        });
+        if (!location) {
+            throw new Error("Location not found.");
+        }
+
+        if (location._count.stockItems > 0) {
+            throw new Error(
+                "Cannot delete a location with stock buckets. Move or clear stock first."
+            );
+        }
+
+        const deleted = await prisma.location.delete({
+            where: { id: data.id },
+        });
+
+        await logActivity({
+            action: "LOCATION_DELETED",
+            actorUserId: context.session.user.id,
+            changes: { before: location, after: deleted },
+            entity: "Location",
+            entityId: deleted.id,
+            ipAddress: getRequestIpAddress(getRequestHeaders()),
+        });
+
+        return deleted;
+    });

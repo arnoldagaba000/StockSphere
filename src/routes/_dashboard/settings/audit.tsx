@@ -70,7 +70,7 @@ function AuditSettingsPage() {
     });
 
     return (
-        <section className="space-y-4">
+        <section className="w-full min-w-0 space-y-4">
             <Card>
                 <CardHeader>
                     <CardTitle>Audit Trail</CardTitle>
@@ -125,61 +125,68 @@ function AuditSettingsPage() {
                         </Badge>
                     </CardTitle>
                 </CardHeader>
-                <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>When</TableHead>
-                                <TableHead>User</TableHead>
-                                <TableHead>Action</TableHead>
-                                <TableHead>Entity</TableHead>
-                                <TableHead>Entity ID</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredLogs.length === 0 ? (
+                <CardContent className="min-w-0">
+                    <div className="w-full overflow-x-auto">
+                        <Table className="min-w-[760px]">
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell
-                                        className="text-center text-muted-foreground"
-                                        colSpan={5}
-                                    >
-                                        No activity found for current filters.
-                                    </TableCell>
+                                    <TableHead>When</TableHead>
+                                    <TableHead>User</TableHead>
+                                    <TableHead>Action</TableHead>
+                                    <TableHead>Entity</TableHead>
+                                    <TableHead>Entity ID</TableHead>
                                 </TableRow>
-                            ) : (
-                                filteredLogs.map((entry) => (
-                                    <TableRow key={entry.id}>
-                                        <TableCell>
-                                            {new Date(
-                                                entry.createdAt
-                                            ).toLocaleString()}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="space-y-0.5">
-                                                <p className="font-medium text-sm">
-                                                    {entry.user.name ??
-                                                        entry.user.email}
-                                                </p>
-                                                <p className="text-muted-foreground text-xs">
-                                                    {entry.user.role} ·{" "}
-                                                    {entry.user.id}
-                                                </p>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">
-                                                {entry.action}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell>{entry.entity}</TableCell>
-                                        <TableCell className="font-mono text-xs">
-                                            {entry.entityId}
+                            </TableHeader>
+                            <TableBody>
+                                {filteredLogs.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell
+                                            className="text-center text-muted-foreground"
+                                            colSpan={5}
+                                        >
+                                            No activity found for current
+                                            filters.
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : (
+                                    filteredLogs.map((entry) => (
+                                        <TableRow key={entry.id}>
+                                            <TableCell>
+                                                <span className="whitespace-nowrap">
+                                                    {new Date(
+                                                        entry.createdAt
+                                                    ).toLocaleString()}
+                                                </span>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="max-w-64 space-y-0.5">
+                                                    <p className="font-medium text-sm">
+                                                        {entry.user.name ??
+                                                            entry.user.email}
+                                                    </p>
+                                                    <p className="truncate text-muted-foreground text-xs">
+                                                        {entry.user.role} ·{" "}
+                                                        {entry.user.id}
+                                                    </p>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline">
+                                                    {entry.action}
+                                                </Badge>
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap">
+                                                {entry.entity}
+                                            </TableCell>
+                                            <TableCell className="max-w-56 truncate font-mono text-xs">
+                                                {entry.entityId}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                     <div className="pt-3 text-muted-foreground text-xs">
                         Loaded latest {data.logs.length} entries.
                     </div>

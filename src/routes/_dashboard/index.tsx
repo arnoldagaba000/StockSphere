@@ -6,20 +6,16 @@ import {
     ArrowDownIcon,
     ArrowRightIcon,
     ArrowUpIcon,
+    BoxesIcon,
+    CalendarClockIcon,
+    CheckCircle2Icon,
     Clock3Icon,
     DollarSignIcon,
     PackageIcon,
     ShoppingCartIcon,
     TruckIcon,
 } from "lucide-react";
-import {
-    lazy,
-    type ReactNode,
-    Suspense,
-    useEffect,
-    useRef,
-    useState,
-} from "react";
+import { lazy, type ReactNode, Suspense } from "react";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,55 +30,9 @@ const dashboardMetricsQueryOptions = queryOptions({
     staleTime: 5 * 60 * 1000,
 });
 
-const Area = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.Area };
-});
-
-const AreaChart = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.AreaChart };
-});
-
-const CartesianGrid = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.CartesianGrid };
-});
-
-const Cell = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.Cell };
-});
-
-const Pie = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.Pie };
-});
-
-const PieChart = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.PieChart };
-});
-
-const Tooltip = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.Tooltip };
-});
-
-const XAxis = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.XAxis };
-});
-
-const YAxis = lazy(async () => {
-    const module = await import("recharts");
-    return { default: module.YAxis };
-});
-
 type DashboardMetrics = Awaited<ReturnType<typeof getDashboardMetrics>>;
 
-interface QueueDistributionItem {
-    colorClass: string;
+interface QueueSlice {
     key: string;
     label: string;
     value: number;
@@ -92,6 +42,14 @@ interface TrendPoint {
     dateLabel: string;
     valueMajor: number;
 }
+
+const DashboardChartsSection = lazy(() =>
+    import("@/components/features/dashboard/dashboard-charts").then(
+        (module) => ({
+            default: module.DashboardChartsSection,
+        })
+    )
+);
 
 export const Route = createFileRoute("/_dashboard/")({
     component: HomePage,
@@ -122,8 +80,7 @@ function HomePage() {
         metrics.inventoryTrend.length > 1
             ? metrics.inventoryTrend.at(metrics.inventoryTrend.length - 2)
             : null;
-
-    const stockValueDelta = latestTrend
+    const stockValueDeltaMinor = latestTrend
         ? latestTrend.totalValueMinor - (previousTrend?.totalValueMinor ?? 0)
         : 0;
 
@@ -136,369 +93,280 @@ function HomePage() {
         valueMajor: item.totalValueMinor / 100,
     }));
 
-    const queueDistribution: QueueDistributionItem[] = [
+    const queueSlices: QueueSlice[] = [
         {
-            colorClass: "fill-amber-500",
             key: "pendingPurchaseOrders",
-            label: "Pending Purchase Orders",
+            label: "Pending Purchases",
             value: metrics.pendingPurchaseOrders,
         },
         {
-            colorClass: "fill-indigo-500",
             key: "pendingSalesOrders",
-            label: "Pending Sales Orders",
+            label: "Pending Sales",
             value: metrics.pendingSalesOrders,
         },
         {
-            colorClass: "fill-rose-500",
             key: "lowStockAlerts",
-            label: "Low Stock Alerts",
+            label: "Low Stock",
             value: metrics.lowStockAlerts,
         },
         {
-            colorClass: "fill-orange-500",
             key: "expiringIn30Days",
-            label: "Expiring in 30 Days",
+            label: "Expiring in 30d",
             value: metrics.expiringIn30Days,
         },
     ];
 
-    const queueTotal = queueDistribution.reduce(
-        (total, item) => total + item.value,
-        0
-    );
-
+    const queueTotal = queueSlices.reduce((sum, item) => sum + item.value, 0);
     const lastUpdatedAt = new Date(dataUpdatedAt)
         .toISOString()
         .slice(0, 16)
         .replace("T", " ");
 
     return (
-        <section className="space-y-6">
-            <DashboardHero lastUpdatedAt={lastUpdatedAt} />
-
-            <MetricsOverview
-                currencyCode={currencyCode}
-                metrics={metrics}
-                stockValueDelta={stockValueDelta}
+        <section className="space-y-6 pb-2">
+            <HeroSection
+                lastUpdatedAt={lastUpdatedAt}
+                queueTotal={queueTotal}
+                recentMovements={metrics.recentMovementsLast7Days}
             />
 
-            <div className="grid gap-5 lg:grid-cols-3">
-                <InventoryTrendCard
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <KpiCard
+                    accentColor="var(--chart-1)"
+                    icon={<DollarSignIcon className="h-4 w-4" />}
+                    label="Stock Value"
+                    tone={toDeltaTone(stockValueDeltaMinor)}
+                    trend={
+                        stockValueDeltaMinor === 0
+                            ? "No change from last snapshot"
+                            : `${toDeltaSign(stockValueDeltaMinor)}${formatCurrencyFromMinorUnits(
+                                  Math.abs(stockValueDeltaMinor),
+                                  currencyCode
+                              )} vs last snapshot`
+                    }
+                    value={formatCurrencyFromMinorUnits(
+                        metrics.totalStockValueMinor,
+                        currencyCode
+                    )}
+                />
+                <KpiCard
+                    accentColor="var(--chart-2)"
+                    icon={<BoxesIcon className="h-4 w-4" />}
+                    label="Units In Stock"
+                    tone="neutral"
+                    trend={`${Intl.NumberFormat().format(metrics.recentMovementsLast7Days)} movements in 7 days`}
+                    value={Intl.NumberFormat().format(
+                        metrics.totalUnitsInStock
+                    )}
+                />
+                <KpiCard
+                    accentColor="var(--chart-3)"
+                    icon={<TruckIcon className="h-4 w-4" />}
+                    label="Pending Purchase Orders"
+                    tone="neutral"
+                    trend="Inbound workload"
+                    value={String(metrics.pendingPurchaseOrders)}
+                />
+                <KpiCard
+                    accentColor="var(--chart-4)"
+                    icon={<ShoppingCartIcon className="h-4 w-4" />}
+                    label="Pending Sales Orders"
+                    tone="neutral"
+                    trend="Outbound workload"
+                    value={String(metrics.pendingSalesOrders)}
+                />
+            </div>
+
+            <Suspense fallback={<DashboardChartsFallback />}>
+                <DashboardChartsSection
                     currencyCode={currencyCode}
-                    latestValueMinor={latestTrend?.totalValueMinor ?? 0}
-                    stockValueDelta={stockValueDelta}
+                    queueSlices={queueSlices}
+                    queueTotal={queueTotal}
+                    stockValueDeltaMinor={stockValueDeltaMinor}
                     trendData={trendData}
                 />
-                <QueueDistributionCard
-                    queueDistribution={queueDistribution}
-                    queueTotal={queueTotal}
-                />
-            </div>
+            </Suspense>
 
             <div className="grid gap-5 lg:grid-cols-3">
-                <InventoryHealthCard metrics={metrics} />
+                <AlertsCard metrics={metrics} />
+                <OperationsCard metrics={metrics} />
                 <QuickActionsCard />
             </div>
-
-            <OperationalQueueCard metrics={metrics} />
         </section>
     );
 }
 
-function DashboardHero({ lastUpdatedAt }: { lastUpdatedAt: string }) {
+function DashboardChartsFallback() {
     return (
-        <header className="space-y-3">
-            <div className="rounded-xl border bg-linear-to-br from-background to-muted/40 p-5">
-                <h1 className="font-semibold text-2xl">Dashboard</h1>
-                <p className="mt-1 text-muted-foreground text-sm">
-                    Real-time operating snapshot for inventory, order flow, and
-                    stock health.
-                </p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <Badge variant="outline">
-                        <Clock3Icon className="mr-1 h-3.5 w-3.5" />
-                        Last refresh: {lastUpdatedAt} UTC
-                    </Badge>
-                    <Badge variant="secondary">
-                        <ActivityIcon className="mr-1 h-3.5 w-3.5" />
-                        Snapshot: live cache (5 min)
-                    </Badge>
+        <div className="grid gap-5 xl:grid-cols-3">
+            <Card className="xl:col-span-2">
+                <CardHeader>
+                    <Skeleton className="h-5 w-52" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-72 w-full" />
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <Skeleton className="h-5 w-36" />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <Skeleton className="h-52 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/4" />
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function HeroSection({
+    lastUpdatedAt,
+    queueTotal,
+    recentMovements,
+}: {
+    lastUpdatedAt: string;
+    queueTotal: number;
+    recentMovements: number;
+}) {
+    return (
+        <header className="rounded-xl border border-border/70 bg-linear-to-br from-card via-card to-primary/8 p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-5">
+                <div className="space-y-2">
+                    <h1 className="font-semibold text-2xl">
+                        Operations Dashboard
+                    </h1>
+                    <p className="max-w-2xl text-foreground/80 text-sm">
+                        Monitor inventory valuation, queue pressure, and order
+                        execution performance from a single view.
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <Badge variant="outline">
+                            <Clock3Icon className="mr-1 h-3.5 w-3.5" />
+                            Last refresh: {lastUpdatedAt} UTC
+                        </Badge>
+                        <Badge variant="secondary">
+                            <CalendarClockIcon className="mr-1 h-3.5 w-3.5" />5
+                            minute cache window
+                        </Badge>
+                    </div>
+                </div>
+                <div className="grid min-w-56 gap-2 rounded-lg border border-border/70 bg-background/60 p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                        <span className="text-foreground/80">Queue items</span>
+                        <span className="font-semibold">{queueTotal}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-foreground/80">
+                            Movements (7d)
+                        </span>
+                        <span className="font-semibold">{recentMovements}</span>
+                    </div>
                 </div>
             </div>
         </header>
     );
 }
 
-function MetricsOverview({
-    currencyCode,
-    metrics,
-    stockValueDelta,
+function KpiCard({
+    accentColor,
+    icon,
+    label,
+    tone,
+    trend,
+    value,
 }: {
-    currencyCode: string;
-    metrics: DashboardMetrics;
-    stockValueDelta: number;
+    accentColor: string;
+    icon: ReactNode;
+    label: string;
+    tone: "negative" | "neutral" | "positive";
+    trend: string;
+    value: string;
 }) {
     return (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <MetricCard
-                icon={<DollarSignIcon className="h-4 w-4" />}
-                label="Stock Value"
-                trendLabel={
-                    stockValueDelta === 0
-                        ? "No change from previous snapshot"
-                        : `${stockValueDelta > 0 ? "+" : "-"}${formatCurrencyFromMinorUnits(
-                              Math.abs(stockValueDelta),
-                              currencyCode
-                          )} vs previous snapshot`
-                }
-                trendTone={toDeltaTone(stockValueDelta)}
-                value={formatCurrencyFromMinorUnits(
-                    metrics.totalStockValueMinor,
-                    currencyCode
-                )}
+        <Card className="relative overflow-hidden border border-border/70 bg-linear-to-br from-card to-muted/30 shadow-sm">
+            <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-1"
+                style={{ backgroundColor: accentColor }}
             />
-            <MetricCard
-                icon={<PackageIcon className="h-4 w-4" />}
-                label="Units In Stock"
-                trendLabel={`${Intl.NumberFormat().format(
-                    metrics.recentMovementsLast7Days
-                )} movements in last 7 days`}
-                value={Intl.NumberFormat().format(metrics.totalUnitsInStock)}
-            />
-            <MetricCard
-                icon={<TruckIcon className="h-4 w-4" />}
-                label="Pending Purchase Orders"
-                trendLabel="Inbound supply queue"
-                value={String(metrics.pendingPurchaseOrders)}
-            />
-            <MetricCard
-                icon={<ShoppingCartIcon className="h-4 w-4" />}
-                label="Pending Sales Orders"
-                trendLabel="Outbound fulfillment queue"
-                value={String(metrics.pendingSalesOrders)}
-            />
-        </div>
-    );
-}
-
-function InventoryTrendCard({
-    currencyCode,
-    latestValueMinor,
-    stockValueDelta,
-    trendData,
-}: {
-    currencyCode: string;
-    latestValueMinor: number;
-    stockValueDelta: number;
-    trendData: TrendPoint[];
-}) {
-    const trendChart = useElementSize<HTMLDivElement>();
-    const stockValueDeltaClassName = toDeltaTextClassName(stockValueDelta);
-    const stockValueDeltaSign = toDeltaSign(stockValueDelta);
-
-    return (
-        <Card className="lg:col-span-2">
             <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                    <ActivityIcon className="h-4 w-4 text-muted-foreground" />
-                    Inventory Value Trend (30 days)
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-                {trendData.length > 0 ? (
-                    <div
-                        className="h-72 w-full min-w-0 rounded-md border bg-muted/20 p-2"
-                        ref={trendChart.ref}
+                <CardTitle className="flex items-center justify-between gap-2 text-sm">
+                    <span>{label}</span>
+                    <span
+                        className="rounded-md border border-border/70 bg-background/80 p-1.5"
+                        style={{ color: accentColor }}
                     >
-                        {trendChart.size.height > 0 &&
-                        trendChart.size.width > 0 ? (
-                            <Suspense fallback={<ChartLoadingState />}>
-                                <AreaChart
-                                    data={trendData}
-                                    height={trendChart.size.height}
-                                    width={trendChart.size.width}
-                                >
-                                    <defs>
-                                        <linearGradient
-                                            id="inventoryValueGradient"
-                                            x1="0"
-                                            x2="0"
-                                            y1="0"
-                                            y2="1"
-                                        >
-                                            <stop
-                                                offset="5%"
-                                                stopColor="hsl(var(--primary))"
-                                                stopOpacity={0.3}
-                                            />
-                                            <stop
-                                                offset="95%"
-                                                stopColor="hsl(var(--primary))"
-                                                stopOpacity={0}
-                                            />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis dataKey="dateLabel" tickMargin={8} />
-                                    <YAxis
-                                        tickFormatter={(value) =>
-                                            Intl.NumberFormat("en-US", {
-                                                notation: "compact",
-                                            }).format(value)
-                                        }
-                                    />
-                                    <Tooltip
-                                        formatter={(value) =>
-                                            formatCurrencyFromMinorUnits(
-                                                Math.round(Number(value) * 100),
-                                                currencyCode
-                                            )
-                                        }
-                                    />
-                                    <Area
-                                        dataKey="valueMajor"
-                                        fill="url(#inventoryValueGradient)"
-                                        stroke="hsl(var(--primary))"
-                                        strokeWidth={2}
-                                        type="monotone"
-                                    />
-                                </AreaChart>
-                            </Suspense>
-                        ) : null}
-                    </div>
-                ) : (
-                    <EmptyChartMessage />
-                )}
-                <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
-                    <span className="text-muted-foreground">
-                        Latest value:{" "}
-                        {formatCurrencyFromMinorUnits(
-                            latestValueMinor,
-                            currencyCode
-                        )}
+                        {icon}
                     </span>
-                    <span className={stockValueDeltaClassName}>
-                        <TrendIcon
-                            className="mr-1 inline h-3.5 w-3.5 align-[-2px]"
-                            tone={toDeltaTone(stockValueDelta)}
-                        />
-                        {stockValueDeltaSign}
-                        {formatCurrencyFromMinorUnits(
-                            Math.abs(stockValueDelta),
-                            currencyCode
-                        )}{" "}
-                        vs previous snapshot
-                    </span>
-                </div>
-            </CardContent>
-        </Card>
-    );
-}
-
-function QueueDistributionCard({
-    queueDistribution,
-    queueTotal,
-}: {
-    queueDistribution: QueueDistributionItem[];
-    queueTotal: number;
-}) {
-    const queueChart = useElementSize<HTMLDivElement>();
-
-    return (
-        <Card>
-            <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                    <AlertTriangleIcon className="h-4 w-4 text-muted-foreground" />
-                    Queue Distribution
                 </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="h-52 w-full min-w-0" ref={queueChart.ref}>
-                    {queueChart.size.height > 0 && queueChart.size.width > 0 ? (
-                        <Suspense fallback={<ChartLoadingState />}>
-                            <PieChart
-                                height={queueChart.size.height}
-                                width={queueChart.size.width}
-                            >
-                                <Pie
-                                    cx="50%"
-                                    cy="50%"
-                                    data={queueDistribution}
-                                    dataKey="value"
-                                    innerRadius={48}
-                                    nameKey="label"
-                                    outerRadius={72}
-                                >
-                                    {queueDistribution.map((entry) => (
-                                        <Cell
-                                            className={entry.colorClass}
-                                            key={entry.key}
-                                        />
-                                    ))}
-                                </Pie>
-                                <Tooltip />
-                            </PieChart>
-                        </Suspense>
-                    ) : null}
-                </div>
-                <div className="space-y-2">
-                    {queueDistribution.map((item) => (
-                        <div className="space-y-1 text-xs" key={item.key}>
-                            <div className="flex items-center justify-between">
-                                <span className="text-muted-foreground">
-                                    {item.label}
-                                </span>
-                                <span className="font-medium">
-                                    {item.value}
-                                </span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-muted">
-                                <div
-                                    className={`h-full rounded-full ${item.colorClass.replace("fill-", "bg-")}`}
-                                    style={{
-                                        width: `${queueTotal === 0 ? 0 : Math.round((item.value / queueTotal) * 100)}%`,
-                                    }}
-                                />
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <p className="text-muted-foreground text-xs">
-                    Total active items in queue: {queueTotal}
+            <CardContent className="space-y-1.5">
+                <p className="font-semibold text-2xl">{value}</p>
+                <p
+                    className={`inline-flex items-center gap-1 text-xs ${toToneClassName(tone)}`}
+                >
+                    <TrendIcon className="h-3.5 w-3.5" tone={tone} />
+                    {trend}
                 </p>
             </CardContent>
         </Card>
     );
 }
 
-function InventoryHealthCard({ metrics }: { metrics: DashboardMetrics }) {
-    const lowStockSeverity = toHealthSeverity(metrics.lowStockAlerts);
-    const expiringSeverity = toHealthSeverity(metrics.expiringIn30Days);
-
+function AlertsCard({ metrics }: { metrics: DashboardMetrics }) {
     return (
-        <Card className="lg:col-span-2">
+        <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <AlertTriangleIcon className="h-4 w-4 text-muted-foreground" />
-                    Inventory Health
+                    <AlertTriangleIcon className="h-4 w-4 text-chart-4" />
+                    Attention Needed
                 </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-3">
-                <HealthRow
+            <CardContent className="space-y-3">
+                <AlertRow
                     label="Low Stock Alerts"
-                    severity={lowStockSeverity}
+                    severity={toAlertSeverity(metrics.lowStockAlerts)}
                     value={metrics.lowStockAlerts}
                 />
-                <HealthRow
+                <AlertRow
                     label="Expiring in 30 Days"
-                    severity={expiringSeverity}
+                    severity={toAlertSeverity(metrics.expiringIn30Days)}
                     value={metrics.expiringIn30Days}
                 />
-                <HealthRow
+                <AlertRow
                     label="Recent Movements (7d)"
                     severity="healthy"
                     value={metrics.recentMovementsLast7Days}
+                />
+            </CardContent>
+        </Card>
+    );
+}
+
+function OperationsCard({ metrics }: { metrics: DashboardMetrics }) {
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2">
+                    <CalendarClockIcon className="h-4 w-4 text-chart-1" />
+                    Operational Queue
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <QueueRow
+                    description="Awaiting supplier response or receipt posting."
+                    href="/purchase-orders"
+                    label="Purchase Orders"
+                    value={metrics.pendingPurchaseOrders}
+                />
+                <QueueRow
+                    description="Awaiting pick, ship, or fulfillment."
+                    href="/sales-orders"
+                    label="Sales Orders"
+                    value={metrics.pendingSalesOrders}
                 />
             </CardContent>
         </Card>
@@ -510,130 +378,90 @@ function QuickActionsCard() {
         <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <ActivityIcon className="h-4 w-4 text-muted-foreground" />
+                    <PackageIcon className="h-4 w-4 text-chart-3" />
                     Quick Actions
                 </CardTitle>
             </CardHeader>
-            <CardContent className="grid gap-3">
-                <Button
-                    className="justify-start"
-                    nativeButton={false}
-                    render={<Link to="/stock" />}
-                    variant="outline"
-                >
-                    Open Stock Operations
-                </Button>
-                <Button
-                    className="justify-start"
-                    nativeButton={false}
-                    render={<Link to="/reports" />}
-                    variant="outline"
-                >
-                    View Reports
-                </Button>
-                <Button
-                    className="justify-start"
-                    nativeButton={false}
-                    render={<Link to="/settings/system" />}
-                    variant="outline"
-                >
-                    Configure System
-                </Button>
-                <Button
-                    className="justify-start"
-                    nativeButton={false}
-                    render={<Link to="/profile" />}
-                    variant="outline"
-                >
-                    My Profile
-                </Button>
-            </CardContent>
-        </Card>
-    );
-}
-
-function OperationalQueueCard({ metrics }: { metrics: DashboardMetrics }) {
-    return (
-        <Card>
-            <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                    <Clock3Icon className="h-4 w-4 text-muted-foreground" />
-                    Operational Queue
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                <QueueCard
-                    description="Orders waiting supplier confirmation or receipt workflow."
-                    href="/purchase-orders"
-                    label="Purchase Orders"
-                    value={metrics.pendingPurchaseOrders}
+            <CardContent className="grid gap-2">
+                <ActionButton
+                    icon={<BoxesIcon className="h-4 w-4" />}
+                    label="Open Stock Operations"
+                    to="/stock"
                 />
-                <QueueCard
-                    description="Customer orders waiting picking, shipping, or fulfillment."
-                    href="/sales-orders"
-                    label="Sales Orders"
-                    value={metrics.pendingSalesOrders}
+                <ActionButton
+                    icon={<ActivityIcon className="h-4 w-4" />}
+                    label="Open Reports"
+                    to="/reports"
                 />
-                <QueueCard
-                    description="Items approaching or below their configured reorder point."
-                    href="/stock"
-                    label="Low Stock Items"
-                    value={metrics.lowStockAlerts}
+                <ActionButton
+                    icon={<TruckIcon className="h-4 w-4" />}
+                    label="Go to Purchase Orders"
+                    to="/purchase-orders"
                 />
-                <QueueCard
-                    description="Lots and batches with upcoming expiry within the next 30 days."
-                    href="/reports"
-                    label="Expiring Soon"
-                    value={metrics.expiringIn30Days}
+                <ActionButton
+                    icon={<ShoppingCartIcon className="h-4 w-4" />}
+                    label="Go to Sales Orders"
+                    to="/sales-orders"
                 />
             </CardContent>
         </Card>
     );
 }
 
-function MetricCard({
+function ActionButton({
     icon,
     label,
-    trendTone = "neutral",
-    trendLabel,
-    value,
+    to,
 }: {
-    icon?: ReactNode;
+    icon: ReactNode;
     label: string;
-    trendTone?: "negative" | "neutral" | "positive";
-    trendLabel?: string;
-    value: string;
+    to: string;
 }) {
-    const trendToneClassName = toTrendToneClassName(trendTone);
-
     return (
-        <Card className="border bg-linear-to-br from-background to-muted/30">
-            <CardHeader className="pb-2">
-                <CardTitle className="flex items-center justify-between gap-2 font-medium text-sm">
-                    <span>{label}</span>
-                    {icon ? (
-                        <span className="rounded-md border bg-background/70 p-1.5 text-muted-foreground">
-                            {icon}
-                        </span>
-                    ) : null}
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-1.5">
-                <p className="font-semibold text-xl">{value}</p>
-                {trendLabel ? (
-                    <p
-                        className={`mt-1 inline-flex items-center gap-1 text-xs ${trendToneClassName}`}
-                    >
-                        <TrendIcon className="h-3.5 w-3.5" tone={trendTone} />
-                        {trendLabel}
-                    </p>
-                ) : null}
-            </CardContent>
-        </Card>
+        <Button
+            className="justify-start gap-2"
+            nativeButton={false}
+            render={<Link to={to} />}
+            variant="outline"
+        >
+            {icon}
+            {label}
+        </Button>
     );
 }
 
-function HealthRow({
+function QueueRow({
+    description,
+    href,
+    label,
+    value,
+}: {
+    description: string;
+    href: string;
+    label: string;
+    value: number;
+}) {
+    return (
+        <div className="space-y-2 rounded-md border border-border/70 bg-background/45 p-3">
+            <div className="flex items-center justify-between gap-2">
+                <p className="font-medium text-sm">{label}</p>
+                <Badge variant="outline">{value}</Badge>
+            </div>
+            <p className="text-foreground/75 text-xs">{description}</p>
+            <Button
+                className="w-full justify-start"
+                nativeButton={false}
+                render={<Link to={href} />}
+                size="sm"
+                variant="outline"
+            >
+                Open {label}
+            </Button>
+        </div>
+    );
+}
+
+function AlertRow({
     label,
     severity,
     value,
@@ -642,19 +470,26 @@ function HealthRow({
     severity: "critical" | "healthy" | "warning";
     value: number;
 }) {
-    const badgeVariant = toBadgeVariant(severity);
+    const variant = toBadgeVariant(severity);
+    let icon = <CheckCircle2Icon className="h-4 w-4 text-chart-3" />;
+    if (severity === "critical") {
+        icon = <AlertTriangleIcon className="h-4 w-4 text-destructive" />;
+    } else if (severity === "warning") {
+        icon = <Clock3Icon className="h-4 w-4 text-chart-4" />;
+    }
 
     return (
-        <div className="flex items-center justify-between gap-2 rounded-md border p-2">
-            <span className="text-sm">{label}</span>
-            <Badge variant={badgeVariant}>{value}</Badge>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/45 p-2.5">
+            <div className="flex items-center gap-2">
+                {icon}
+                <span className="text-sm">{label}</span>
+            </div>
+            <Badge variant={variant}>{value}</Badge>
         </div>
     );
 }
 
-const toHealthSeverity = (
-    value: number
-): "critical" | "healthy" | "warning" => {
+const toAlertSeverity = (value: number): "critical" | "healthy" | "warning" => {
     if (value >= 25) {
         return "critical";
     }
@@ -686,28 +521,6 @@ const toDeltaTone = (value: number): "negative" | "neutral" | "positive" => {
     return "neutral";
 };
 
-const toTrendToneClassName = (
-    trendTone: "negative" | "neutral" | "positive"
-): string => {
-    if (trendTone === "positive") {
-        return "text-emerald-600";
-    }
-    if (trendTone === "negative") {
-        return "text-red-600";
-    }
-    return "text-muted-foreground";
-};
-
-const toDeltaTextClassName = (value: number): string => {
-    if (value > 0) {
-        return "text-emerald-600";
-    }
-    if (value < 0) {
-        return "text-red-600";
-    }
-    return "text-muted-foreground";
-};
-
 const toDeltaSign = (value: number): string => {
     if (value > 0) {
         return "+";
@@ -716,6 +529,16 @@ const toDeltaSign = (value: number): string => {
         return "-";
     }
     return "";
+};
+
+const toToneClassName = (tone: "negative" | "neutral" | "positive"): string => {
+    if (tone === "positive") {
+        return "text-emerald-500";
+    }
+    if (tone === "negative") {
+        return "text-red-500";
+    }
+    return "text-foreground/75";
 };
 
 function TrendIcon({
@@ -733,81 +556,3 @@ function TrendIcon({
     }
     return <ArrowRightIcon className={className} />;
 }
-
-function QueueCard({
-    description,
-    href,
-    label,
-    value,
-}: {
-    description: string;
-    href: string;
-    label: string;
-    value: number;
-}) {
-    return (
-        <div className="space-y-3 rounded-md border p-4">
-            <div className="flex items-center justify-between gap-2">
-                <p className="font-medium text-sm">{label}</p>
-                <Badge variant="outline">{value}</Badge>
-            </div>
-            <p className="text-muted-foreground text-xs">{description}</p>
-            <Button
-                className="w-full justify-start"
-                nativeButton={false}
-                render={<Link to={href} />}
-                size="sm"
-                variant="outline"
-            >
-                Open {label}
-            </Button>
-        </div>
-    );
-}
-
-function EmptyChartMessage() {
-    return (
-        <div className="rounded-md border border-dashed p-6 text-center text-muted-foreground text-sm">
-            Not enough trend data yet. Generate stock snapshots to populate this
-            chart.
-        </div>
-    );
-}
-
-function ChartLoadingState() {
-    return <Skeleton className="h-full w-full rounded-md" />;
-}
-
-const useElementSize = <TElement extends HTMLElement>() => {
-    const ref = useRef<TElement | null>(null);
-    const [size, setSize] = useState({
-        height: 0,
-        width: 0,
-    });
-
-    useEffect(() => {
-        const element = ref.current;
-        if (!element) {
-            return;
-        }
-
-        const updateSize = () => {
-            const nextSize = {
-                height: Math.max(0, Math.floor(element.clientHeight)),
-                width: Math.max(0, Math.floor(element.clientWidth)),
-            };
-            setSize(nextSize);
-        };
-
-        updateSize();
-
-        const observer = new ResizeObserver(updateSize);
-        observer.observe(element);
-
-        return () => {
-            observer.disconnect();
-        };
-    }, []);
-
-    return { ref, size };
-};

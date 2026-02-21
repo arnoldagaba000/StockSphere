@@ -57,8 +57,13 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <HeadContent />
             </head>
 
-            <body>
-                <ThemeProvider attribute="class" enableColorScheme enableSystem>
+            <body suppressHydrationWarning>
+                <ThemeProvider
+                    attribute="class"
+                    enableColorScheme
+                    enableSystem
+                    storageKey="theme"
+                >
                     {children}
                 </ThemeProvider>
 

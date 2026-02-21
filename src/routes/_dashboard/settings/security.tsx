@@ -194,7 +194,7 @@ function SecuritySettingsPage() {
     };
 
     return (
-        <div className="max-w-3xl space-y-4">
+        <div className="w-full min-w-0 max-w-3xl space-y-4">
             <section className="space-y-4 rounded-lg border p-4">
                 <div className="space-y-1">
                     <h2 className="font-medium text-lg">Change Password</h2>
@@ -304,14 +304,14 @@ function SecuritySettingsPage() {
 
                         return (
                             <div
-                                className="flex items-center justify-between rounded-md border px-3 py-2"
+                                className="flex flex-wrap items-start justify-between gap-2 rounded-md border px-3 py-2"
                                 key={session.id}
                             >
-                                <div className="space-y-1">
-                                    <p className="font-medium text-sm">
+                                <div className="min-w-0 flex-1 space-y-1">
+                                    <p className="truncate font-medium text-sm">
                                         {session.userAgent ?? "Unknown device"}
                                     </p>
-                                    <p className="text-muted-foreground text-xs">
+                                    <p className="truncate text-muted-foreground text-xs">
                                         {session.ipAddress ?? "Unknown IP"} ·
                                         Last updated{" "}
                                         {formatDistanceToNow(
@@ -322,7 +322,7 @@ function SecuritySettingsPage() {
                                         )}
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex shrink-0 items-center gap-2">
                                     {isCurrent ? (
                                         <Badge variant="secondary">
                                             Current

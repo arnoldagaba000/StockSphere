@@ -100,7 +100,7 @@ function UserManagementSettingsPage() {
 
     return (
         <TooltipProvider delay={150}>
-            <section className="space-y-4">
+            <section className="w-full min-w-0 space-y-4">
                 <div className="space-y-1">
                     <h2 className="font-medium text-lg">User Management</h2>
                     <p className="text-muted-foreground text-sm">
@@ -109,7 +109,7 @@ function UserManagementSettingsPage() {
                     </p>
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border">
+                <div className="w-full overflow-x-auto rounded-lg border">
                     <UserManagementTable
                         busyUserId={busyUserId}
                         currentUserId={currentUser.id}

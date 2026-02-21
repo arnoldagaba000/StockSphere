@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
 
 const getSuppliersInputSchema = z.object({
+    archivedOnly: z.boolean().optional().default(false),
     includeInactive: z.boolean().optional().default(false),
     search: z.string().trim().max(100).optional(),
 });
@@ -24,8 +25,12 @@ export const getSuppliers = createServerFn({ method: "GET" })
             },
             orderBy: [{ name: "asc" }],
             where: {
-                deletedAt: null,
-                ...(data.includeInactive ? {} : { isActive: true }),
+                ...(data.archivedOnly
+                    ? { deletedAt: { not: null } }
+                    : {
+                          deletedAt: null,
+                          ...(data.includeInactive ? {} : { isActive: true }),
+                      }),
                 ...(data.search
                     ? {
                           OR: [

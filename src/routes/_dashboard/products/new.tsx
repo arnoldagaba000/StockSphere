@@ -1,4 +1,8 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    useNavigate,
+    useRouter,
+} from "@tanstack/react-router";
 import { useState } from "react";
 import toast from "react-hot-toast";
 import ProductForm, {
@@ -41,6 +45,7 @@ export const Route = createFileRoute("/_dashboard/products/new")({
 
 function NewProductPage() {
     const navigate = useNavigate();
+    const router = useRouter();
     const categories = Route.useLoaderData();
     const categoryOptions = buildCategoryHierarchy(categories);
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -52,6 +57,7 @@ function NewProductPage() {
                 data: formData,
             });
             toast.success("Product created.");
+            await router.invalidate();
             await navigate({ to: "/products" });
             setIsSubmitting(false);
         } catch (error) {
@@ -65,19 +71,28 @@ function NewProductPage() {
     };
 
     return (
-        <Card className="w-full">
-            <CardHeader>
-                <CardTitle>Create Product</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <ProductForm
-                    categories={categoryOptions}
-                    defaultValues={DEFAULT_PRODUCT_FORM_VALUES}
-                    isSubmitting={isSubmitting}
-                    onSubmit={handleSubmit}
-                    submitLabel="Create Product"
-                />
-            </CardContent>
-        </Card>
+        <div className="w-full space-y-4">
+            <div>
+                <h1 className="font-semibold text-2xl">Create Product</h1>
+                <p className="text-muted-foreground text-sm">
+                    Add a product with pricing, inventory controls, and tracking
+                    configuration.
+                </p>
+            </div>
+            <Card className="w-full rounded-xl border-border/70 shadow-sm">
+                <CardHeader className="space-y-1">
+                    <CardTitle>Create Product</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <ProductForm
+                        categories={categoryOptions}
+                        defaultValues={DEFAULT_PRODUCT_FORM_VALUES}
+                        isSubmitting={isSubmitting}
+                        onSubmit={handleSubmit}
+                        submitLabel="Create Product"
+                    />
+                </CardContent>
+            </Card>
+        </div>
     );
 }

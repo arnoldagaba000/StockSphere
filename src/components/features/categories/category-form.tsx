@@ -12,6 +12,15 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
+const INPUT_CLASS =
+    "h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55";
+const TEXTAREA_CLASS =
+    "rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_TRIGGER_CLASS =
+    "h-10 w-full rounded-xl border-border/70 bg-muted/35 px-3 shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_CONTENT_CLASS =
+    "rounded-xl border-border/70 bg-popover/98 shadow-xl";
+
 interface CategoryOption {
     id: string;
     name: string;
@@ -85,6 +94,7 @@ const CategoryForm = ({
             <div className="space-y-2">
                 <Label htmlFor="category-name">Category Name</Label>
                 <Input
+                    className={INPUT_CLASS}
                     id="category-name"
                     onChange={(event) =>
                         setValues({
@@ -109,10 +119,13 @@ const CategoryForm = ({
                     }
                     value={values.parentId || "none"}
                 >
-                    <SelectTrigger id="category-parent">
+                    <SelectTrigger
+                        className={SELECT_TRIGGER_CLASS}
+                        id="category-parent"
+                    >
                         <SelectValue placeholder="Select parent category" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="none">No parent</SelectItem>
                         {parentCategoryOptions.map((category) => (
                             <SelectItem key={category.id} value={category.id}>
@@ -126,6 +139,7 @@ const CategoryForm = ({
             <div className="space-y-2">
                 <Label htmlFor="category-description">Description</Label>
                 <Textarea
+                    className={TEXTAREA_CLASS}
                     id="category-description"
                     onChange={(event) =>
                         setValues({

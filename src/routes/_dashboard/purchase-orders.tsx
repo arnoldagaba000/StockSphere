@@ -1,4 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { ArrowRight, FileText, PackageCheck, ReceiptText } from "lucide-react";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
@@ -38,16 +39,34 @@ import { getFinancialSettings } from "@/features/settings/get-financial-settings
 
 interface PurchaseOrderFormItem {
     id: string;
+    notes: string;
     productId: string;
     quantity: string;
+    taxRate: string;
     unitPrice: string;
 }
 
-const createLineItem = (productId: string): PurchaseOrderFormItem => ({
+const getDefaultPurchaseUnitPrice = (
+    products: Awaited<ReturnType<typeof getProducts>>["products"],
+    productId: string
+): string => {
+    const product = products.find((entry) => entry.id === productId);
+    if (!product || product.costPrice == null) {
+        return "";
+    }
+    return String(product.costPrice);
+};
+
+const createLineItem = (
+    products: Awaited<ReturnType<typeof getProducts>>["products"],
+    productId: string
+): PurchaseOrderFormItem => ({
     id: crypto.randomUUID(),
+    notes: "",
     productId,
     quantity: "",
-    unitPrice: "",
+    taxRate: "0",
+    unitPrice: getDefaultPurchaseUnitPrice(products, productId),
 });
 
 type TransitionAction =
@@ -66,6 +85,7 @@ interface PurchaseOrdersPageState {
     isSaving: boolean;
     isTransitioningId: string | null;
     items: PurchaseOrderFormItem[];
+    notes: string;
     selectedOrderDetail: PurchaseOrderDetail | null;
     selectedOrderId: string | null;
     shippingCost: string;
@@ -96,9 +116,10 @@ const PurchaseOrderOverviewSection = ({
     report,
 }: PurchaseOrderOverviewSectionProps) => {
     return (
-        <>
+        <div className="space-y-4">
             <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
                 <MetricCard
+                    icon={ReceiptText}
                     label="30-Day Spend"
                     value={formatCurrencyFromMinorUnits(
                         report.recentSpend,
@@ -106,10 +127,12 @@ const PurchaseOrderOverviewSection = ({
                     )}
                 />
                 <MetricCard
+                    icon={FileText}
                     label="30-Day Orders"
                     value={String(report.recentOrderCount)}
                 />
                 <MetricCard
+                    icon={ArrowRight}
                     label="Open POs"
                     value={String(
                         report.statusBreakdown
@@ -122,6 +145,7 @@ const PurchaseOrderOverviewSection = ({
                     )}
                 />
                 <MetricCard
+                    icon={PackageCheck}
                     label="Received POs"
                     value={String(
                         report.statusBreakdown
@@ -135,45 +159,55 @@ const PurchaseOrderOverviewSection = ({
                 />
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Top Supplier Performance (30 Days)</CardTitle>
+            <Card className="border-border/60">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base">
+                        Top Supplier Performance (30 Days)
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Supplier</TableHead>
-                                <TableHead>Orders</TableHead>
-                                <TableHead>Received</TableHead>
-                                <TableHead>Open</TableHead>
-                                <TableHead className="text-right">
-                                    Spend
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {report.supplierPerformance.map((supplier) => (
-                                <TableRow key={supplier.id}>
-                                    <TableCell>{supplier.name}</TableCell>
-                                    <TableCell>{supplier.orderCount}</TableCell>
-                                    <TableCell>
-                                        {supplier.receivedOrders}
-                                    </TableCell>
-                                    <TableCell>{supplier.openOrders}</TableCell>
-                                    <TableCell className="text-right">
-                                        {formatCurrencyFromMinorUnits(
-                                            supplier.totalSpend,
-                                            currencyCode
-                                        )}
-                                    </TableCell>
+                    <div className="overflow-x-auto rounded-md border">
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Supplier</TableHead>
+                                    <TableHead>Orders</TableHead>
+                                    <TableHead>Received</TableHead>
+                                    <TableHead>Open</TableHead>
+                                    <TableHead className="text-right">
+                                        Spend
+                                    </TableHead>
                                 </TableRow>
-                            ))}
-                        </TableBody>
-                    </Table>
+                            </TableHeader>
+                            <TableBody>
+                                {report.supplierPerformance.map((supplier) => (
+                                    <TableRow key={supplier.id}>
+                                        <TableCell className="font-medium">
+                                            {supplier.name}
+                                        </TableCell>
+                                        <TableCell>
+                                            {supplier.orderCount}
+                                        </TableCell>
+                                        <TableCell>
+                                            {supplier.receivedOrders}
+                                        </TableCell>
+                                        <TableCell>
+                                            {supplier.openOrders}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            {formatCurrencyFromMinorUnits(
+                                                supplier.totalSpend,
+                                                currencyCode
+                                            )}
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
-        </>
+        </div>
     );
 };
 
@@ -182,6 +216,7 @@ interface CreatePurchaseOrderSectionProps {
     expectedDate: string;
     isSaving: boolean;
     items: PurchaseOrderFormItem[];
+    notes: string;
     onAddLineItem: () => void;
     onCreatePurchaseOrder: () => void;
     onPatchState: (patch: Partial<PurchaseOrdersPageState>) => void;
@@ -216,14 +251,21 @@ const CreatePurchaseOrderSection = ({
     suppliers,
     taxAmount,
     total,
+    notes,
 }: CreatePurchaseOrderSectionProps) => {
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Create Purchase Order</CardTitle>
+        <Card className="border-border/60">
+            <CardHeader className="space-y-1 pb-3">
+                <CardTitle className="text-base">
+                    Create Purchase Order
+                </CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Build a draft with line-level pricing, tax, and supplier
+                    context.
+                </p>
             </CardHeader>
-            <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-3">
+            <CardContent className="space-y-5">
+                <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-3">
                     <div className="space-y-2">
                         <Label>Supplier</Label>
                         <Select
@@ -290,69 +332,132 @@ const CreatePurchaseOrderSection = ({
                             value={shippingCost}
                         />
                     </div>
+                    <div className="space-y-2 md:col-span-3">
+                        <Label htmlFor="po-notes">Notes (optional)</Label>
+                        <Input
+                            id="po-notes"
+                            onChange={(event) =>
+                                onPatchState({
+                                    notes: event.target.value,
+                                })
+                            }
+                            placeholder="Delivery instructions, commercial notes..."
+                            value={notes}
+                        />
+                    </div>
                 </div>
 
                 <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                        <p className="font-medium text-sm">Line Items</p>
+                        <p className="text-muted-foreground text-xs">
+                            {items.length} line{items.length === 1 ? "" : "s"}
+                        </p>
+                    </div>
                     {items.map((item, index) => (
                         <div
-                            className="grid gap-3 md:grid-cols-4"
+                            className="grid gap-3 rounded-lg border bg-card/60 p-3 md:grid-cols-12"
                             key={item.id}
                         >
-                            <Select
-                                onValueChange={(value) =>
-                                    onUpdateItem(index, {
-                                        productId: value ?? "",
-                                    })
-                                }
-                                value={item.productId}
-                            >
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Product" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {products.map((product) => (
-                                        <SelectItem
-                                            key={product.id}
-                                            value={product.id}
-                                        >
-                                            {product.sku} - {product.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <div className="space-y-1 md:col-span-4">
+                                <Label className="text-xs">Product</Label>
+                                <Select
+                                    onValueChange={(value) =>
+                                        onUpdateItem(index, {
+                                            productId: value ?? "",
+                                            unitPrice:
+                                                getDefaultPurchaseUnitPrice(
+                                                    products,
+                                                    value ?? ""
+                                                ),
+                                        })
+                                    }
+                                    value={item.productId}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Product" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {products.map((product) => (
+                                            <SelectItem
+                                                key={product.id}
+                                                value={product.id}
+                                            >
+                                                {product.sku} - {product.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1 md:col-span-2">
+                                <Label className="text-xs">Quantity</Label>
+                                <Input
+                                    onChange={(event) =>
+                                        onUpdateItem(index, {
+                                            quantity: event.target.value,
+                                        })
+                                    }
+                                    placeholder="Quantity"
+                                    type="number"
+                                    value={item.quantity}
+                                />
+                            </div>
+                            <div className="space-y-1 md:col-span-3">
+                                <Label className="text-xs">
+                                    Unit price ({currencyCode})
+                                </Label>
+                                <Input
+                                    onChange={(event) =>
+                                        onUpdateItem(index, {
+                                            unitPrice: event.target.value,
+                                        })
+                                    }
+                                    placeholder={`Unit price (${currencyCode})`}
+                                    type="number"
+                                    value={item.unitPrice}
+                                />
+                            </div>
+                            <div className="space-y-1 md:col-span-2">
+                                <Label className="text-xs">Tax %</Label>
+                                <Input
+                                    max={100}
+                                    min={0}
+                                    onChange={(event) =>
+                                        onUpdateItem(index, {
+                                            taxRate: event.target.value,
+                                        })
+                                    }
+                                    placeholder="Tax %"
+                                    type="number"
+                                    value={item.taxRate}
+                                />
+                            </div>
+                            <div className="md:col-span-1 md:self-end">
+                                <Button
+                                    className="w-full"
+                                    disabled={items.length <= 1}
+                                    onClick={() => onRemoveLineItem(index)}
+                                    type="button"
+                                    variant="outline"
+                                >
+                                    Remove
+                                </Button>
+                            </div>
                             <Input
+                                className="md:col-span-12"
                                 onChange={(event) =>
                                     onUpdateItem(index, {
-                                        quantity: event.target.value,
+                                        notes: event.target.value,
                                     })
                                 }
-                                placeholder="Quantity"
-                                type="number"
-                                value={item.quantity}
+                                placeholder="Line notes (optional)"
+                                value={item.notes}
                             />
-                            <Input
-                                onChange={(event) =>
-                                    onUpdateItem(index, {
-                                        unitPrice: event.target.value,
-                                    })
-                                }
-                                placeholder={`Unit price (${currencyCode})`}
-                                type="number"
-                                value={item.unitPrice}
-                            />
-                            <Button
-                                disabled={items.length <= 1}
-                                onClick={() => onRemoveLineItem(index)}
-                                type="button"
-                                variant="outline"
-                            >
-                                Remove
-                            </Button>
                         </div>
                     ))}
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-3">
                     <Button
                         onClick={onAddLineItem}
                         type="button"
@@ -367,13 +472,19 @@ const CreatePurchaseOrderSection = ({
                         {formatCurrencyFromMinorUnits(total, currencyCode)}
                     </p>
                 </div>
+                <p className="text-muted-foreground text-xs">
+                    Unit prices auto-fill from product cost. Override if this
+                    supplier gave you a different quote.
+                </p>
 
-                <Button
-                    disabled={isSaving || !supplierId}
-                    onClick={onCreatePurchaseOrder}
-                >
-                    {isSaving ? "Creating..." : "Create Draft"}
-                </Button>
+                <div className="flex items-center justify-end">
+                    <Button
+                        disabled={isSaving || !supplierId}
+                        onClick={onCreatePurchaseOrder}
+                    >
+                        {isSaving ? "Creating..." : "Create Draft"}
+                    </Button>
+                </div>
             </CardContent>
         </Card>
     );
@@ -402,12 +513,12 @@ const PurchaseOrderListSection = ({
     purchaseOrders,
 }: PurchaseOrderListSectionProps) => {
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Purchase Order List</CardTitle>
+        <Card className="border-border/60">
+            <CardHeader className="pb-3">
+                <CardTitle className="text-base">Purchase Order List</CardTitle>
             </CardHeader>
-            <CardContent>
-                <div className="mb-3 grid gap-2 md:max-w-md">
+            <CardContent className="space-y-4">
+                <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 md:max-w-md">
                     <Label htmlFor="po-cancel-reason">
                         Cancel Reason (optional)
                     </Label>
@@ -422,65 +533,49 @@ const PurchaseOrderListSection = ({
                         value={cancelReason}
                     />
                 </div>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Order #</TableHead>
-                            <TableHead>Supplier</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Total</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {purchaseOrders.map((order) => (
-                            <TableRow key={order.id}>
-                                <TableCell>{order.orderNumber}</TableCell>
-                                <TableCell>{order.supplier.name}</TableCell>
-                                <TableCell>
-                                    <Badge variant="secondary">
-                                        {order.status}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>
-                                    {formatCurrencyFromMinorUnits(
-                                        order.totalAmount,
-                                        currencyCode
-                                    )}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex flex-wrap justify-end gap-2">
-                                        <Button
-                                            onClick={() =>
-                                                onLoadDetail(order.id)
-                                            }
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            View
-                                        </Button>
-                                        {order.status === "DRAFT" ? (
+                <div className="overflow-x-auto rounded-md border">
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Order #</TableHead>
+                                <TableHead>Supplier</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead>Total</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {purchaseOrders.map((order) => (
+                                <TableRow key={order.id}>
+                                    <TableCell className="font-medium">
+                                        {order.orderNumber}
+                                    </TableCell>
+                                    <TableCell>{order.supplier.name}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="secondary">
+                                            {order.status}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                        {formatCurrencyFromMinorUnits(
+                                            order.totalAmount,
+                                            currencyCode
+                                        )}
+                                    </TableCell>
+                                    <TableCell className="text-right">
+                                        <div className="flex flex-wrap justify-end gap-2">
                                             <Button
-                                                disabled={
-                                                    isTransitioningId ===
-                                                    order.id
-                                                }
                                                 onClick={() =>
-                                                    onTransitionOrder(
-                                                        order.id,
-                                                        "submit"
-                                                    )
+                                                    onLoadDetail(order.id)
                                                 }
                                                 size="sm"
                                                 variant="outline"
                                             >
-                                                Submit
+                                                View
                                             </Button>
-                                        ) : null}
-                                        {order.status === "SUBMITTED" ? (
-                                            <>
+                                            {order.status === "DRAFT" ? (
                                                 <Button
                                                     disabled={
                                                         isTransitioningId ===
@@ -489,79 +584,99 @@ const PurchaseOrderListSection = ({
                                                     onClick={() =>
                                                         onTransitionOrder(
                                                             order.id,
-                                                            "approve"
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                >
-                                                    Approve
-                                                </Button>
-                                                <Button
-                                                    disabled={
-                                                        isTransitioningId ===
-                                                        order.id
-                                                    }
-                                                    onClick={() =>
-                                                        onTransitionOrder(
-                                                            order.id,
-                                                            "reject"
+                                                            "submit"
                                                         )
                                                     }
                                                     size="sm"
                                                     variant="outline"
                                                 >
-                                                    Reject
+                                                    Submit
                                                 </Button>
-                                            </>
-                                        ) : null}
-                                        {(order.status === "APPROVED" ||
-                                            order.status ===
-                                                "PARTIALLY_RECEIVED") && (
-                                            <Button
-                                                disabled={
-                                                    isTransitioningId ===
-                                                    order.id
-                                                }
-                                                onClick={() =>
-                                                    onTransitionOrder(
-                                                        order.id,
-                                                        "markOrdered"
-                                                    )
-                                                }
-                                                size="sm"
-                                                variant="outline"
-                                            >
-                                                Mark Ordered
-                                            </Button>
-                                        )}
-                                        {[
-                                            "DRAFT",
-                                            "SUBMITTED",
-                                            "APPROVED",
-                                        ].includes(order.status) ? (
-                                            <Button
-                                                disabled={
-                                                    isTransitioningId ===
-                                                    order.id
-                                                }
-                                                onClick={() =>
-                                                    onTransitionOrder(
-                                                        order.id,
-                                                        "cancel"
-                                                    )
-                                                }
-                                                size="sm"
-                                                variant="destructive"
-                                            >
-                                                Cancel
-                                            </Button>
-                                        ) : null}
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                                            ) : null}
+                                            {order.status === "SUBMITTED" ? (
+                                                <>
+                                                    <Button
+                                                        disabled={
+                                                            isTransitioningId ===
+                                                            order.id
+                                                        }
+                                                        onClick={() =>
+                                                            onTransitionOrder(
+                                                                order.id,
+                                                                "approve"
+                                                            )
+                                                        }
+                                                        size="sm"
+                                                    >
+                                                        Approve
+                                                    </Button>
+                                                    <Button
+                                                        disabled={
+                                                            isTransitioningId ===
+                                                            order.id
+                                                        }
+                                                        onClick={() =>
+                                                            onTransitionOrder(
+                                                                order.id,
+                                                                "reject"
+                                                            )
+                                                        }
+                                                        size="sm"
+                                                        variant="outline"
+                                                    >
+                                                        Reject
+                                                    </Button>
+                                                </>
+                                            ) : null}
+                                            {(order.status === "APPROVED" ||
+                                                order.status ===
+                                                    "PARTIALLY_RECEIVED") && (
+                                                <Button
+                                                    disabled={
+                                                        isTransitioningId ===
+                                                        order.id
+                                                    }
+                                                    onClick={() =>
+                                                        onTransitionOrder(
+                                                            order.id,
+                                                            "markOrdered"
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    Mark Ordered
+                                                </Button>
+                                            )}
+                                            {[
+                                                "DRAFT",
+                                                "SUBMITTED",
+                                                "APPROVED",
+                                            ].includes(order.status) ? (
+                                                <Button
+                                                    disabled={
+                                                        isTransitioningId ===
+                                                        order.id
+                                                    }
+                                                    onClick={() =>
+                                                        onTransitionOrder(
+                                                            order.id,
+                                                            "cancel"
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="destructive"
+                                                >
+                                                    Cancel
+                                                </Button>
+                                            ) : null}
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -577,9 +692,11 @@ const PurchaseOrderDetailSection = ({
     selectedOrderDetail,
 }: PurchaseOrderDetailSectionProps) => {
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Purchase Order Detail</CardTitle>
+        <Card className="border-border/60">
+            <CardHeader className="pb-3">
+                <CardTitle className="text-base">
+                    Purchase Order Detail
+                </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
                 {isLoadingDetail ? (
@@ -596,7 +713,7 @@ const PurchaseOrderDetailSection = ({
                 )}
                 {selectedOrderDetail ? (
                     <>
-                        <div className="grid gap-2 md:grid-cols-3">
+                        <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 md:grid-cols-3">
                             <p className="text-sm">
                                 <span className="text-muted-foreground">
                                     Order:
@@ -617,40 +734,44 @@ const PurchaseOrderDetailSection = ({
                             </p>
                         </div>
 
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>SKU</TableHead>
-                                    <TableHead>Product</TableHead>
-                                    <TableHead>Ordered</TableHead>
-                                    <TableHead>Received</TableHead>
-                                    <TableHead>Outstanding</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {selectedOrderDetail.items.map((item) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell>
-                                            {item.product.sku}
-                                        </TableCell>
-                                        <TableCell>
-                                            {item.product.name}
-                                        </TableCell>
-                                        <TableCell>{item.quantity}</TableCell>
-                                        <TableCell>
-                                            {item.receivedQuantity}
-                                        </TableCell>
-                                        <TableCell>
-                                            {Math.max(
-                                                0,
-                                                item.quantity -
-                                                    item.receivedQuantity
-                                            )}
-                                        </TableCell>
+                        <div className="overflow-x-auto rounded-md border">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>SKU</TableHead>
+                                        <TableHead>Product</TableHead>
+                                        <TableHead>Ordered</TableHead>
+                                        <TableHead>Received</TableHead>
+                                        <TableHead>Outstanding</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {selectedOrderDetail.items.map((item) => (
+                                        <TableRow key={item.id}>
+                                            <TableCell>
+                                                {item.product.sku}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.product.name}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.quantity}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.receivedQuantity}
+                                            </TableCell>
+                                            <TableCell>
+                                                {Math.max(
+                                                    0,
+                                                    item.quantity -
+                                                        item.receivedQuantity
+                                                )}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
 
                         <div className="space-y-1">
                             <p className="font-medium text-sm">Receipts</p>
@@ -715,12 +836,13 @@ function PurchaseOrdersPage() {
         isLoadingDetail: false,
         isSaving: false,
         isTransitioningId: null,
-        items: [createLineItem(products[0]?.id ?? "")],
+        items: [createLineItem(products, products[0]?.id ?? "")],
         selectedOrderDetail: null,
         selectedOrderId: null,
         shippingCost: "0",
         supplierId: suppliers[0]?.id ?? "",
         taxAmount: "0",
+        notes: "",
     });
     const {
         cancelReason,
@@ -734,6 +856,7 @@ function PurchaseOrdersPage() {
         shippingCost,
         supplierId,
         taxAmount,
+        notes,
     } = state;
 
     const subtotal = useMemo(
@@ -761,7 +884,7 @@ function PurchaseOrdersPage() {
 
     const addLineItem = (): void => {
         patchState({
-            items: [...items, createLineItem(products[0]?.id ?? "")],
+            items: [...items, createLineItem(products, products[0]?.id ?? "")],
         });
     };
 
@@ -804,8 +927,10 @@ function PurchaseOrdersPage() {
     const handleCreatePurchaseOrder = async () => {
         const normalizedItems = items
             .map((item) => ({
+                notes: item.notes.trim().length > 0 ? item.notes.trim() : null,
                 productId: item.productId,
                 quantity: Number(item.quantity),
+                taxRate: Number(item.taxRate) || 0,
                 unitPrice: Number(item.unitPrice),
             }))
             .filter((item) => item.productId && item.quantity > 0);
@@ -816,6 +941,7 @@ function PurchaseOrdersPage() {
         }
         const expectedDateValue = expectedDate ? new Date(expectedDate) : null;
         const firstProductId = products[0]?.id ?? "";
+        const notesValue = notes.trim().length > 0 ? notes.trim() : null;
         const shippingCostValue = Number(shippingCost) || 0;
         const taxAmountValue = Number(taxAmount) || 0;
 
@@ -825,13 +951,13 @@ function PurchaseOrdersPage() {
                 data: {
                     expectedDate: expectedDateValue,
                     items: normalizedItems.map((item) => ({
-                        notes: null,
+                        notes: item.notes,
                         productId: item.productId,
                         quantity: item.quantity,
-                        taxRate: 0,
+                        taxRate: item.taxRate,
                         unitPrice: item.unitPrice,
                     })),
-                    notes: null,
+                    notes: notesValue,
                     shippingCost: shippingCostValue,
                     supplierId,
                     taxAmount: taxAmountValue,
@@ -840,7 +966,8 @@ function PurchaseOrdersPage() {
             toast.success("Purchase order created.");
             patchState({
                 expectedDate: "",
-                items: [createLineItem(firstProductId)],
+                items: [createLineItem(products, firstProductId)],
+                notes: "",
                 shippingCost: "0",
                 taxAmount: "0",
             });
@@ -895,10 +1022,10 @@ function PurchaseOrdersPage() {
     };
 
     return (
-        <section className="w-full space-y-4">
-            <div>
+        <section className="w-full space-y-6">
+            <div className="rounded-xl border bg-card p-5">
                 <h1 className="font-semibold text-2xl">Purchase Orders</h1>
-                <p className="text-muted-foreground text-sm">
+                <p className="mt-1 text-muted-foreground text-sm">
                     Purchase lifecycle with supplier analytics and detailed line
                     tracking.
                 </p>
@@ -913,6 +1040,7 @@ function PurchaseOrdersPage() {
                 expectedDate={expectedDate}
                 isSaving={isSaving}
                 items={items}
+                notes={notes}
                 onAddLineItem={addLineItem}
                 onCreatePurchaseOrder={() => {
                     handleCreatePurchaseOrder().catch(() => undefined);
@@ -953,11 +1081,20 @@ function PurchaseOrdersPage() {
     );
 }
 
-function MetricCard({ label, value }: { label: string; value: string }) {
+function MetricCard({
+    icon: Icon,
+    label,
+    value,
+}: {
+    icon: typeof ReceiptText;
+    label: string;
+    value: string;
+}) {
     return (
-        <Card>
-            <CardHeader className="pb-2">
+        <Card className="border-border/60 bg-gradient-to-br from-card to-card/70">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="font-medium text-sm">{label}</CardTitle>
+                <Icon className="size-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
                 <p className="font-semibold text-xl">{value}</p>

@@ -103,3 +103,59 @@ export const archiveWarehouse = createServerFn({ method: "POST" })
 
         return updated;
     });
+
+const deleteWarehouseSchema = z.object({
+    id: z.string().min(1),
+});
+
+export const deleteWarehouse = createServerFn({ method: "POST" })
+    .inputValidator(deleteWarehouseSchema)
+    .middleware([authMiddleware])
+    .handler(async ({ context, data }) => {
+        if (!canUser(context.session.user, PERMISSIONS.WAREHOUSES_DELETE)) {
+            throw new Error("You do not have permission to delete warehouses.");
+        }
+
+        const warehouse = await prisma.warehouse.findFirst({
+            where: { deletedAt: null, id: data.id },
+            include: {
+                _count: {
+                    select: {
+                        goodsReceiptItems: true,
+                        inventoryAdjustments: true,
+                        locations: true,
+                        stockItems: true,
+                    },
+                },
+            },
+        });
+        if (!warehouse) {
+            throw new Error("Warehouse not found.");
+        }
+
+        const hasLinkedRecords =
+            warehouse._count.locations > 0 ||
+            warehouse._count.stockItems > 0 ||
+            warehouse._count.goodsReceiptItems > 0 ||
+            warehouse._count.inventoryAdjustments > 0;
+        if (hasLinkedRecords) {
+            throw new Error(
+                "Cannot delete warehouse with linked records. Remove locations and clear inventory history dependencies first."
+            );
+        }
+
+        const deleted = await prisma.warehouse.delete({
+            where: { id: data.id },
+        });
+
+        await logActivity({
+            action: "WAREHOUSE_DELETED",
+            actorUserId: context.session.user.id,
+            changes: { before: warehouse, after: deleted },
+            entity: "Warehouse",
+            entityId: deleted.id,
+            ipAddress: getRequestIpAddress(getRequestHeaders()),
+        });
+
+        return deleted;
+    });

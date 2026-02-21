@@ -102,6 +102,10 @@ const createBomItem = (): BomItemState => ({
 });
 
 function KitsPage() {
+    return useKitsPageView();
+}
+
+function useKitsPageView() {
     const loaderData = Route.useLoaderData();
     const [state, setState] = useReducer(kitsPageReducer, {
         assemblyNotes: "",

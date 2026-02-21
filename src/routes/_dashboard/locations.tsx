@@ -1,10 +1,35 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useReducer } from "react";
+import {
+    createFileRoute,
+    Link,
+    Outlet,
+    useLocation,
+} from "@tanstack/react-router";
+import { useCallback, useEffect, useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+    Pagination,
+    PaginationContent,
+    PaginationItem,
+    PaginationLink,
+    PaginationNext,
+    PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
     Select,
     SelectContent,
@@ -27,6 +52,7 @@ import { createLocation } from "@/features/location/create-location";
 import { getLocations } from "@/features/location/get-locations";
 import {
     archiveLocation,
+    deleteLocation,
     updateLocation,
 } from "@/features/location/update-location";
 import type { LocationType } from "@/generated/prisma/client";
@@ -39,6 +65,22 @@ const LOCATION_TYPES: LocationType[] = [
     "STAGING",
 ];
 
+const SHORT_ID_LENGTH = 8;
+const SELECT_TRIGGER_CLASS =
+    "h-10 w-full rounded-xl border-border/70 bg-muted/35 px-3 text-sm shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_CONTENT_CLASS =
+    "rounded-xl border-border/70 bg-popover/98 shadow-xl";
+
+const formatEntityLabel = (name: string, id: string): string =>
+    `${name} · ${id.slice(0, SHORT_ID_LENGTH)}`;
+
+const formatShortId = (value: string | undefined): string =>
+    value ? value.slice(0, SHORT_ID_LENGTH) : "n/a";
+
+type LocationStatusFilter = "active" | "all" | "inactive";
+type LocationTypeFilter = "all" | LocationType;
+type LocationRecordsView = "live" | "archived";
+
 interface LocationsPageState {
     code: string;
     isActive: boolean;
@@ -46,8 +88,15 @@ interface LocationsPageState {
     isSubmitting: boolean;
     isUpdatingId: string | null;
     locations: Awaited<ReturnType<typeof getLocations>>;
+    locationsPage: number;
+    locationsPageSize: number;
     name: string;
+    recordsView: LocationRecordsView;
+    searchQuery: string;
+    statusFilter: LocationStatusFilter;
     type: LocationType;
+    typeFilter: LocationTypeFilter;
+    viewWarehouseId: string;
     warehouseId: string;
 }
 
@@ -85,11 +134,14 @@ const CreateLocationCard = ({
     warehouses,
 }: CreateLocationCardProps) => {
     return (
-        <Card>
-            <CardHeader>
+        <Card className="border-border/70">
+            <CardHeader className="space-y-1">
                 <CardTitle>Create Location</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Add a new storage position and assign it to a warehouse.
+                </p>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
                 <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2 md:col-span-2">
                         <Label>Warehouse</Label>
@@ -101,16 +153,20 @@ const CreateLocationCard = ({
                             }
                             value={warehouseId}
                         >
-                            <SelectTrigger>
+                            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                                 <SelectValue placeholder="Select warehouse" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className={SELECT_CONTENT_CLASS}>
                                 {warehouses.map((warehouse) => (
                                     <SelectItem
                                         key={warehouse.id}
                                         value={warehouse.id}
                                     >
-                                        {warehouse.code} - {warehouse.name}
+                                        {formatEntityLabel(
+                                            warehouse.name,
+                                            warehouse.id
+                                        )}{" "}
+                                        ({warehouse.code})
                                     </SelectItem>
                                 ))}
                             </SelectContent>
@@ -128,6 +184,10 @@ const CreateLocationCard = ({
                             placeholder="A-01-BIN-02"
                             value={code}
                         />
+                        <p className="text-muted-foreground text-xs">
+                            Use a unique code format for easier scanning and
+                            lookup.
+                        </p>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="location-name">Name</Label>
@@ -152,10 +212,10 @@ const CreateLocationCard = ({
                             }
                             value={type}
                         >
-                            <SelectTrigger>
+                            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                                 <SelectValue />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className={SELECT_CONTENT_CLASS}>
                                 {LOCATION_TYPES.map((option) => (
                                     <SelectItem key={option} value={option}>
                                         {option}
@@ -177,17 +237,23 @@ const CreateLocationCard = ({
                         <Label htmlFor="location-active">Active</Label>
                     </div>
                 </div>
-                <Button
-                    disabled={
-                        isSubmitting ||
-                        !warehouseId ||
-                        code.trim().length === 0 ||
-                        name.trim().length === 0
-                    }
-                    onClick={onCreate}
-                >
-                    {isSubmitting ? "Creating..." : "Create Location"}
-                </Button>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                    <p className="text-muted-foreground text-xs">
+                        New location IDs are generated automatically after
+                        creation.
+                    </p>
+                    <Button
+                        disabled={
+                            isSubmitting ||
+                            !warehouseId ||
+                            code.trim().length === 0 ||
+                            name.trim().length === 0
+                        }
+                        onClick={onCreate}
+                    >
+                        {isSubmitting ? "Creating..." : "Create Location"}
+                    </Button>
+                </div>
             </CardContent>
         </Card>
     );
@@ -197,128 +263,507 @@ interface LocationListCardProps {
     isLoadingLocations: boolean;
     isUpdatingId: string | null;
     locations: Awaited<ReturnType<typeof getLocations>>;
+    locationsPage: number;
+    locationsPageSize: number;
     onArchive: (locationId: string) => void;
+    onChangePage: (page: number) => void;
+    onChangeSearchQuery: (searchQuery: string) => void;
+    onChangeStatusFilter: (statusFilter: LocationStatusFilter) => void;
+    onChangeTypeFilter: (typeFilter: LocationTypeFilter) => void;
+    onChangeViewWarehouse: (warehouseId: string) => void;
+    onDelete: (locationId: string) => void;
+    onRecordsViewChange: (recordsView: LocationRecordsView) => void;
     onToggleActive: (locationId: string, isActive: boolean) => void;
     onToggleType: (locationId: string, type: LocationType) => void;
+    recordsView: LocationRecordsView;
+    searchQuery: string;
+    statusFilter: LocationStatusFilter;
+    typeFilter: LocationTypeFilter;
+    viewWarehouseId: string;
+    warehouses: WarehousesData;
 }
 
-const LocationListCard = ({
+const LocationListCard = (props: LocationListCardProps) =>
+    useLocationListCardView(props);
+
+const useLocationListCardView = ({
     isLoadingLocations,
     isUpdatingId,
     locations,
+    locationsPage,
+    locationsPageSize,
     onArchive,
+    onDelete,
+    onChangePage,
+    onChangeSearchQuery,
+    onChangeStatusFilter,
+    onChangeTypeFilter,
+    onChangeViewWarehouse,
+    onRecordsViewChange,
     onToggleActive,
     onToggleType,
+    recordsView,
+    searchQuery,
+    statusFilter,
+    typeFilter,
+    viewWarehouseId,
+    warehouses,
 }: LocationListCardProps) => {
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+    const filteredLocations = useMemo(() => {
+        return locations.filter((location) => {
+            const typeMatches =
+                typeFilter === "all" ? true : location.type === typeFilter;
+            let statusMatches = true;
+            if (statusFilter === "active") {
+                statusMatches = location.isActive;
+            } else if (statusFilter === "inactive") {
+                statusMatches = !location.isActive;
+            }
+            const searchMatches =
+                normalizedSearchQuery.length === 0
+                    ? true
+                    : [
+                          location.code,
+                          location.name,
+                          location.type,
+                          location.warehouse.code,
+                          location.warehouse.name,
+                          location.id,
+                      ].some((field) =>
+                          field.toLowerCase().includes(normalizedSearchQuery)
+                      );
+
+            return typeMatches && statusMatches && searchMatches;
+        });
+    }, [locations, normalizedSearchQuery, statusFilter, typeFilter]);
+
+    const totalPages = Math.max(
+        1,
+        Math.ceil(filteredLocations.length / locationsPageSize)
+    );
+    const safePage = Math.min(locationsPage, totalPages);
+    const startIndex = (safePage - 1) * locationsPageSize;
+    const paginatedLocations = filteredLocations.slice(
+        startIndex,
+        startIndex + locationsPageSize
+    );
+    const activeCount = filteredLocations.filter(
+        (location) => location.isActive
+    ).length;
+    const quarantineCount = filteredLocations.filter(
+        (location) => location.type === "QUARANTINE"
+    ).length;
+
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Location List</CardTitle>
+        <Card className="border-border/70">
+            <CardHeader className="space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                        <CardTitle>Manage Locations</CardTitle>
+                        <p className="text-muted-foreground text-sm">
+                            Filter by warehouse, status, and type to find
+                            locations quickly.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="secondary">
+                            Visible: {filteredLocations.length}
+                        </Badge>
+                        <Badge variant="outline">Active: {activeCount}</Badge>
+                        <Badge variant="outline">
+                            Quarantine: {quarantineCount}
+                        </Badge>
+                    </div>
+                </div>
             </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Code</TableHead>
-                            <TableHead>Name</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {isLoadingLocations ? (
+            <CardContent className="space-y-5">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    <div className="space-y-2">
+                        <Label htmlFor="location-search">Search</Label>
+                        <Input
+                            id="location-search"
+                            onChange={(event) => {
+                                onChangeSearchQuery(event.target.value);
+                            }}
+                            placeholder="Code, name, type, warehouse..."
+                            value={searchQuery}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Type Filter</Label>
+                        <Select
+                            onValueChange={(value) => {
+                                onChangeTypeFilter(
+                                    (value as LocationTypeFilter) ?? "all"
+                                );
+                            }}
+                            value={typeFilter}
+                        >
+                            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={SELECT_CONTENT_CLASS}>
+                                <SelectItem value="all">All types</SelectItem>
+                                {LOCATION_TYPES.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                        {option}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Status Filter</Label>
+                        <Select
+                            onValueChange={(value) => {
+                                onChangeStatusFilter(
+                                    (value as LocationStatusFilter) ?? "all"
+                                );
+                            }}
+                            value={statusFilter}
+                        >
+                            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={SELECT_CONTENT_CLASS}>
+                                <SelectItem value="all">
+                                    All statuses
+                                </SelectItem>
+                                <SelectItem value="active">Active</SelectItem>
+                                <SelectItem value="inactive">
+                                    Inactive
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>View Warehouse</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onChangeViewWarehouse(
+                                    value && value !== "all" ? value : ""
+                                )
+                            }
+                            value={viewWarehouseId || "all"}
+                        >
+                            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={SELECT_CONTENT_CLASS}>
+                                <SelectItem value="all">
+                                    All warehouses
+                                </SelectItem>
+                                {warehouses.map((warehouse) => (
+                                    <SelectItem
+                                        key={warehouse.id}
+                                        value={warehouse.id}
+                                    >
+                                        {formatEntityLabel(
+                                            warehouse.name,
+                                            warehouse.id
+                                        )}{" "}
+                                        ({warehouse.code})
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Record View</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onRecordsViewChange(
+                                    (value as LocationRecordsView) ?? "live"
+                                )
+                            }
+                            value={recordsView}
+                        >
+                            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={SELECT_CONTENT_CLASS}>
+                                <SelectItem value="live">
+                                    Live records
+                                </SelectItem>
+                                <SelectItem value="archived">
+                                    Archived records
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[940px]">
+                        <TableHeader>
                             <TableRow>
-                                <TableCell
-                                    className="text-muted-foreground"
-                                    colSpan={5}
-                                >
-                                    <div className="space-y-2">
-                                        <Skeleton className="h-4 w-48" />
-                                        <Skeleton className="h-4 w-32" />
-                                    </div>
-                                </TableCell>
+                                <TableHead>Warehouse</TableHead>
+                                <TableHead>Code</TableHead>
+                                <TableHead>Name</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
-                        ) : null}
-                        {!isLoadingLocations && locations.length === 0 ? (
-                            <TableRow>
-                                <TableCell
-                                    className="text-muted-foreground"
-                                    colSpan={5}
-                                >
-                                    No locations found for this warehouse.
-                                </TableCell>
-                            </TableRow>
-                        ) : null}
-                        {!isLoadingLocations && locations.length > 0
-                            ? locations.map((location) => (
-                                  <TableRow key={location.id}>
-                                      <TableCell>{location.code}</TableCell>
-                                      <TableCell>{location.name}</TableCell>
-                                      <TableCell>{location.type}</TableCell>
-                                      <TableCell>
-                                          {location.isActive
-                                              ? "Active"
-                                              : "Inactive"}
-                                      </TableCell>
-                                      <TableCell className="text-right">
-                                          <div className="flex justify-end gap-2">
-                                              <Button
-                                                  disabled={
-                                                      isUpdatingId ===
-                                                      location.id
-                                                  }
-                                                  onClick={() =>
-                                                      onToggleActive(
-                                                          location.id,
-                                                          location.isActive
+                        </TableHeader>
+                        <TableBody>
+                            {isLoadingLocations ? (
+                                <TableRow>
+                                    <TableCell
+                                        className="text-muted-foreground"
+                                        colSpan={6}
+                                    >
+                                        <div className="space-y-2 py-2">
+                                            <Skeleton className="h-4 w-56" />
+                                            <Skeleton className="h-4 w-40" />
+                                        </div>
+                                    </TableCell>
+                                </TableRow>
+                            ) : null}
+                            {!isLoadingLocations &&
+                            filteredLocations.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        className="text-muted-foreground"
+                                        colSpan={6}
+                                    >
+                                        No locations match your current filters.
+                                    </TableCell>
+                                </TableRow>
+                            ) : null}
+                            {!isLoadingLocations &&
+                            paginatedLocations.length > 0
+                                ? paginatedLocations.map((location) => (
+                                      <TableRow key={location.id}>
+                                          <TableCell>
+                                              <div className="flex flex-col gap-0.5">
+                                                  <span>
+                                                      {location.warehouse.name}
+                                                  </span>
+                                                  <span className="font-mono text-muted-foreground text-xs">
+                                                      {formatShortId(
+                                                          location.warehouse.id
+                                                      )}{" "}
+                                                      ({location.warehouse.code}
                                                       )
+                                                  </span>
+                                              </div>
+                                          </TableCell>
+                                          <TableCell className="font-medium">
+                                              {location.code}
+                                          </TableCell>
+                                          <TableCell>
+                                              <div className="flex flex-col gap-0.5">
+                                                  <span>{location.name}</span>
+                                                  <span className="font-mono text-muted-foreground text-xs">
+                                                      {location.id.slice(
+                                                          0,
+                                                          SHORT_ID_LENGTH
+                                                      )}
+                                                  </span>
+                                              </div>
+                                          </TableCell>
+                                          <TableCell>
+                                              <Badge variant="outline">
+                                                  {location.type}
+                                              </Badge>
+                                          </TableCell>
+                                          <TableCell>
+                                              <Badge
+                                                  variant={
+                                                      location.isActive
+                                                          ? "secondary"
+                                                          : "ghost"
                                                   }
-                                                  size="sm"
-                                                  variant="outline"
                                               >
                                                   {location.isActive
-                                                      ? "Deactivate"
-                                                      : "Activate"}
-                                              </Button>
-                                              <Button
-                                                  disabled={
-                                                      isUpdatingId ===
-                                                      location.id
-                                                  }
-                                                  onClick={() =>
-                                                      onToggleType(
-                                                          location.id,
-                                                          location.type
-                                                      )
-                                                  }
-                                                  size="sm"
-                                                  variant="outline"
-                                              >
-                                                  Toggle Type
-                                              </Button>
-                                              <Button
-                                                  disabled={
-                                                      isUpdatingId ===
-                                                      location.id
-                                                  }
-                                                  onClick={() =>
-                                                      onArchive(location.id)
-                                                  }
-                                                  size="sm"
-                                                  variant="destructive"
-                                              >
-                                                  Archive
-                                              </Button>
-                                          </div>
-                                      </TableCell>
-                                  </TableRow>
-                              ))
-                            : null}
-                    </TableBody>
-                </Table>
+                                                      ? "Active"
+                                                      : "Inactive"}
+                                              </Badge>
+                                          </TableCell>
+                                          <TableCell className="text-right">
+                                              <div className="flex flex-wrap justify-end gap-2">
+                                                  <Button
+                                                      nativeButton={false}
+                                                      render={
+                                                          <Link
+                                                              params={{
+                                                                  locationId:
+                                                                      location.id,
+                                                              }}
+                                                              to="/locations/$locationId"
+                                                          />
+                                                      }
+                                                      size="sm"
+                                                      variant="outline"
+                                                  >
+                                                      View
+                                                  </Button>
+                                                  {recordsView === "live" ? (
+                                                      <>
+                                                          <Button
+                                                              disabled={
+                                                                  isUpdatingId ===
+                                                                  location.id
+                                                              }
+                                                              onClick={() =>
+                                                                  onToggleActive(
+                                                                      location.id,
+                                                                      location.isActive
+                                                                  )
+                                                              }
+                                                              size="sm"
+                                                              variant="outline"
+                                                          >
+                                                              {location.isActive
+                                                                  ? "Deactivate"
+                                                                  : "Activate"}
+                                                          </Button>
+                                                          <Button
+                                                              disabled={
+                                                                  isUpdatingId ===
+                                                                  location.id
+                                                              }
+                                                              onClick={() =>
+                                                                  onToggleType(
+                                                                      location.id,
+                                                                      location.type
+                                                                  )
+                                                              }
+                                                              size="sm"
+                                                              variant="outline"
+                                                          >
+                                                              Toggle Type
+                                                          </Button>
+                                                          <Button
+                                                              disabled={
+                                                                  isUpdatingId ===
+                                                                  location.id
+                                                              }
+                                                              onClick={() =>
+                                                                  onArchive(
+                                                                      location.id
+                                                                  )
+                                                              }
+                                                              size="sm"
+                                                              variant="outline"
+                                                          >
+                                                              Archive
+                                                          </Button>
+                                                          <AlertDialog>
+                                                              <AlertDialogTrigger
+                                                                  disabled={
+                                                                      isUpdatingId ===
+                                                                      location.id
+                                                                  }
+                                                                  render={
+                                                                      <Button
+                                                                          disabled={
+                                                                              isUpdatingId ===
+                                                                              location.id
+                                                                          }
+                                                                          size="sm"
+                                                                          variant="destructive"
+                                                                      >
+                                                                          Delete
+                                                                      </Button>
+                                                                  }
+                                                              />
+                                                              <AlertDialogContent>
+                                                                  <AlertDialogHeader>
+                                                                      <AlertDialogTitle>
+                                                                          Delete
+                                                                          location
+                                                                          permanently?
+                                                                      </AlertDialogTitle>
+                                                                      <AlertDialogDescription>
+                                                                          This
+                                                                          cannot
+                                                                          be
+                                                                          undone.
+                                                                          Deletion
+                                                                          requires
+                                                                          this
+                                                                          location
+                                                                          to
+                                                                          have
+                                                                          no
+                                                                          linked
+                                                                          stock
+                                                                          buckets.
+                                                                      </AlertDialogDescription>
+                                                                  </AlertDialogHeader>
+                                                                  <AlertDialogFooter>
+                                                                      <AlertDialogCancel>
+                                                                          Cancel
+                                                                      </AlertDialogCancel>
+                                                                      <AlertDialogAction
+                                                                          onClick={() => {
+                                                                              onDelete(
+                                                                                  location.id
+                                                                              );
+                                                                          }}
+                                                                          variant="destructive"
+                                                                      >
+                                                                          Delete
+                                                                      </AlertDialogAction>
+                                                                  </AlertDialogFooter>
+                                                              </AlertDialogContent>
+                                                          </AlertDialog>
+                                                      </>
+                                                  ) : null}
+                                              </div>
+                                          </TableCell>
+                                      </TableRow>
+                                  ))
+                                : null}
+                        </TableBody>
+                    </Table>
+                </div>
+                {filteredLocations.length > locationsPageSize ? (
+                    <Pagination>
+                        <PaginationContent>
+                            <PaginationItem>
+                                <PaginationPrevious
+                                    className={
+                                        safePage <= 1
+                                            ? "pointer-events-none opacity-50"
+                                            : ""
+                                    }
+                                    href="#"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        if (safePage > 1) {
+                                            onChangePage(safePage - 1);
+                                        }
+                                    }}
+                                />
+                            </PaginationItem>
+                            <PaginationItem>
+                                <PaginationLink href="#" isActive>
+                                    Page {safePage} of {totalPages}
+                                </PaginationLink>
+                            </PaginationItem>
+                            <PaginationItem>
+                                <PaginationNext
+                                    className={
+                                        safePage >= totalPages
+                                            ? "pointer-events-none opacity-50"
+                                            : ""
+                                    }
+                                    href="#"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        if (safePage < totalPages) {
+                                            onChangePage(safePage + 1);
+                                        }
+                                    }}
+                                />
+                            </PaginationItem>
+                        </PaginationContent>
+                    </Pagination>
+                ) : null}
             </CardContent>
         </Card>
     );
@@ -330,6 +775,11 @@ export const Route = createFileRoute("/_dashboard/locations")({
 });
 
 function LocationsPage() {
+    return useLocationsPageView();
+}
+
+function useLocationsPageView() {
+    const location = useLocation();
     const warehouses = Route.useLoaderData();
     const initialWarehouseId = warehouses[0]?.id ?? "";
     const [state, patchState] = useReducer(locationsPageReducer, {
@@ -339,8 +789,15 @@ function LocationsPage() {
         isSubmitting: false,
         isUpdatingId: null,
         locations: [],
+        locationsPage: 1,
+        locationsPageSize: 10,
         name: "",
+        recordsView: "live",
+        searchQuery: "",
+        statusFilter: "all",
+        typeFilter: "all",
         type: "STANDARD",
+        viewWarehouseId: "",
         warehouseId: initialWarehouseId,
     });
     const {
@@ -350,50 +807,72 @@ function LocationsPage() {
         isSubmitting,
         isUpdatingId,
         locations,
+        locationsPage,
+        locationsPageSize,
         name,
+        recordsView,
+        searchQuery,
+        statusFilter,
+        typeFilter,
         type,
+        viewWarehouseId,
         warehouseId,
     } = state;
 
-    const loadLocations = useCallback(async (nextWarehouseId: string) => {
-        if (!nextWarehouseId) {
-            patchState({ locations: [] });
-            return;
-        }
+    const locationsSummary = useMemo(() => {
+        const total = locations.length;
+        const active = locations.filter((location) => location.isActive).length;
+        const inactive = total - active;
+        const quarantined = locations.filter(
+            (location) => location.type === "QUARANTINE"
+        ).length;
+        const uniqueWarehouses = new Set(
+            locations.map((location) => location.warehouse.code)
+        ).size;
 
-        try {
-            await Promise.resolve();
-            patchState({ isLoadingLocations: true });
-            const result = await getLocations({
-                data: { warehouseId: nextWarehouseId },
-            });
-            patchState({
-                isLoadingLocations: false,
-                locations: result,
-            });
-        } catch (error) {
-            patchState({ isLoadingLocations: false });
-            toast.error(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to load locations."
-            );
-        }
-    }, []);
+        return { active, inactive, quarantined, total, uniqueWarehouses };
+    }, [locations]);
+
+    const loadLocations = useCallback(
+        async (nextWarehouseId?: string) => {
+            const locationsQuery = {
+                archivedOnly: recordsView === "archived",
+                includeInactive: true,
+                warehouseId: nextWarehouseId || undefined,
+            };
+
+            try {
+                await Promise.resolve();
+                patchState({ isLoadingLocations: true });
+                const result = await getLocations({
+                    data: locationsQuery,
+                });
+                patchState({
+                    isLoadingLocations: false,
+                    locations: result,
+                    locationsPage: 1,
+                });
+            } catch (error) {
+                patchState({ isLoadingLocations: false });
+                toast.error(
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to load locations."
+                );
+            }
+        },
+        [recordsView]
+    );
 
     useEffect(() => {
-        if (!warehouseId) {
-            return;
-        }
-
         const timeoutId = window.setTimeout(() => {
-            loadLocations(warehouseId).catch(() => undefined);
+            loadLocations(viewWarehouseId).catch(() => undefined);
         }, 0);
 
         return () => {
             window.clearTimeout(timeoutId);
         };
-    }, [warehouseId, loadLocations]);
+    }, [viewWarehouseId, loadLocations]);
 
     const resetForm = () => {
         patchState({
@@ -498,35 +977,140 @@ function LocationsPage() {
         );
     };
 
+    const handleDelete = async (locationId: string): Promise<void> => {
+        await runLocationAction(
+            locationId,
+            () =>
+                deleteLocation({
+                    data: { id: locationId },
+                }),
+            "Location deleted permanently.",
+            "Failed to delete location."
+        );
+    };
+
+    if (location.pathname !== "/locations") {
+        return <Outlet />;
+    }
+
     return (
-        <section className="w-full space-y-4">
-            <div>
+        <section className="w-full space-y-5">
+            <div className="space-y-1">
                 <h1 className="font-semibold text-2xl">Locations</h1>
                 <p className="text-muted-foreground text-sm">
                     Manage storage locations within each warehouse.
                 </p>
             </div>
 
-            <CreateLocationCard
-                code={code}
-                isActive={isActive}
-                isSubmitting={isSubmitting}
-                name={name}
-                onCreate={() => {
-                    handleCreateLocation().catch(() => undefined);
-                }}
-                onPatchState={patchState}
-                type={type}
-                warehouseId={warehouseId}
-                warehouses={warehouses}
-            />
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Card className="border-border/70">
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Total Locations
+                        </p>
+                        <p className="font-semibold text-2xl">
+                            {locationsSummary.total}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Active
+                        </p>
+                        <p className="font-semibold text-2xl text-emerald-600 dark:text-emerald-400">
+                            {locationsSummary.active}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Quarantine
+                        </p>
+                        <p className="font-semibold text-2xl text-amber-600 dark:text-amber-400">
+                            {locationsSummary.quarantined}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Warehouses Covered
+                        </p>
+                        <p className="font-semibold text-2xl">
+                            {locationsSummary.uniqueWarehouses}
+                        </p>
+                        <p className="text-muted-foreground text-xs">
+                            Inactive: {locationsSummary.inactive}
+                        </p>
+                    </CardContent>
+                </Card>
+            </div>
+
+            {recordsView === "live" ? (
+                <CreateLocationCard
+                    code={code}
+                    isActive={isActive}
+                    isSubmitting={isSubmitting}
+                    name={name}
+                    onCreate={() => {
+                        handleCreateLocation().catch(() => undefined);
+                    }}
+                    onPatchState={patchState}
+                    type={type}
+                    warehouseId={warehouseId}
+                    warehouses={warehouses}
+                />
+            ) : null}
 
             <LocationListCard
                 isLoadingLocations={isLoadingLocations}
                 isUpdatingId={isUpdatingId}
                 locations={locations}
+                locationsPage={locationsPage}
+                locationsPageSize={locationsPageSize}
                 onArchive={(locationId) => {
                     handleArchive(locationId).catch(() => undefined);
+                }}
+                onChangePage={(page) => {
+                    patchState({ locationsPage: page });
+                }}
+                onChangeSearchQuery={(nextSearchQuery) => {
+                    patchState({
+                        locationsPage: 1,
+                        searchQuery: nextSearchQuery,
+                    });
+                }}
+                onChangeStatusFilter={(nextStatusFilter) => {
+                    patchState({
+                        locationsPage: 1,
+                        statusFilter: nextStatusFilter,
+                    });
+                }}
+                onChangeTypeFilter={(nextTypeFilter) => {
+                    patchState({
+                        locationsPage: 1,
+                        typeFilter: nextTypeFilter,
+                    });
+                }}
+                onChangeViewWarehouse={(nextWarehouseId) => {
+                    patchState({
+                        locationsPage: 1,
+                        viewWarehouseId: nextWarehouseId,
+                    });
+                }}
+                onDelete={(locationId) => {
+                    handleDelete(locationId).catch(() => undefined);
+                }}
+                onRecordsViewChange={(nextView) => {
+                    patchState({
+                        locationsPage: 1,
+                        recordsView: nextView,
+                        searchQuery: "",
+                        statusFilter: "all",
+                        typeFilter: "all",
+                    });
                 }}
                 onToggleActive={(locationId, isActiveValue) => {
                     handleToggleActive(locationId, isActiveValue).catch(
@@ -538,6 +1122,12 @@ function LocationsPage() {
                         () => undefined
                     );
                 }}
+                recordsView={recordsView}
+                searchQuery={searchQuery}
+                statusFilter={statusFilter}
+                typeFilter={typeFilter}
+                viewWarehouseId={viewWarehouseId}
+                warehouses={warehouses}
             />
         </section>
     );

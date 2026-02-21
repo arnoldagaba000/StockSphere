@@ -1,8 +1,10 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
+import { ImageIcon, UserCircle2Icon, UserRoundIcon } from "lucide-react";
 import { type ChangeEvent, useState } from "react";
 import toast from "react-hot-toast";
 import UserAvatar from "@/components/layout/user-avatar";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateCurrentUserProfile } from "@/utils/functions/account-settings";
@@ -97,72 +99,97 @@ function ProfileSettingsPage() {
     };
 
     return (
-        <div className="max-w-2xl space-y-4 rounded-lg border p-4">
-            <div className="space-y-1">
-                <h2 className="font-medium text-lg">Profile Settings</h2>
-                <p className="text-muted-foreground text-sm">
-                    Update your display name and profile picture.
-                </p>
-            </div>
+        <div className="space-y-4">
+            <Card className="border border-border/70">
+                <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2">
+                        <UserCircle2Icon className="h-4 w-4 text-primary" />
+                        Profile Settings
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <p className="text-foreground/80 text-sm">
+                        Update your display name and profile picture.
+                    </p>
 
-            <div className="space-y-3">
-                <Label>Profile Picture</Label>
-                <div className="flex items-center gap-4">
-                    <UserAvatar size="lg" user={{ ...user, image }} />
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Input
-                            accept="image/*"
-                            onChange={handleImageFileChange}
-                            type="file"
-                        />
-                        <Button
-                            disabled={image === null}
-                            onClick={() => {
-                                setImage(null);
-                                setImageUrlInput("");
-                            }}
-                            type="button"
-                            variant="outline"
-                        >
-                            Remove Picture
-                        </Button>
+                    <div className="grid gap-4 lg:grid-cols-[1fr_1.2fr]">
+                        <div className="space-y-3 rounded-lg border border-border/70 bg-background/60 p-4">
+                            <Label className="inline-flex items-center gap-2">
+                                <ImageIcon className="h-4 w-4 text-chart-2" />
+                                Profile Picture
+                            </Label>
+                            <div className="flex items-center gap-4">
+                                <UserAvatar
+                                    size="lg"
+                                    user={{ ...user, image }}
+                                />
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Input
+                                        accept="image/*"
+                                        onChange={handleImageFileChange}
+                                        type="file"
+                                    />
+                                    <Button
+                                        disabled={image === null}
+                                        onClick={() => {
+                                            setImage(null);
+                                            setImageUrlInput("");
+                                        }}
+                                        type="button"
+                                        variant="outline"
+                                    >
+                                        Remove Picture
+                                    </Button>
+                                </div>
+                            </div>
+                            <p className="text-foreground/70 text-xs">
+                                Upload from your computer (max 2MB), paste an
+                                image URL, or remove your current picture.
+                            </p>
+                        </div>
+
+                        <div className="space-y-3 rounded-lg border border-border/70 bg-background/60 p-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="image-url">
+                                    Profile Picture URL (Optional)
+                                </Label>
+                                <Input
+                                    id="image-url"
+                                    onChange={(event) => {
+                                        const nextValue = event.target.value;
+                                        setImageUrlInput(nextValue);
+                                        setImage(nextValue ? nextValue : null);
+                                    }}
+                                    placeholder="https://example.com/avatar.jpg"
+                                    type="url"
+                                    value={imageUrlInput}
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label
+                                    className="inline-flex items-center gap-2"
+                                    htmlFor="name"
+                                >
+                                    <UserRoundIcon className="h-4 w-4 text-chart-3" />
+                                    Display Name
+                                </Label>
+                                <Input
+                                    id="name"
+                                    onChange={(event) =>
+                                        setName(event.target.value)
+                                    }
+                                    value={name}
+                                />
+                            </div>
+                        </div>
                     </div>
-                </div>
-                <p className="text-muted-foreground text-xs">
-                    Upload from your computer (max 2MB), paste an image URL, or
-                    remove your current picture.
-                </p>
-            </div>
 
-            <div className="space-y-2">
-                <Label htmlFor="image-url">
-                    Profile Picture URL (Optional)
-                </Label>
-                <Input
-                    id="image-url"
-                    onChange={(event) => {
-                        const nextValue = event.target.value;
-                        setImageUrlInput(nextValue);
-                        setImage(nextValue ? nextValue : null);
-                    }}
-                    placeholder="https://example.com/avatar.jpg"
-                    type="url"
-                    value={imageUrlInput}
-                />
-            </div>
-
-            <div className="space-y-2">
-                <Label htmlFor="name">Display Name</Label>
-                <Input
-                    id="name"
-                    onChange={(event) => setName(event.target.value)}
-                    value={name}
-                />
-            </div>
-
-            <Button disabled={isSaving} onClick={handleSave}>
-                {isSaving ? "Saving..." : "Save Changes"}
-            </Button>
+                    <Button disabled={isSaving} onClick={handleSave}>
+                        {isSaving ? "Saving..." : "Save Changes"}
+                    </Button>
+                </CardContent>
+            </Card>
         </div>
     );
 }

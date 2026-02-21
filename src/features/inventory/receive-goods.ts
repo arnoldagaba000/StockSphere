@@ -27,6 +27,7 @@ const receiveGoodsSchema = z.object({
                     (value) => Number(value),
                     z.number().positive()
                 ),
+                serialNumber: z.string().max(100).nullable().optional(),
                 unitCost: z.preprocess(
                     (value) =>
                         value === null || value === undefined || value === ""
@@ -44,6 +45,7 @@ const receiveGoodsSchema = z.object({
 });
 
 type ReceiveGoodsInput = z.infer<typeof receiveGoodsSchema>;
+type ReceiveGoodsItem = ReceiveGoodsInput["items"][number];
 
 const validateDestination = async (data: ReceiveGoodsInput): Promise<void> => {
     const [warehouse, location] = await Promise.all([
@@ -69,6 +71,54 @@ const validateDestination = async (data: ReceiveGoodsInput): Promise<void> => {
     }
 };
 
+const validateTrackingForReceiptItem = async ({
+    item,
+    tx,
+}: {
+    item: ReceiveGoodsItem;
+    tx: Prisma.TransactionClient;
+}): Promise<void> => {
+    const product = await tx.product.findFirst({
+        where: { deletedAt: null, id: item.productId },
+        select: {
+            id: true,
+            trackByBatch: true,
+            trackByExpiry: true,
+            trackBySerialNumber: true,
+        },
+    });
+
+    if (!product) {
+        throw new Error("Product not found.");
+    }
+    if (product.trackByBatch && !item.batchNumber) {
+        throw new Error("This product requires a batch number.");
+    }
+    if (product.trackByExpiry && !item.expiryDate) {
+        throw new Error("This product requires an expiry date.");
+    }
+    if (product.trackBySerialNumber && !item.serialNumber) {
+        throw new Error("This product requires a serial number.");
+    }
+    if (product.trackBySerialNumber && Math.trunc(item.quantity) !== 1) {
+        throw new Error(
+            "Serial-tracked receipts must be received with quantity 1 per line."
+        );
+    }
+
+    if (!item.serialNumber) {
+        return;
+    }
+
+    const duplicateSerial = await tx.stockItem.findFirst({
+        where: { serialNumber: item.serialNumber },
+        select: { id: true },
+    });
+    if (duplicateSerial) {
+        throw new Error("Serial number already exists in stock.");
+    }
+};
+
 const applyReceiptItems = async ({
     createdById,
     data,
@@ -90,6 +140,8 @@ const applyReceiptItems = async ({
 }) => {
     let lineNumber = 1;
     for (const item of data.items) {
+        await validateTrackingForReceiptItem({ item, tx });
+
         await tx.goodsReceiptItem.create({
             data: {
                 batchNumber: item.batchNumber ?? null,
@@ -107,7 +159,7 @@ const applyReceiptItems = async ({
                 batchNumber: item.batchNumber ?? null,
                 locationId: data.locationId ?? null,
                 productId: item.productId,
-                serialNumber: null,
+                serialNumber: item.serialNumber ?? null,
                 warehouseId: data.warehouseId,
             },
         });
@@ -129,7 +181,7 @@ const applyReceiptItems = async ({
                     productId: item.productId,
                     quantity: item.quantity,
                     reservedQuantity: 0,
-                    serialNumber: null,
+                    serialNumber: item.serialNumber ?? null,
                     status: "AVAILABLE",
                     unitCost: item.unitCost ?? null,
                     warehouseId: data.warehouseId,
@@ -151,7 +203,7 @@ const applyReceiptItems = async ({
                 quantity: item.quantity,
                 reason: data.notes ?? "Goods received",
                 referenceNumber: receiptNumber,
-                serialNumber: null,
+                serialNumber: item.serialNumber ?? null,
                 toWarehouseId: data.warehouseId,
                 type: "PURCHASE_RECEIPT",
             },

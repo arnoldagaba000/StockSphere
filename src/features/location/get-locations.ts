@@ -8,9 +8,10 @@ import { authMiddleware } from "@/middleware/auth";
 export const getLocations = createServerFn({ method: "GET" })
     .inputValidator(
         (input: {
+            archivedOnly?: boolean;
             includeInactive?: boolean;
             type?: LocationType;
-            warehouseId: string;
+            warehouseId?: string;
         }) => input
     )
     .middleware([authMiddleware])
@@ -20,10 +21,23 @@ export const getLocations = createServerFn({ method: "GET" })
         }
 
         return await prisma.location.findMany({
+            include: {
+                warehouse: {
+                    select: {
+                        id: true,
+                        code: true,
+                        name: true,
+                    },
+                },
+            },
             where: {
-                deletedAt: null,
-                warehouseId: data.warehouseId,
-                ...(!data.includeInactive && { isActive: true }),
+                ...(data.archivedOnly
+                    ? { deletedAt: { not: null } }
+                    : { deletedAt: null }),
+                ...(data.warehouseId ? { warehouseId: data.warehouseId } : {}),
+                ...(!(data.archivedOnly || data.includeInactive) && {
+                    isActive: true,
+                }),
                 ...(data.type && { type: data.type }),
             },
             orderBy: { code: "asc" },
