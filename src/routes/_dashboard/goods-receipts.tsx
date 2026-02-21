@@ -641,17 +641,19 @@ function GoodsReceiptsPage() {
             toast.error("Enter at least one line quantity greater than zero.");
             return;
         }
+        const notesValue = notes.trim().length > 0 ? notes.trim() : null;
+        const receivedDateValue = receivedDate
+            ? new Date(receivedDate)
+            : new Date();
 
         try {
             patchState({ isSubmitting: true });
             await receiveGoods({
                 data: {
                     items: receiptItems,
-                    notes: notes.trim().length > 0 ? notes.trim() : null,
+                    notes: notesValue,
                     purchaseOrderId: selectedOrderDetail.id,
-                    receivedDate: receivedDate
-                        ? new Date(receivedDate)
-                        : new Date(),
+                    receivedDate: receivedDateValue,
                 },
             });
             toast.success("Goods receipt posted.");

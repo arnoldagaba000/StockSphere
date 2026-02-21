@@ -15,23 +15,12 @@ import {
     ShoppingCartIcon,
     TruckIcon,
 } from "lucide-react";
-import type { ReactNode } from "react";
-import {
-    Area,
-    AreaChart,
-    CartesianGrid,
-    Cell,
-    Pie,
-    PieChart,
-    ResponsiveContainer,
-    Tooltip,
-    XAxis,
-    YAxis,
-} from "recharts";
+import { lazy, type ReactNode, Suspense } from "react";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getDashboardMetrics } from "@/features/reports/get-dashboard-metrics";
 import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
@@ -40,20 +29,6 @@ const dashboardMetricsQueryOptions = queryOptions({
     queryKey: ["dashboard-home-metrics"],
     staleTime: 5 * 60 * 1000,
 });
-
-const CHART_DONUT_COLORS = [
-    "var(--chart-1)",
-    "var(--chart-2)",
-    "var(--chart-3)",
-    "var(--chart-4)",
-] as const;
-const CHART_TREND_STROKE = "var(--primary)";
-const CHART_AXIS_TICK = "var(--foreground)";
-const CHART_GRID = "var(--border)";
-const CHART_TOOLTIP_BG = "var(--popover)";
-const CHART_TOOLTIP_BORDER = "var(--border)";
-const CHART_TOOLTIP_LABEL = "var(--foreground)";
-const CHART_TOOLTIP_TEXT = "var(--foreground)";
 
 type DashboardMetrics = Awaited<ReturnType<typeof getDashboardMetrics>>;
 
@@ -67,6 +42,14 @@ interface TrendPoint {
     dateLabel: string;
     valueMajor: number;
 }
+
+const DashboardChartsSection = lazy(() =>
+    import("@/components/features/dashboard/dashboard-charts").then(
+        (module) => ({
+            default: module.DashboardChartsSection,
+        })
+    )
+);
 
 export const Route = createFileRoute("/_dashboard/")({
     component: HomePage,
@@ -194,17 +177,15 @@ function HomePage() {
                 />
             </div>
 
-            <div className="grid gap-5 xl:grid-cols-3">
-                <TrendChartCard
+            <Suspense fallback={<DashboardChartsFallback />}>
+                <DashboardChartsSection
                     currencyCode={currencyCode}
+                    queueSlices={queueSlices}
+                    queueTotal={queueTotal}
                     stockValueDeltaMinor={stockValueDeltaMinor}
                     trendData={trendData}
                 />
-                <QueueDonutCard
-                    queueSlices={queueSlices}
-                    queueTotal={queueTotal}
-                />
-            </div>
+            </Suspense>
 
             <div className="grid gap-5 lg:grid-cols-3">
                 <AlertsCard metrics={metrics} />
@@ -212,6 +193,32 @@ function HomePage() {
                 <QuickActionsCard />
             </div>
         </section>
+    );
+}
+
+function DashboardChartsFallback() {
+    return (
+        <div className="grid gap-5 xl:grid-cols-3">
+            <Card className="xl:col-span-2">
+                <CardHeader>
+                    <Skeleton className="h-5 w-52" />
+                </CardHeader>
+                <CardContent>
+                    <Skeleton className="h-72 w-full" />
+                </CardContent>
+            </Card>
+            <Card>
+                <CardHeader>
+                    <Skeleton className="h-5 w-36" />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <Skeleton className="h-52 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-full" />
+                    <Skeleton className="h-3 w-3/4" />
+                </CardContent>
+            </Card>
+        </div>
     );
 }
 
@@ -303,201 +310,6 @@ function KpiCard({
                 >
                     <TrendIcon className="h-3.5 w-3.5" tone={tone} />
                     {trend}
-                </p>
-            </CardContent>
-        </Card>
-    );
-}
-
-function TrendChartCard({
-    currencyCode,
-    stockValueDeltaMinor,
-    trendData,
-}: {
-    currencyCode: string;
-    stockValueDeltaMinor: number;
-    trendData: TrendPoint[];
-}) {
-    return (
-        <Card className="xl:col-span-2">
-            <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                    <ActivityIcon className="h-4 w-4 text-primary" />
-                    Inventory Value Trend (30 days)
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                {trendData.length === 0 ? (
-                    <div className="rounded-md border border-dashed p-6 text-center text-foreground/75 text-sm">
-                        No trend snapshots yet. Stock snapshot data will appear
-                        here automatically.
-                    </div>
-                ) : (
-                    <div className="h-72 w-full min-w-0 rounded-md border border-border/70 bg-background/65 p-2">
-                        <ResponsiveContainer height="100%" width="100%">
-                            <AreaChart data={trendData}>
-                                <defs>
-                                    <linearGradient
-                                        id="dashboardTrendGradient"
-                                        x1="0"
-                                        x2="0"
-                                        y1="0"
-                                        y2="1"
-                                    >
-                                        <stop
-                                            offset="5%"
-                                            stopColor={CHART_TREND_STROKE}
-                                            stopOpacity={0.36}
-                                        />
-                                        <stop
-                                            offset="95%"
-                                            stopColor={CHART_TREND_STROKE}
-                                            stopOpacity={0}
-                                        />
-                                    </linearGradient>
-                                </defs>
-                                <CartesianGrid
-                                    stroke={CHART_GRID}
-                                    strokeDasharray="3 3"
-                                />
-                                <XAxis
-                                    dataKey="dateLabel"
-                                    tick={{ fill: CHART_AXIS_TICK }}
-                                    tickMargin={8}
-                                />
-                                <YAxis
-                                    tick={{ fill: CHART_AXIS_TICK }}
-                                    tickFormatter={(value) =>
-                                        Intl.NumberFormat("en-US", {
-                                            notation: "compact",
-                                        }).format(value)
-                                    }
-                                />
-                                <Tooltip
-                                    contentStyle={{
-                                        backgroundColor: CHART_TOOLTIP_BG,
-                                        borderColor: CHART_TOOLTIP_BORDER,
-                                        color: CHART_TOOLTIP_TEXT,
-                                    }}
-                                    formatter={(value) =>
-                                        formatCurrencyFromMinorUnits(
-                                            Math.round(Number(value) * 100),
-                                            currencyCode
-                                        )
-                                    }
-                                    itemStyle={{ color: CHART_TOOLTIP_TEXT }}
-                                    labelStyle={{ color: CHART_TOOLTIP_LABEL }}
-                                />
-                                <Area
-                                    dataKey="valueMajor"
-                                    fill="url(#dashboardTrendGradient)"
-                                    stroke={CHART_TREND_STROKE}
-                                    strokeWidth={2}
-                                    type="monotone"
-                                />
-                            </AreaChart>
-                        </ResponsiveContainer>
-                    </div>
-                )}
-                <p
-                    className={`text-xs ${toToneClassName(
-                        toDeltaTone(stockValueDeltaMinor)
-                    )}`}
-                >
-                    <TrendIcon
-                        className="mr-1 inline h-3.5 w-3.5 align-[-2px]"
-                        tone={toDeltaTone(stockValueDeltaMinor)}
-                    />
-                    Trend delta: {toDeltaSign(stockValueDeltaMinor)}
-                    {formatCurrencyFromMinorUnits(
-                        Math.abs(stockValueDeltaMinor),
-                        currencyCode
-                    )}{" "}
-                    vs previous snapshot.
-                </p>
-            </CardContent>
-        </Card>
-    );
-}
-
-function QueueDonutCard({
-    queueSlices,
-    queueTotal,
-}: {
-    queueSlices: QueueSlice[];
-    queueTotal: number;
-}) {
-    return (
-        <Card>
-            <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2">
-                    <AlertTriangleIcon className="h-4 w-4 text-chart-2" />
-                    Queue Pressure
-                </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                <div className="h-52 w-full min-w-0 rounded-md border border-border/70 bg-background/65 p-2">
-                    <ResponsiveContainer height="100%" width="100%">
-                        <PieChart>
-                            <Pie
-                                cx="50%"
-                                cy="50%"
-                                data={queueSlices}
-                                dataKey="value"
-                                innerRadius={50}
-                                nameKey="label"
-                                outerRadius={75}
-                                stroke="var(--border)"
-                                strokeWidth={1}
-                            >
-                                {queueSlices.map((slice, index) => (
-                                    <Cell
-                                        fill={
-                                            CHART_DONUT_COLORS[
-                                                index %
-                                                    CHART_DONUT_COLORS.length
-                                            ]
-                                        }
-                                        key={slice.key}
-                                    />
-                                ))}
-                            </Pie>
-                            <Tooltip
-                                contentStyle={{
-                                    backgroundColor: CHART_TOOLTIP_BG,
-                                    borderColor: CHART_TOOLTIP_BORDER,
-                                    color: CHART_TOOLTIP_TEXT,
-                                }}
-                                itemStyle={{ color: CHART_TOOLTIP_TEXT }}
-                                labelStyle={{ color: CHART_TOOLTIP_LABEL }}
-                            />
-                        </PieChart>
-                    </ResponsiveContainer>
-                </div>
-                {queueSlices.map((slice, index) => (
-                    <div className="space-y-1 text-xs" key={slice.key}>
-                        <div className="flex items-center justify-between">
-                            <span className="text-foreground/90">
-                                {slice.label}
-                            </span>
-                            <span className="font-medium">{slice.value}</span>
-                        </div>
-                        <div className="h-1.5 rounded-full bg-muted/85">
-                            <div
-                                className="h-full rounded-full"
-                                style={{
-                                    backgroundColor:
-                                        CHART_DONUT_COLORS[
-                                            index % CHART_DONUT_COLORS.length
-                                        ],
-                                    width: `${queueTotal === 0 ? 0 : Math.round((slice.value / queueTotal) * 100)}%`,
-                                }}
-                            />
-                        </div>
-                    </div>
-                ))}
-                <p className="text-foreground/80 text-xs">
-                    Total active queue items: {queueTotal}
                 </p>
             </CardContent>
         </Card>

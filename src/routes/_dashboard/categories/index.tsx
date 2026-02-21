@@ -290,7 +290,7 @@ const CategoriesTable = ({
                                                 size="sm"
                                                 variant="outline"
                                             >
-                                                Edit
+                                                View
                                             </Button>
                                             <Button
                                                 disabled={

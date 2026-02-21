@@ -241,7 +241,10 @@ interface WarehouseListCardProps {
     warehouses: WarehousesList;
 }
 
-const WarehouseListCard = ({
+const WarehouseListCard = (props: WarehouseListCardProps) =>
+    useWarehouseListCardView(props);
+
+const useWarehouseListCardView = ({
     isUpdatingId,
     onArchiveWarehouse,
     onDeleteWarehouse,
@@ -576,6 +579,10 @@ const WarehouseListCard = ({
 };
 
 function WarehousesPage() {
+    return useWarehousesPageView();
+}
+
+function useWarehousesPageView() {
     const location = useLocation();
     const router = useRouter();
     const { archivedWarehouses, liveWarehouses } = Route.useLoaderData();

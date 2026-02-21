@@ -365,7 +365,10 @@ interface VariantsSectionProps {
     variants: ProductEditLoaderData["variants"];
 }
 
-const VariantsSection = ({
+const VariantsSection = (props: VariantsSectionProps) =>
+    renderVariantsSection(props);
+
+const renderVariantsSection = ({
     onRefresh,
     onStatePatch,
     product,

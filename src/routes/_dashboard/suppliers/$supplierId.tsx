@@ -26,6 +26,9 @@ import { getFinancialSettings } from "@/features/settings/get-financial-settings
 
 const SHORT_ID_LENGTH = 8;
 
+type SupplierDetail = Awaited<ReturnType<typeof getSupplier>>;
+type ProductsResponse = Awaited<ReturnType<typeof getProducts>>;
+
 interface SupplierLinkFormState {
     costPrice: string;
     isLinking: boolean;
@@ -113,30 +116,34 @@ function SupplierDetailPage() {
             toast.error("No unlinked products are available.");
             return;
         }
+        const costPriceValue =
+            linkState.costPrice.trim().length > 0
+                ? Number(linkState.costPrice)
+                : null;
+        const leadTimeDaysValue =
+            linkState.leadTimeDays.trim().length > 0
+                ? Number(linkState.leadTimeDays)
+                : null;
+        const minimumOrderQtyValue =
+            linkState.minimumOrderQty.trim().length > 0
+                ? Number(linkState.minimumOrderQty)
+                : null;
+        const supplierSkuValue =
+            linkState.supplierSku.trim().length > 0
+                ? linkState.supplierSku.trim()
+                : null;
 
         try {
             patchLinkState({ isLinking: true });
             await linkSupplierToProduct({
                 data: {
-                    costPrice:
-                        linkState.costPrice.trim().length > 0
-                            ? Number(linkState.costPrice)
-                            : null,
+                    costPrice: costPriceValue,
                     isPreferred: linkState.isPreferred,
-                    leadTimeDays:
-                        linkState.leadTimeDays.trim().length > 0
-                            ? Number(linkState.leadTimeDays)
-                            : null,
-                    minimumOrderQty:
-                        linkState.minimumOrderQty.trim().length > 0
-                            ? Number(linkState.minimumOrderQty)
-                            : null,
+                    leadTimeDays: leadTimeDaysValue,
+                    minimumOrderQty: minimumOrderQtyValue,
                     productId,
                     supplierId: supplier.id,
-                    supplierSku:
-                        linkState.supplierSku.trim().length > 0
-                            ? linkState.supplierSku.trim()
-                            : null,
+                    supplierSku: supplierSkuValue,
                 },
             });
             toast.success("Product linked to supplier.");
@@ -184,375 +191,408 @@ function SupplierDetailPage() {
 
     return (
         <section className="w-full space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                    <h1 className="font-semibold text-2xl">{supplier.name}</h1>
-                    <p className="text-muted-foreground text-sm">
-                        Supplier detail view
+            <SupplierHeader name={supplier.name} />
+            <SupplierSummaryCards supplier={supplier} />
+            <SupplierProfileCard supplier={supplier} />
+            <SupplierProductsCard
+                availableProducts={availableProducts}
+                currencyCode={financialSettings.currencyCode}
+                linkState={linkState}
+                onLinkProduct={handleLinkProduct}
+                onPatchState={patchLinkState}
+                onUnlinkProduct={handleUnlinkProduct}
+                selectedAvailableProduct={selectedAvailableProduct}
+                supplier={supplier}
+            />
+            <SupplierOrdersCard
+                currencyCode={financialSettings.currencyCode}
+                supplier={supplier}
+            />
+        </section>
+    );
+}
+
+function SupplierHeader({ name }: { name: string }) {
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-1">
+                <h1 className="font-semibold text-2xl">{name}</h1>
+                <p className="text-muted-foreground text-sm">
+                    Supplier detail view
+                </p>
+            </div>
+            <Button
+                nativeButton={false}
+                render={<Link to="/suppliers" />}
+                variant="outline"
+            >
+                Back to Suppliers
+            </Button>
+        </div>
+    );
+}
+
+function SupplierSummaryCards({ supplier }: { supplier: SupplierDetail }) {
+    return (
+        <div className="grid gap-3 md:grid-cols-4">
+            <Card className="border-border/70">
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Code
                     </p>
+                    <p className="font-semibold text-xl">{supplier.code}</p>
+                </CardContent>
+            </Card>
+            <Card className="border-border/70">
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Products
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {supplier._count.products}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card className="border-border/70">
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Purchase Orders
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {supplier._count.purchaseOrders}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card className="border-border/70">
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Status
+                    </p>
+                    <Badge variant={supplier.isActive ? "secondary" : "ghost"}>
+                        {supplier.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+function SupplierProfileCard({ supplier }: { supplier: SupplierDetail }) {
+    return (
+        <Card className="border-border/70">
+            <CardHeader>
+                <CardTitle>Profile</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+                <p>
+                    <span className="text-muted-foreground">ID:</span>{" "}
+                    <span className="font-mono">
+                        {supplier.id.slice(0, SHORT_ID_LENGTH)}
+                    </span>
+                </p>
+                <p>
+                    <span className="text-muted-foreground">Contact:</span>{" "}
+                    {supplier.contactPerson ?? "\u2014"}
+                </p>
+                <p>
+                    <span className="text-muted-foreground">Email:</span>{" "}
+                    {supplier.email ?? "\u2014"}
+                </p>
+                <p>
+                    <span className="text-muted-foreground">Phone:</span>{" "}
+                    {supplier.phone ?? "\u2014"}
+                </p>
+                <p>
+                    <span className="text-muted-foreground">
+                        Payment Terms:
+                    </span>{" "}
+                    {supplier.paymentTerms ?? "\u2014"}
+                </p>
+            </CardContent>
+        </Card>
+    );
+}
+
+function SupplierProductsCard({
+    availableProducts,
+    currencyCode,
+    linkState,
+    onLinkProduct,
+    onPatchState,
+    onUnlinkProduct,
+    selectedAvailableProduct,
+    supplier,
+}: {
+    availableProducts: ProductsResponse["products"];
+    currencyCode: string;
+    linkState: SupplierLinkFormState;
+    onLinkProduct: () => Promise<void>;
+    onPatchState: (patch: Partial<SupplierLinkFormState>) => void;
+    onUnlinkProduct: (productId: string) => Promise<void>;
+    selectedAvailableProduct: ProductsResponse["products"][number] | undefined;
+    supplier: SupplierDetail;
+}) {
+    return (
+        <Card className="border-border/70">
+            <CardHeader className="space-y-1">
+                <CardTitle>Supplier Products</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Link products to this supplier outside product creation.
+                </p>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-2 lg:col-span-2">
+                        <Label htmlFor="supplier-link-product">Product</Label>
+                        <select
+                            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                            id="supplier-link-product"
+                            onChange={(event) =>
+                                onPatchState({ productId: event.target.value })
+                            }
+                            value={selectedAvailableProduct?.id ?? ""}
+                        >
+                            {availableProducts.length === 0 ? (
+                                <option value="">No unlinked products</option>
+                            ) : (
+                                availableProducts.map((product) => (
+                                    <option key={product.id} value={product.id}>
+                                        {product.sku} - {product.name}
+                                    </option>
+                                ))
+                            )}
+                        </select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="supplier-sku">Supplier SKU</Label>
+                        <Input
+                            id="supplier-sku"
+                            onChange={(event) =>
+                                onPatchState({
+                                    supplierSku: event.target.value,
+                                })
+                            }
+                            placeholder="Optional"
+                            value={linkState.supplierSku}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="supplier-cost-price">Cost Price</Label>
+                        <Input
+                            id="supplier-cost-price"
+                            min={0}
+                            onChange={(event) =>
+                                onPatchState({ costPrice: event.target.value })
+                            }
+                            placeholder="Optional"
+                            type="number"
+                            value={linkState.costPrice}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="supplier-lead-time">
+                            Lead Time (days)
+                        </Label>
+                        <Input
+                            id="supplier-lead-time"
+                            min={0}
+                            onChange={(event) =>
+                                onPatchState({
+                                    leadTimeDays: event.target.value,
+                                })
+                            }
+                            placeholder="Optional"
+                            type="number"
+                            value={linkState.leadTimeDays}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="supplier-min-qty">Min Order Qty</Label>
+                        <Input
+                            id="supplier-min-qty"
+                            min={0}
+                            onChange={(event) =>
+                                onPatchState({
+                                    minimumOrderQty: event.target.value,
+                                })
+                            }
+                            placeholder="Optional"
+                            type="number"
+                            value={linkState.minimumOrderQty}
+                        />
+                    </div>
+                    <div className="flex items-end gap-2 pb-2">
+                        <Switch
+                            checked={linkState.isPreferred}
+                            id="supplier-is-preferred"
+                            onCheckedChange={(checked) =>
+                                onPatchState({ isPreferred: checked })
+                            }
+                        />
+                        <Label htmlFor="supplier-is-preferred">
+                            Preferred supplier for product
+                        </Label>
+                    </div>
                 </div>
                 <Button
-                    nativeButton={false}
-                    render={<Link to="/suppliers" />}
-                    variant="outline"
+                    disabled={
+                        linkState.isLinking ||
+                        availableProducts.length === 0 ||
+                        !(selectedAvailableProduct?.id ?? linkState.productId)
+                    }
+                    onClick={() => {
+                        onLinkProduct().catch(() => undefined);
+                    }}
                 >
-                    Back to Suppliers
+                    {linkState.isLinking ? "Linking..." : "Link Product"}
                 </Button>
-            </div>
 
-            <div className="grid gap-3 md:grid-cols-4">
-                <Card className="border-border/70">
-                    <CardContent className="space-y-1 p-4">
-                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                            Code
-                        </p>
-                        <p className="font-semibold text-xl">{supplier.code}</p>
-                    </CardContent>
-                </Card>
-                <Card className="border-border/70">
-                    <CardContent className="space-y-1 p-4">
-                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                            Products
-                        </p>
-                        <p className="font-semibold text-2xl">
-                            {supplier._count.products}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="border-border/70">
-                    <CardContent className="space-y-1 p-4">
-                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                            Purchase Orders
-                        </p>
-                        <p className="font-semibold text-2xl">
-                            {supplier._count.purchaseOrders}
-                        </p>
-                    </CardContent>
-                </Card>
-                <Card className="border-border/70">
-                    <CardContent className="space-y-1 p-4">
-                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
-                            Status
-                        </p>
-                        <Badge
-                            variant={supplier.isActive ? "secondary" : "ghost"}
-                        >
-                            {supplier.isActive ? "Active" : "Inactive"}
-                        </Badge>
-                    </CardContent>
-                </Card>
-            </div>
-
-            <Card className="border-border/70">
-                <CardHeader>
-                    <CardTitle>Profile</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-2 text-sm">
-                    <p>
-                        <span className="text-muted-foreground">ID:</span>{" "}
-                        <span className="font-mono">
-                            {supplier.id.slice(0, SHORT_ID_LENGTH)}
-                        </span>
-                    </p>
-                    <p>
-                        <span className="text-muted-foreground">Contact:</span>{" "}
-                        {supplier.contactPerson ?? "\u2014"}
-                    </p>
-                    <p>
-                        <span className="text-muted-foreground">Email:</span>{" "}
-                        {supplier.email ?? "\u2014"}
-                    </p>
-                    <p>
-                        <span className="text-muted-foreground">Phone:</span>{" "}
-                        {supplier.phone ?? "\u2014"}
-                    </p>
-                    <p>
-                        <span className="text-muted-foreground">
-                            Payment Terms:
-                        </span>{" "}
-                        {supplier.paymentTerms ?? "\u2014"}
-                    </p>
-                </CardContent>
-            </Card>
-
-            <Card className="border-border/70">
-                <CardHeader className="space-y-1">
-                    <CardTitle>Supplier Products</CardTitle>
-                    <p className="text-muted-foreground text-sm">
-                        Link products to this supplier outside product creation.
-                    </p>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                        <div className="space-y-2 lg:col-span-2">
-                            <Label htmlFor="supplier-link-product">
-                                Product
-                            </Label>
-                            <select
-                                className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                                id="supplier-link-product"
-                                onChange={(event) =>
-                                    patchLinkState({
-                                        productId: event.target.value,
-                                    })
-                                }
-                                value={selectedAvailableProduct?.id ?? ""}
-                            >
-                                {availableProducts.length === 0 ? (
-                                    <option value="">
-                                        No unlinked products
-                                    </option>
-                                ) : (
-                                    availableProducts.map((product) => (
-                                        <option
-                                            key={product.id}
-                                            value={product.id}
-                                        >
-                                            {product.sku} - {product.name}
-                                        </option>
-                                    ))
-                                )}
-                            </select>
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="supplier-sku">Supplier SKU</Label>
-                            <Input
-                                id="supplier-sku"
-                                onChange={(event) =>
-                                    patchLinkState({
-                                        supplierSku: event.target.value,
-                                    })
-                                }
-                                placeholder="Optional"
-                                value={linkState.supplierSku}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="supplier-cost-price">
-                                Cost Price
-                            </Label>
-                            <Input
-                                id="supplier-cost-price"
-                                min={0}
-                                onChange={(event) =>
-                                    patchLinkState({
-                                        costPrice: event.target.value,
-                                    })
-                                }
-                                placeholder="Optional"
-                                type="number"
-                                value={linkState.costPrice}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="supplier-lead-time">
-                                Lead Time (days)
-                            </Label>
-                            <Input
-                                id="supplier-lead-time"
-                                min={0}
-                                onChange={(event) =>
-                                    patchLinkState({
-                                        leadTimeDays: event.target.value,
-                                    })
-                                }
-                                placeholder="Optional"
-                                type="number"
-                                value={linkState.leadTimeDays}
-                            />
-                        </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="supplier-min-qty">
-                                Min Order Qty
-                            </Label>
-                            <Input
-                                id="supplier-min-qty"
-                                min={0}
-                                onChange={(event) =>
-                                    patchLinkState({
-                                        minimumOrderQty: event.target.value,
-                                    })
-                                }
-                                placeholder="Optional"
-                                type="number"
-                                value={linkState.minimumOrderQty}
-                            />
-                        </div>
-                        <div className="flex items-end gap-2 pb-2">
-                            <Switch
-                                checked={linkState.isPreferred}
-                                id="supplier-is-preferred"
-                                onCheckedChange={(checked) =>
-                                    patchLinkState({
-                                        isPreferred: checked,
-                                    })
-                                }
-                            />
-                            <Label htmlFor="supplier-is-preferred">
-                                Preferred supplier for product
-                            </Label>
-                        </div>
-                    </div>
-                    <Button
-                        disabled={
-                            linkState.isLinking ||
-                            availableProducts.length === 0 ||
-                            !(
-                                selectedAvailableProduct?.id ??
-                                linkState.productId
-                            )
-                        }
-                        onClick={() => {
-                            handleLinkProduct().catch(() => undefined);
-                        }}
-                    >
-                        {linkState.isLinking ? "Linking..." : "Link Product"}
-                    </Button>
-
-                    <div className="overflow-x-auto rounded-md border">
-                        <Table className="min-w-[980px]">
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>SKU</TableHead>
-                                    <TableHead>Product</TableHead>
-                                    <TableHead>Supplier SKU</TableHead>
-                                    <TableHead>Cost Price</TableHead>
-                                    <TableHead>Lead Time</TableHead>
-                                    <TableHead>Min Qty</TableHead>
-                                    <TableHead>Preferred</TableHead>
-                                    <TableHead className="text-right">
-                                        Actions
-                                    </TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {supplier.products.length === 0 ? (
-                                    <TableRow>
-                                        <TableCell
-                                            className="text-muted-foreground"
-                                            colSpan={8}
-                                        >
-                                            No linked products yet.
-                                        </TableCell>
-                                    </TableRow>
-                                ) : (
-                                    supplier.products.map((productLink) => (
-                                        <TableRow key={productLink.id}>
-                                            <TableCell>
-                                                {productLink.product.sku}
-                                            </TableCell>
-                                            <TableCell>
-                                                {productLink.product.name}
-                                            </TableCell>
-                                            <TableCell>
-                                                {productLink.supplierSku ??
-                                                    "\u2014"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {productLink.costPrice == null
-                                                    ? "\u2014"
-                                                    : formatCurrencyFromMinorUnits(
-                                                          productLink.costPrice,
-                                                          financialSettings.currencyCode
-                                                      )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {productLink.leadTimeDays ==
-                                                null
-                                                    ? "\u2014"
-                                                    : `${productLink.leadTimeDays} days`}
-                                            </TableCell>
-                                            <TableCell>
-                                                {productLink.minimumOrderQty ??
-                                                    "\u2014"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {productLink.isPreferred
-                                                    ? "Yes"
-                                                    : "No"}
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <Button
-                                                    disabled={
-                                                        linkState.unlinkingProductId ===
-                                                        productLink.productId
-                                                    }
-                                                    onClick={() => {
-                                                        handleUnlinkProduct(
-                                                            productLink.productId
-                                                        ).catch(
-                                                            () => undefined
-                                                        );
-                                                    }}
-                                                    size="sm"
-                                                    variant="destructive"
-                                                >
-                                                    {linkState.unlinkingProductId ===
-                                                    productLink.productId
-                                                        ? "Removing..."
-                                                        : "Unlink"}
-                                                </Button>
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                </CardContent>
-            </Card>
-
-            <Card className="border-border/70">
-                <CardHeader>
-                    <CardTitle>Recent Purchase Orders</CardTitle>
-                </CardHeader>
-                <CardContent className="overflow-x-auto">
-                    <Table className="min-w-[760px]">
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[980px]">
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Order #</TableHead>
-                                <TableHead>Date</TableHead>
-                                <TableHead>Status</TableHead>
+                                <TableHead>SKU</TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Supplier SKU</TableHead>
+                                <TableHead>Cost Price</TableHead>
+                                <TableHead>Lead Time</TableHead>
+                                <TableHead>Min Qty</TableHead>
+                                <TableHead>Preferred</TableHead>
                                 <TableHead className="text-right">
-                                    Total
+                                    Actions
                                 </TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {supplier.purchaseOrders.length === 0 ? (
+                            {supplier.products.length === 0 ? (
                                 <TableRow>
                                     <TableCell
                                         className="text-muted-foreground"
-                                        colSpan={4}
+                                        colSpan={8}
                                     >
-                                        No purchase orders found.
+                                        No linked products yet.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                supplier.purchaseOrders.map((order) => (
-                                    <TableRow key={order.id}>
+                                supplier.products.map((productLink) => (
+                                    <TableRow key={productLink.id}>
                                         <TableCell>
-                                            {order.orderNumber}
+                                            {productLink.product.sku}
                                         </TableCell>
                                         <TableCell>
-                                            {new Date(
-                                                order.orderDate
-                                            ).toLocaleDateString()}
+                                            {productLink.product.name}
                                         </TableCell>
-                                        <TableCell>{order.status}</TableCell>
+                                        <TableCell>
+                                            {productLink.supplierSku ??
+                                                "\u2014"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {productLink.costPrice == null
+                                                ? "\u2014"
+                                                : formatCurrencyFromMinorUnits(
+                                                      productLink.costPrice,
+                                                      currencyCode
+                                                  )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {productLink.leadTimeDays == null
+                                                ? "\u2014"
+                                                : `${productLink.leadTimeDays} days`}
+                                        </TableCell>
+                                        <TableCell>
+                                            {productLink.minimumOrderQty ??
+                                                "\u2014"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {productLink.isPreferred
+                                                ? "Yes"
+                                                : "No"}
+                                        </TableCell>
                                         <TableCell className="text-right">
-                                            {formatCurrencyFromMinorUnits(
-                                                order.totalAmount,
-                                                financialSettings.currencyCode
-                                            )}
+                                            <Button
+                                                disabled={
+                                                    linkState.unlinkingProductId ===
+                                                    productLink.productId
+                                                }
+                                                onClick={() => {
+                                                    onUnlinkProduct(
+                                                        productLink.productId
+                                                    ).catch(() => undefined);
+                                                }}
+                                                size="sm"
+                                                variant="destructive"
+                                            >
+                                                {linkState.unlinkingProductId ===
+                                                productLink.productId
+                                                    ? "Removing..."
+                                                    : "Unlink"}
+                                            </Button>
                                         </TableCell>
                                     </TableRow>
                                 ))
                             )}
                         </TableBody>
                     </Table>
-                </CardContent>
-            </Card>
-        </section>
+                </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+function SupplierOrdersCard({
+    currencyCode,
+    supplier,
+}: {
+    currencyCode: string;
+    supplier: SupplierDetail;
+}) {
+    return (
+        <Card className="border-border/70">
+            <CardHeader>
+                <CardTitle>Recent Purchase Orders</CardTitle>
+            </CardHeader>
+            <CardContent className="overflow-x-auto">
+                <Table className="min-w-[760px]">
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Order #</TableHead>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {supplier.purchaseOrders.length === 0 ? (
+                            <TableRow>
+                                <TableCell
+                                    className="text-muted-foreground"
+                                    colSpan={4}
+                                >
+                                    No purchase orders found.
+                                </TableCell>
+                            </TableRow>
+                        ) : (
+                            supplier.purchaseOrders.map((order) => (
+                                <TableRow key={order.id}>
+                                    <TableCell>{order.orderNumber}</TableCell>
+                                    <TableCell>
+                                        {new Date(
+                                            order.orderDate
+                                        ).toLocaleDateString()}
+                                    </TableCell>
+                                    <TableCell>{order.status}</TableCell>
+                                    <TableCell className="text-right">
+                                        {formatCurrencyFromMinorUnits(
+                                            order.totalAmount,
+                                            currencyCode
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        )}
+                    </TableBody>
+                </Table>
+            </CardContent>
+        </Card>
     );
 }

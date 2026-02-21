@@ -28,6 +28,10 @@ export const Route = createFileRoute("/_dashboard/settings/system")({
 });
 
 function SystemSettingsPage() {
+    return useSystemSettingsPageView();
+}
+
+function useSystemSettingsPageView() {
     const initialSettings = Route.useLoaderData();
     const [state, setState] = useReducer(
         systemSettingsReducer,

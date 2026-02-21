@@ -941,6 +941,7 @@ function PurchaseOrdersPage() {
         }
         const expectedDateValue = expectedDate ? new Date(expectedDate) : null;
         const firstProductId = products[0]?.id ?? "";
+        const notesValue = notes.trim().length > 0 ? notes.trim() : null;
         const shippingCostValue = Number(shippingCost) || 0;
         const taxAmountValue = Number(taxAmount) || 0;
 
@@ -956,7 +957,7 @@ function PurchaseOrdersPage() {
                         taxRate: item.taxRate,
                         unitPrice: item.unitPrice,
                     })),
-                    notes: notes.trim().length > 0 ? notes.trim() : null,
+                    notes: notesValue,
                     shippingCost: shippingCostValue,
                     supplierId,
                     taxAmount: taxAmountValue,

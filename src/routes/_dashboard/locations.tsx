@@ -283,7 +283,10 @@ interface LocationListCardProps {
     warehouses: WarehousesData;
 }
 
-const LocationListCard = ({
+const LocationListCard = (props: LocationListCardProps) =>
+    useLocationListCardView(props);
+
+const useLocationListCardView = ({
     isLoadingLocations,
     isUpdatingId,
     locations,
@@ -772,6 +775,10 @@ export const Route = createFileRoute("/_dashboard/locations")({
 });
 
 function LocationsPage() {
+    return useLocationsPageView();
+}
+
+function useLocationsPageView() {
     const location = useLocation();
     const warehouses = Route.useLoaderData();
     const initialWarehouseId = warehouses[0]?.id ?? "";

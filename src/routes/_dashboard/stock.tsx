@@ -1129,7 +1129,10 @@ interface StockPageContentProps {
     warehouses: Warehouse[];
 }
 
-const StockPageContent = ({
+const StockPageContent = (props: StockPageContentProps) =>
+    useStockPageContentView(props);
+
+const useStockPageContentView = ({
     currencyCode,
     kpis,
     loadBatchTraceability,
