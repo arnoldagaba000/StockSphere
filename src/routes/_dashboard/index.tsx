@@ -6,13 +6,16 @@ import {
     ArrowDownIcon,
     ArrowRightIcon,
     ArrowUpIcon,
+    BoxesIcon,
     CalendarClockIcon,
+    CheckCircle2Icon,
     Clock3Icon,
     DollarSignIcon,
     PackageIcon,
     ShoppingCartIcon,
     TruckIcon,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import {
     Area,
     AreaChart,
@@ -38,19 +41,6 @@ const dashboardMetricsQueryOptions = queryOptions({
     staleTime: 5 * 60 * 1000,
 });
 
-type DashboardMetrics = Awaited<ReturnType<typeof getDashboardMetrics>>;
-
-interface QueueSlice {
-    key: string;
-    label: string;
-    value: number;
-}
-
-interface TrendPoint {
-    dateLabel: string;
-    valueMajor: number;
-}
-
 const CHART_DONUT_COLORS = [
     "var(--chart-1)",
     "var(--chart-2)",
@@ -64,6 +54,19 @@ const CHART_TOOLTIP_BG = "var(--popover)";
 const CHART_TOOLTIP_BORDER = "var(--border)";
 const CHART_TOOLTIP_LABEL = "var(--foreground)";
 const CHART_TOOLTIP_TEXT = "var(--foreground)";
+
+type DashboardMetrics = Awaited<ReturnType<typeof getDashboardMetrics>>;
+
+interface QueueSlice {
+    key: string;
+    label: string;
+    value: number;
+}
+
+interface TrendPoint {
+    dateLabel: string;
+    valueMajor: number;
+}
 
 export const Route = createFileRoute("/_dashboard/")({
     component: HomePage,
@@ -125,7 +128,7 @@ function HomePage() {
         },
         {
             key: "expiringIn30Days",
-            label: "Expiring 30d",
+            label: "Expiring in 30d",
             value: metrics.expiringIn30Days,
         },
     ];
@@ -137,21 +140,26 @@ function HomePage() {
         .replace("T", " ");
 
     return (
-        <section className="space-y-6">
-            <HeroSection lastUpdatedAt={lastUpdatedAt} />
+        <section className="space-y-6 pb-2">
+            <HeroSection
+                lastUpdatedAt={lastUpdatedAt}
+                queueTotal={queueTotal}
+                recentMovements={metrics.recentMovementsLast7Days}
+            />
 
-            <div className="grid gap-4 lg:grid-cols-4">
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <KpiCard
+                    accentColor="var(--chart-1)"
                     icon={<DollarSignIcon className="h-4 w-4" />}
                     label="Stock Value"
                     tone={toDeltaTone(stockValueDeltaMinor)}
                     trend={
                         stockValueDeltaMinor === 0
-                            ? "No change"
+                            ? "No change from last snapshot"
                             : `${toDeltaSign(stockValueDeltaMinor)}${formatCurrencyFromMinorUnits(
                                   Math.abs(stockValueDeltaMinor),
                                   currencyCode
-                              )}`
+                              )} vs last snapshot`
                     }
                     value={formatCurrencyFromMinorUnits(
                         metrics.totalStockValueMinor,
@@ -159,23 +167,29 @@ function HomePage() {
                     )}
                 />
                 <KpiCard
-                    icon={<PackageIcon className="h-4 w-4" />}
+                    accentColor="var(--chart-2)"
+                    icon={<BoxesIcon className="h-4 w-4" />}
                     label="Units In Stock"
-                    trend={`${Intl.NumberFormat().format(metrics.recentMovementsLast7Days)} movements (7d)`}
+                    tone="neutral"
+                    trend={`${Intl.NumberFormat().format(metrics.recentMovementsLast7Days)} movements in 7 days`}
                     value={Intl.NumberFormat().format(
                         metrics.totalUnitsInStock
                     )}
                 />
                 <KpiCard
+                    accentColor="var(--chart-3)"
                     icon={<TruckIcon className="h-4 w-4" />}
                     label="Pending Purchase Orders"
-                    trend="Inbound queue"
+                    tone="neutral"
+                    trend="Inbound workload"
                     value={String(metrics.pendingPurchaseOrders)}
                 />
                 <KpiCard
+                    accentColor="var(--chart-4)"
                     icon={<ShoppingCartIcon className="h-4 w-4" />}
                     label="Pending Sales Orders"
-                    trend="Outbound queue"
+                    tone="neutral"
+                    trend="Outbound workload"
                     value={String(metrics.pendingSalesOrders)}
                 />
             </div>
@@ -201,28 +215,48 @@ function HomePage() {
     );
 }
 
-function HeroSection({ lastUpdatedAt }: { lastUpdatedAt: string }) {
+function HeroSection({
+    lastUpdatedAt,
+    queueTotal,
+    recentMovements,
+}: {
+    lastUpdatedAt: string;
+    queueTotal: number;
+    recentMovements: number;
+}) {
     return (
-        <header className="rounded-xl border border-border/70 bg-linear-to-br from-card via-card to-primary/10 p-5 shadow-sm">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="space-y-1.5">
+        <header className="rounded-xl border border-border/70 bg-linear-to-br from-card via-card to-primary/8 p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-5">
+                <div className="space-y-2">
                     <h1 className="font-semibold text-2xl">
                         Operations Dashboard
                     </h1>
-                    <p className="text-muted-foreground text-sm">
-                        Inventory health, queue pressure, and order flow in one
-                        place.
+                    <p className="max-w-2xl text-foreground/80 text-sm">
+                        Monitor inventory valuation, queue pressure, and order
+                        execution performance from a single view.
                     </p>
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <Badge variant="outline">
+                            <Clock3Icon className="mr-1 h-3.5 w-3.5" />
+                            Last refresh: {lastUpdatedAt} UTC
+                        </Badge>
+                        <Badge variant="secondary">
+                            <CalendarClockIcon className="mr-1 h-3.5 w-3.5" />5
+                            minute cache window
+                        </Badge>
+                    </div>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                    <Badge variant="outline">
-                        <Clock3Icon className="mr-1 h-3.5 w-3.5" />
-                        Last refresh: {lastUpdatedAt} UTC
-                    </Badge>
-                    <Badge variant="secondary">
-                        <ActivityIcon className="mr-1 h-3.5 w-3.5" />
-                        Data cache: 5 minutes
-                    </Badge>
+                <div className="grid min-w-56 gap-2 rounded-lg border border-border/70 bg-background/60 p-3 text-sm">
+                    <div className="flex items-center justify-between">
+                        <span className="text-foreground/80">Queue items</span>
+                        <span className="font-semibold">{queueTotal}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-foreground/80">
+                            Movements (7d)
+                        </span>
+                        <span className="font-semibold">{recentMovements}</span>
+                    </div>
                 </div>
             </div>
         </header>
@@ -230,25 +264,34 @@ function HeroSection({ lastUpdatedAt }: { lastUpdatedAt: string }) {
 }
 
 function KpiCard({
+    accentColor,
     icon,
     label,
-    tone = "neutral",
+    tone,
     trend,
     value,
 }: {
-    icon: React.ReactNode;
+    accentColor: string;
+    icon: ReactNode;
     label: string;
-    tone?: "negative" | "neutral" | "positive";
+    tone: "negative" | "neutral" | "positive";
     trend: string;
     value: string;
 }) {
-    const toneClassName = toToneClassName(tone);
     return (
-        <Card className="border border-border/70 bg-linear-to-br from-card to-muted/40 shadow-sm">
+        <Card className="relative overflow-hidden border border-border/70 bg-linear-to-br from-card to-muted/30 shadow-sm">
+            <div
+                aria-hidden
+                className="absolute inset-x-0 top-0 h-1"
+                style={{ backgroundColor: accentColor }}
+            />
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center justify-between gap-2 text-sm">
                     <span>{label}</span>
-                    <span className="rounded-md border border-border/70 bg-background/80 p-1.5 text-primary">
+                    <span
+                        className="rounded-md border border-border/70 bg-background/80 p-1.5"
+                        style={{ color: accentColor }}
+                    >
                         {icon}
                     </span>
                 </CardTitle>
@@ -256,7 +299,7 @@ function KpiCard({
             <CardContent className="space-y-1.5">
                 <p className="font-semibold text-2xl">{value}</p>
                 <p
-                    className={`inline-flex items-center gap-1 text-xs ${toneClassName}`}
+                    className={`inline-flex items-center gap-1 text-xs ${toToneClassName(tone)}`}
                 >
                     <TrendIcon className="h-3.5 w-3.5" tone={tone} />
                     {trend}
@@ -285,12 +328,12 @@ function TrendChartCard({
             </CardHeader>
             <CardContent className="space-y-3">
                 {trendData.length === 0 ? (
-                    <div className="rounded-md border border-dashed p-6 text-center text-muted-foreground text-sm">
+                    <div className="rounded-md border border-dashed p-6 text-center text-foreground/75 text-sm">
                         No trend snapshots yet. Stock snapshot data will appear
                         here automatically.
                     </div>
                 ) : (
-                    <div className="h-72 w-full min-w-0 rounded-md border border-border/70 bg-card/70 p-2">
+                    <div className="h-72 w-full min-w-0 rounded-md border border-border/70 bg-background/65 p-2">
                         <ResponsiveContainer height="100%" width="100%">
                             <AreaChart data={trendData}>
                                 <defs>
@@ -304,7 +347,7 @@ function TrendChartCard({
                                         <stop
                                             offset="5%"
                                             stopColor={CHART_TREND_STROKE}
-                                            stopOpacity={0.3}
+                                            stopOpacity={0.36}
                                         />
                                         <stop
                                             offset="95%"
@@ -357,7 +400,9 @@ function TrendChartCard({
                     </div>
                 )}
                 <p
-                    className={`text-xs ${toToneClassName(toDeltaTone(stockValueDeltaMinor))}`}
+                    className={`text-xs ${toToneClassName(
+                        toDeltaTone(stockValueDeltaMinor)
+                    )}`}
                 >
                     <TrendIcon
                         className="mr-1 inline h-3.5 w-3.5 align-[-2px]"
@@ -391,7 +436,7 @@ function QueueDonutCard({
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-                <div className="h-52 w-full min-w-0 rounded-md border border-border/70 bg-card/70 p-2">
+                <div className="h-52 w-full min-w-0 rounded-md border border-border/70 bg-background/65 p-2">
                     <ResponsiveContainer height="100%" width="100%">
                         <PieChart>
                             <Pie
@@ -399,9 +444,9 @@ function QueueDonutCard({
                                 cy="50%"
                                 data={queueSlices}
                                 dataKey="value"
-                                innerRadius={48}
+                                innerRadius={50}
                                 nameKey="label"
-                                outerRadius={74}
+                                outerRadius={75}
                                 stroke="var(--border)"
                                 strokeWidth={1}
                             >
@@ -437,7 +482,7 @@ function QueueDonutCard({
                             </span>
                             <span className="font-medium">{slice.value}</span>
                         </div>
-                        <div className="h-1.5 rounded-full bg-muted">
+                        <div className="h-1.5 rounded-full bg-muted/85">
                             <div
                                 className="h-full rounded-full"
                                 style={{
@@ -464,7 +509,7 @@ function AlertsCard({ metrics }: { metrics: DashboardMetrics }) {
         <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <AlertTriangleIcon className="h-4 w-4 text-chart-5" />
+                    <AlertTriangleIcon className="h-4 w-4 text-chart-4" />
                     Attention Needed
                 </CardTitle>
             </CardHeader>
@@ -521,31 +566,53 @@ function QuickActionsCard() {
         <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <ActivityIcon className="h-4 w-4 text-primary" />
+                    <PackageIcon className="h-4 w-4 text-chart-3" />
                     Quick Actions
                 </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-2">
-                <ActionButton label="Open Stock Operations" to="/stock" />
-                <ActionButton label="Open Reports" to="/reports" />
                 <ActionButton
+                    icon={<BoxesIcon className="h-4 w-4" />}
+                    label="Open Stock Operations"
+                    to="/stock"
+                />
+                <ActionButton
+                    icon={<ActivityIcon className="h-4 w-4" />}
+                    label="Open Reports"
+                    to="/reports"
+                />
+                <ActionButton
+                    icon={<TruckIcon className="h-4 w-4" />}
                     label="Go to Purchase Orders"
                     to="/purchase-orders"
                 />
-                <ActionButton label="Go to Sales Orders" to="/sales-orders" />
+                <ActionButton
+                    icon={<ShoppingCartIcon className="h-4 w-4" />}
+                    label="Go to Sales Orders"
+                    to="/sales-orders"
+                />
             </CardContent>
         </Card>
     );
 }
 
-function ActionButton({ label, to }: { label: string; to: string }) {
+function ActionButton({
+    icon,
+    label,
+    to,
+}: {
+    icon: ReactNode;
+    label: string;
+    to: string;
+}) {
     return (
         <Button
-            className="justify-start"
+            className="justify-start gap-2"
             nativeButton={false}
             render={<Link to={to} />}
             variant="outline"
         >
+            {icon}
             {label}
         </Button>
     );
@@ -563,12 +630,12 @@ function QueueRow({
     value: number;
 }) {
     return (
-        <div className="space-y-2 rounded-md border p-3">
+        <div className="space-y-2 rounded-md border border-border/70 bg-background/45 p-3">
             <div className="flex items-center justify-between gap-2">
                 <p className="font-medium text-sm">{label}</p>
                 <Badge variant="outline">{value}</Badge>
             </div>
-            <p className="text-muted-foreground text-xs">{description}</p>
+            <p className="text-foreground/75 text-xs">{description}</p>
             <Button
                 className="w-full justify-start"
                 nativeButton={false}
@@ -592,10 +659,19 @@ function AlertRow({
     value: number;
 }) {
     const variant = toBadgeVariant(severity);
+    let icon = <CheckCircle2Icon className="h-4 w-4 text-chart-3" />;
+    if (severity === "critical") {
+        icon = <AlertTriangleIcon className="h-4 w-4 text-destructive" />;
+    } else if (severity === "warning") {
+        icon = <Clock3Icon className="h-4 w-4 text-chart-4" />;
+    }
 
     return (
-        <div className="flex items-center justify-between gap-2 rounded-md border p-2">
-            <span className="text-sm">{label}</span>
+        <div className="flex items-center justify-between gap-3 rounded-md border border-border/70 bg-background/45 p-2.5">
+            <div className="flex items-center gap-2">
+                {icon}
+                <span className="text-sm">{label}</span>
+            </div>
             <Badge variant={variant}>{value}</Badge>
         </div>
     );
@@ -645,12 +721,12 @@ const toDeltaSign = (value: number): string => {
 
 const toToneClassName = (tone: "negative" | "neutral" | "positive"): string => {
     if (tone === "positive") {
-        return "text-emerald-600";
+        return "text-emerald-500";
     }
     if (tone === "negative") {
-        return "text-red-600";
+        return "text-red-500";
     }
-    return "text-muted-foreground";
+    return "text-foreground/75";
 };
 
 function TrendIcon({
