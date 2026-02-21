@@ -1,4 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    Link,
+    Outlet,
+    useLocation,
+} from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import {
@@ -548,6 +553,22 @@ const LocationListCard = ({
                                           <TableCell className="text-right">
                                               <div className="flex flex-wrap justify-end gap-2">
                                                   <Button
+                                                      nativeButton={false}
+                                                      render={
+                                                          <Link
+                                                              params={{
+                                                                  locationId:
+                                                                      location.id,
+                                                              }}
+                                                              to="/locations/$locationId"
+                                                          />
+                                                      }
+                                                      size="sm"
+                                                      variant="outline"
+                                                  >
+                                                      View
+                                                  </Button>
+                                                  <Button
                                                       disabled={
                                                           isUpdatingId ===
                                                           location.id
@@ -709,6 +730,7 @@ export const Route = createFileRoute("/_dashboard/locations")({
 });
 
 function LocationsPage() {
+    const location = useLocation();
     const warehouses = Route.useLoaderData();
     const initialWarehouseId = warehouses[0]?.id ?? "";
     const [state, patchState] = useReducer(locationsPageReducer, {
@@ -909,6 +931,10 @@ function LocationsPage() {
             "Failed to delete location."
         );
     };
+
+    if (location.pathname !== "/locations") {
+        return <Outlet />;
+    }
 
     return (
         <section className="w-full space-y-5">

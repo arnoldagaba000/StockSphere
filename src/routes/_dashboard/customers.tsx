@@ -1,4 +1,9 @@
-import { createFileRoute } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    Link,
+    Outlet,
+    useLocation,
+} from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
@@ -356,6 +361,23 @@ const CustomersTable = ({
                                     <TableCell>
                                         <div className="flex gap-2">
                                             <Button
+                                                nativeButton={false}
+                                                render={
+                                                    <Link
+                                                        params={{
+                                                            customerId:
+                                                                customer.id,
+                                                        }}
+                                                        to="/customers/$customerId"
+                                                    />
+                                                }
+                                                size="sm"
+                                                type="button"
+                                                variant="outline"
+                                            >
+                                                View
+                                            </Button>
+                                            <Button
                                                 onClick={() =>
                                                     onEditCustomer(customer.id)
                                                 }
@@ -416,6 +438,7 @@ const CustomersTable = ({
 };
 
 function CustomersPage() {
+    const location = useLocation();
     const { customers, financialSettings } = Route.useLoaderData();
     const [state, setState] = useReducer(customersPageReducer, {
         editingCustomerId: null,
@@ -633,6 +656,10 @@ function CustomersPage() {
     const handleSaveCustomerClick = () => {
         handleSaveCustomer().catch(() => undefined);
     };
+
+    if (location.pathname !== "/customers") {
+        return <Outlet />;
+    }
 
     return (
         <section className="w-full space-y-4">

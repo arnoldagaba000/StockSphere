@@ -1,4 +1,10 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    Link,
+    Outlet,
+    useLocation,
+    useRouter,
+} from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import {
@@ -388,6 +394,22 @@ const WarehouseListCard = ({
                                         <TableCell className="text-right">
                                             <div className="flex flex-wrap justify-end gap-2">
                                                 <Button
+                                                    nativeButton={false}
+                                                    render={
+                                                        <Link
+                                                            params={{
+                                                                warehouseId:
+                                                                    warehouse.id,
+                                                            }}
+                                                            to="/warehouses/$warehouseId"
+                                                        />
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    View
+                                                </Button>
+                                                <Button
                                                     disabled={
                                                         isUpdatingId ===
                                                         warehouse.id
@@ -488,6 +510,7 @@ const WarehouseListCard = ({
 };
 
 function WarehousesPage() {
+    const location = useLocation();
     const router = useRouter();
     const warehouses = Route.useLoaderData();
     const [state, setState] = useReducer(warehousesPageReducer, {
@@ -643,6 +666,10 @@ function WarehousesPage() {
             "Failed to delete warehouse."
         );
     };
+
+    if (location.pathname !== "/warehouses") {
+        return <Outlet />;
+    }
 
     return (
         <section className="w-full space-y-5">

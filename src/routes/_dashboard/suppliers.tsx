@@ -1,4 +1,10 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
+import {
+    createFileRoute,
+    Link,
+    Outlet,
+    useLocation,
+    useRouter,
+} from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
@@ -286,6 +292,21 @@ const SupplierListCard = ({
                                 <TableCell className="text-right">
                                     <div className="flex flex-wrap justify-end gap-2">
                                         <Button
+                                            nativeButton={false}
+                                            render={
+                                                <Link
+                                                    params={{
+                                                        supplierId: supplier.id,
+                                                    }}
+                                                    to="/suppliers/$supplierId"
+                                                />
+                                            }
+                                            size="sm"
+                                            variant="outline"
+                                        >
+                                            View
+                                        </Button>
+                                        <Button
                                             disabled={
                                                 isRowBusyId === supplier.id
                                             }
@@ -343,6 +364,7 @@ export const Route = createFileRoute("/_dashboard/suppliers")({
 });
 
 function SuppliersPage() {
+    const location = useLocation();
     const router = useRouter();
     const suppliers = Route.useLoaderData();
     const [state, dispatch] = useReducer(suppliersPageReducer, {
@@ -516,6 +538,10 @@ function SuppliersPage() {
             );
         }
     };
+
+    if (location.pathname !== "/suppliers") {
+        return <Outlet />;
+    }
 
     return (
         <section className="w-full space-y-4">
