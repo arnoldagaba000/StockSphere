@@ -69,6 +69,15 @@ function SettingsLayout() {
                         User Management
                     </Link>
                 ) : null}
+                <Link
+                    activeProps={{
+                        className: "bg-primary text-primary-foreground",
+                    }}
+                    className="rounded-md border px-3 py-1.5 text-sm"
+                    to="/settings/audit"
+                >
+                    Audit Trail
+                </Link>
             </nav>
 
             <Outlet />
