@@ -1,6 +1,17 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +30,7 @@ import { createWarehouse } from "@/features/inventory/create-warehouse";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
 import {
     archiveWarehouse,
+    deleteWarehouse,
     updateWarehouse,
 } from "@/features/inventory/update-warehouse";
 
@@ -185,6 +197,7 @@ const CreateWarehouseCard = ({
 interface WarehouseListCardProps {
     isUpdatingId: string | null;
     onArchiveWarehouse: (warehouseId: string) => void;
+    onDeleteWarehouse: (warehouseId: string) => void;
     onSearchChange: (searchQuery: string) => void;
     onStatusFilterChange: (statusFilter: WarehouseStatusFilter) => void;
     onToggleWarehouseActive: (warehouseId: string, isActive: boolean) => void;
@@ -196,6 +209,7 @@ interface WarehouseListCardProps {
 const WarehouseListCard = ({
     isUpdatingId,
     onArchiveWarehouse,
+    onDeleteWarehouse,
     onSearchChange,
     onStatusFilterChange,
     onToggleWarehouseActive,
@@ -402,10 +416,64 @@ const WarehouseListCard = ({
                                                         )
                                                     }
                                                     size="sm"
-                                                    variant="destructive"
+                                                    variant="outline"
                                                 >
                                                     Archive
                                                 </Button>
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger
+                                                        disabled={
+                                                            isUpdatingId ===
+                                                            warehouse.id
+                                                        }
+                                                        render={
+                                                            <Button
+                                                                disabled={
+                                                                    isUpdatingId ===
+                                                                    warehouse.id
+                                                                }
+                                                                size="sm"
+                                                                variant="destructive"
+                                                            >
+                                                                Delete
+                                                            </Button>
+                                                        }
+                                                    />
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>
+                                                                Delete warehouse
+                                                                permanently?
+                                                            </AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This cannot be
+                                                                undone. Deletion
+                                                                requires zero
+                                                                linked
+                                                                locations, stock
+                                                                buckets, goods
+                                                                receipts, and
+                                                                inventory
+                                                                adjustments.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>
+                                                                Cancel
+                                                            </AlertDialogCancel>
+                                                            <AlertDialogAction
+                                                                onClick={() => {
+                                                                    onDeleteWarehouse(
+                                                                        warehouse.id
+                                                                    );
+                                                                }}
+                                                                variant="destructive"
+                                                            >
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -560,6 +628,22 @@ function WarehousesPage() {
         );
     };
 
+    const handleDeleteWarehouse = async (
+        warehouseId: string
+    ): Promise<void> => {
+        await runWarehouseAction(
+            warehouseId,
+            () =>
+                deleteWarehouse({
+                    data: {
+                        id: warehouseId,
+                    },
+                }),
+            "Warehouse deleted permanently.",
+            "Failed to delete warehouse."
+        );
+    };
+
     return (
         <section className="w-full space-y-5">
             <div className="space-y-1">
@@ -624,6 +708,9 @@ function WarehousesPage() {
                 isUpdatingId={state.isUpdatingId}
                 onArchiveWarehouse={(warehouseId) => {
                     handleArchiveWarehouse(warehouseId).catch(() => undefined);
+                }}
+                onDeleteWarehouse={(warehouseId) => {
+                    handleDeleteWarehouse(warehouseId).catch(() => undefined);
                 }}
                 onSearchChange={(listSearchQuery) => {
                     setState({ listSearchQuery });

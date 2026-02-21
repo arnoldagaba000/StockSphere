@@ -1,6 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +47,7 @@ import { createLocation } from "@/features/location/create-location";
 import { getLocations } from "@/features/location/get-locations";
 import {
     archiveLocation,
+    deleteLocation,
     updateLocation,
 } from "@/features/location/update-location";
 import type { LocationType } from "@/generated/prisma/client";
@@ -252,6 +264,7 @@ interface LocationListCardProps {
     onChangeStatusFilter: (statusFilter: LocationStatusFilter) => void;
     onChangeTypeFilter: (typeFilter: LocationTypeFilter) => void;
     onChangeViewWarehouse: (warehouseId: string) => void;
+    onDelete: (locationId: string) => void;
     onToggleActive: (locationId: string, isActive: boolean) => void;
     onToggleType: (locationId: string, type: LocationType) => void;
     searchQuery: string;
@@ -268,6 +281,7 @@ const LocationListCard = ({
     locationsPage,
     locationsPageSize,
     onArchive,
+    onDelete,
     onChangePage,
     onChangeSearchQuery,
     onChangeStatusFilter,
@@ -576,10 +590,63 @@ const LocationListCard = ({
                                                           onArchive(location.id)
                                                       }
                                                       size="sm"
-                                                      variant="destructive"
+                                                      variant="outline"
                                                   >
                                                       Archive
                                                   </Button>
+                                                  <AlertDialog>
+                                                      <AlertDialogTrigger
+                                                          disabled={
+                                                              isUpdatingId ===
+                                                              location.id
+                                                          }
+                                                          render={
+                                                              <Button
+                                                                  disabled={
+                                                                      isUpdatingId ===
+                                                                      location.id
+                                                                  }
+                                                                  size="sm"
+                                                                  variant="destructive"
+                                                              >
+                                                                  Delete
+                                                              </Button>
+                                                          }
+                                                      />
+                                                      <AlertDialogContent>
+                                                          <AlertDialogHeader>
+                                                              <AlertDialogTitle>
+                                                                  Delete
+                                                                  location
+                                                                  permanently?
+                                                              </AlertDialogTitle>
+                                                              <AlertDialogDescription>
+                                                                  This cannot be
+                                                                  undone.
+                                                                  Deletion
+                                                                  requires this
+                                                                  location to
+                                                                  have no linked
+                                                                  stock buckets.
+                                                              </AlertDialogDescription>
+                                                          </AlertDialogHeader>
+                                                          <AlertDialogFooter>
+                                                              <AlertDialogCancel>
+                                                                  Cancel
+                                                              </AlertDialogCancel>
+                                                              <AlertDialogAction
+                                                                  onClick={() => {
+                                                                      onDelete(
+                                                                          location.id
+                                                                      );
+                                                                  }}
+                                                                  variant="destructive"
+                                                              >
+                                                                  Delete
+                                                              </AlertDialogAction>
+                                                          </AlertDialogFooter>
+                                                      </AlertDialogContent>
+                                                  </AlertDialog>
                                               </div>
                                           </TableCell>
                                       </TableRow>
@@ -831,6 +898,18 @@ function LocationsPage() {
         );
     };
 
+    const handleDelete = async (locationId: string): Promise<void> => {
+        await runLocationAction(
+            locationId,
+            () =>
+                deleteLocation({
+                    data: { id: locationId },
+                }),
+            "Location deleted permanently.",
+            "Failed to delete location."
+        );
+    };
+
     return (
         <section className="w-full space-y-5">
             <div className="space-y-1">
@@ -935,6 +1014,9 @@ function LocationsPage() {
                         locationsPage: 1,
                         viewWarehouseId: nextWarehouseId,
                     });
+                }}
+                onDelete={(locationId) => {
+                    handleDelete(locationId).catch(() => undefined);
                 }}
                 onToggleActive={(locationId, isActiveValue) => {
                     handleToggleActive(locationId, isActiveValue).catch(
