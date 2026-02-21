@@ -6,6 +6,7 @@ import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
 
 const getCustomersSchema = z.object({
+    archivedOnly: z.boolean().optional().default(false),
     isActive: z.boolean().optional(),
     limit: z.number().int().min(1).max(200).optional().default(100),
     search: z.string().trim().max(100).optional(),
@@ -23,10 +24,14 @@ export const getCustomers = createServerFn({ method: "GET" })
             orderBy: [{ createdAt: "desc" }],
             take: data.limit,
             where: {
-                deletedAt: null,
-                ...(typeof data.isActive === "boolean"
-                    ? { isActive: data.isActive }
-                    : {}),
+                ...(data.archivedOnly
+                    ? { deletedAt: { not: null } }
+                    : {
+                          deletedAt: null,
+                          ...(typeof data.isActive === "boolean"
+                              ? { isActive: data.isActive }
+                              : {}),
+                      }),
                 ...(data.search
                     ? {
                           OR: [

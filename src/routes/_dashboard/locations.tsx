@@ -79,6 +79,7 @@ const formatShortId = (value: string | undefined): string =>
 
 type LocationStatusFilter = "active" | "all" | "inactive";
 type LocationTypeFilter = "all" | LocationType;
+type LocationRecordsView = "live" | "archived";
 
 interface LocationsPageState {
     code: string;
@@ -90,6 +91,7 @@ interface LocationsPageState {
     locationsPage: number;
     locationsPageSize: number;
     name: string;
+    recordsView: LocationRecordsView;
     searchQuery: string;
     statusFilter: LocationStatusFilter;
     type: LocationType;
@@ -270,8 +272,10 @@ interface LocationListCardProps {
     onChangeTypeFilter: (typeFilter: LocationTypeFilter) => void;
     onChangeViewWarehouse: (warehouseId: string) => void;
     onDelete: (locationId: string) => void;
+    onRecordsViewChange: (recordsView: LocationRecordsView) => void;
     onToggleActive: (locationId: string, isActive: boolean) => void;
     onToggleType: (locationId: string, type: LocationType) => void;
+    recordsView: LocationRecordsView;
     searchQuery: string;
     statusFilter: LocationStatusFilter;
     typeFilter: LocationTypeFilter;
@@ -292,8 +296,10 @@ const LocationListCard = ({
     onChangeStatusFilter,
     onChangeTypeFilter,
     onChangeViewWarehouse,
+    onRecordsViewChange,
     onToggleActive,
     onToggleType,
+    recordsView,
     searchQuery,
     statusFilter,
     typeFilter,
@@ -369,7 +375,7 @@ const LocationListCard = ({
                 </div>
             </CardHeader>
             <CardContent className="space-y-5">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                     <div className="space-y-2">
                         <Label htmlFor="location-search">Search</Label>
                         <Input
@@ -457,6 +463,29 @@ const LocationListCard = ({
                                         ({warehouse.code})
                                     </SelectItem>
                                 ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Record View</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onRecordsViewChange(
+                                    (value as LocationRecordsView) ?? "live"
+                                )
+                            }
+                            value={recordsView}
+                        >
+                            <SelectTrigger className={SELECT_TRIGGER_CLASS}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className={SELECT_CONTENT_CLASS}>
+                                <SelectItem value="live">
+                                    Live records
+                                </SelectItem>
+                                <SelectItem value="archived">
+                                    Archived records
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -568,106 +597,119 @@ const LocationListCard = ({
                                                   >
                                                       View
                                                   </Button>
-                                                  <Button
-                                                      disabled={
-                                                          isUpdatingId ===
-                                                          location.id
-                                                      }
-                                                      onClick={() =>
-                                                          onToggleActive(
-                                                              location.id,
-                                                              location.isActive
-                                                          )
-                                                      }
-                                                      size="sm"
-                                                      variant="outline"
-                                                  >
-                                                      {location.isActive
-                                                          ? "Deactivate"
-                                                          : "Activate"}
-                                                  </Button>
-                                                  <Button
-                                                      disabled={
-                                                          isUpdatingId ===
-                                                          location.id
-                                                      }
-                                                      onClick={() =>
-                                                          onToggleType(
-                                                              location.id,
-                                                              location.type
-                                                          )
-                                                      }
-                                                      size="sm"
-                                                      variant="outline"
-                                                  >
-                                                      Toggle Type
-                                                  </Button>
-                                                  <Button
-                                                      disabled={
-                                                          isUpdatingId ===
-                                                          location.id
-                                                      }
-                                                      onClick={() =>
-                                                          onArchive(location.id)
-                                                      }
-                                                      size="sm"
-                                                      variant="outline"
-                                                  >
-                                                      Archive
-                                                  </Button>
-                                                  <AlertDialog>
-                                                      <AlertDialogTrigger
-                                                          disabled={
-                                                              isUpdatingId ===
-                                                              location.id
-                                                          }
-                                                          render={
-                                                              <Button
+                                                  {recordsView === "live" ? (
+                                                      <>
+                                                          <Button
+                                                              disabled={
+                                                                  isUpdatingId ===
+                                                                  location.id
+                                                              }
+                                                              onClick={() =>
+                                                                  onToggleActive(
+                                                                      location.id,
+                                                                      location.isActive
+                                                                  )
+                                                              }
+                                                              size="sm"
+                                                              variant="outline"
+                                                          >
+                                                              {location.isActive
+                                                                  ? "Deactivate"
+                                                                  : "Activate"}
+                                                          </Button>
+                                                          <Button
+                                                              disabled={
+                                                                  isUpdatingId ===
+                                                                  location.id
+                                                              }
+                                                              onClick={() =>
+                                                                  onToggleType(
+                                                                      location.id,
+                                                                      location.type
+                                                                  )
+                                                              }
+                                                              size="sm"
+                                                              variant="outline"
+                                                          >
+                                                              Toggle Type
+                                                          </Button>
+                                                          <Button
+                                                              disabled={
+                                                                  isUpdatingId ===
+                                                                  location.id
+                                                              }
+                                                              onClick={() =>
+                                                                  onArchive(
+                                                                      location.id
+                                                                  )
+                                                              }
+                                                              size="sm"
+                                                              variant="outline"
+                                                          >
+                                                              Archive
+                                                          </Button>
+                                                          <AlertDialog>
+                                                              <AlertDialogTrigger
                                                                   disabled={
                                                                       isUpdatingId ===
                                                                       location.id
                                                                   }
-                                                                  size="sm"
-                                                                  variant="destructive"
-                                                              >
-                                                                  Delete
-                                                              </Button>
-                                                          }
-                                                      />
-                                                      <AlertDialogContent>
-                                                          <AlertDialogHeader>
-                                                              <AlertDialogTitle>
-                                                                  Delete
-                                                                  location
-                                                                  permanently?
-                                                              </AlertDialogTitle>
-                                                              <AlertDialogDescription>
-                                                                  This cannot be
-                                                                  undone.
-                                                                  Deletion
-                                                                  requires this
-                                                                  location to
-                                                                  have no linked
-                                                                  stock buckets.
-                                                              </AlertDialogDescription>
-                                                          </AlertDialogHeader>
-                                                          <AlertDialogFooter>
-                                                              <AlertDialogCancel>
-                                                                  Cancel
-                                                              </AlertDialogCancel>
-                                                              <AlertDialogAction
-                                                                  onClick={() => {
-                                                                      onDelete(
-                                                                          location.id
-                                                                      );
-                                                                  }}
-                                                                  variant="destructive"
-                                                              >
-                                                                  Delete
-                                                              </AlertDialogAction>
-                                                          </AlertDialogFooter>
-                                                      </AlertDialogContent>
-                                                  </AlertDialog>
+                                                                  render={
+                                                                      <Button
+                                                                          disabled={
+                                                                              isUpdatingId ===
+                                                                              location.id
+                                                                          }
+                                                                          size="sm"
+                                                                          variant="destructive"
+                                                                      >
+                                                                          Delete
+                                                                      </Button>
+                                                                  }
+                                                              />
+                                                              <AlertDialogContent>
+                                                                  <AlertDialogHeader>
+                                                                      <AlertDialogTitle>
+                                                                          Delete
+                                                                          location
+                                                                          permanently?
+                                                                      </AlertDialogTitle>
+                                                                      <AlertDialogDescription>
+                                                                          This
+                                                                          cannot
+                                                                          be
+                                                                          undone.
+                                                                          Deletion
+                                                                          requires
+                                                                          this
+                                                                          location
+                                                                          to
+                                                                          have
+                                                                          no
+                                                                          linked
+                                                                          stock
+                                                                          buckets.
+                                                                      </AlertDialogDescription>
+                                                                  </AlertDialogHeader>
+                                                                  <AlertDialogFooter>
+                                                                      <AlertDialogCancel>
+                                                                          Cancel
+                                                                      </AlertDialogCancel>
+                                                                      <AlertDialogAction
+                                                                          onClick={() => {
+                                                                              onDelete(
+                                                                                  location.id
+                                                                              );
+                                                                          }}
+                                                                          variant="destructive"
+                                                                      >
+                                                                          Delete
+                                                                      </AlertDialogAction>
+                                                                  </AlertDialogFooter>
+                                                              </AlertDialogContent>
+                                                          </AlertDialog>
+                                                      </>
+                                                  ) : null}
                                               </div>
                                           </TableCell>
                                       </TableRow>
@@ -743,6 +785,7 @@ function LocationsPage() {
         locationsPage: 1,
         locationsPageSize: 10,
         name: "",
+        recordsView: "live",
         searchQuery: "",
         statusFilter: "all",
         typeFilter: "all",
@@ -760,6 +803,7 @@ function LocationsPage() {
         locationsPage,
         locationsPageSize,
         name,
+        recordsView,
         searchQuery,
         statusFilter,
         typeFilter,
@@ -782,30 +826,34 @@ function LocationsPage() {
         return { active, inactive, quarantined, total, uniqueWarehouses };
     }, [locations]);
 
-    const loadLocations = useCallback(async (nextWarehouseId?: string) => {
-        try {
-            await Promise.resolve();
-            patchState({ isLoadingLocations: true });
-            const result = await getLocations({
-                data: {
-                    includeInactive: true,
-                    warehouseId: nextWarehouseId || undefined,
-                },
-            });
-            patchState({
-                isLoadingLocations: false,
-                locations: result,
-                locationsPage: 1,
-            });
-        } catch (error) {
-            patchState({ isLoadingLocations: false });
-            toast.error(
-                error instanceof Error
-                    ? error.message
-                    : "Failed to load locations."
-            );
-        }
-    }, []);
+    const loadLocations = useCallback(
+        async (nextWarehouseId?: string) => {
+            try {
+                await Promise.resolve();
+                patchState({ isLoadingLocations: true });
+                const result = await getLocations({
+                    data: {
+                        archivedOnly: recordsView === "archived",
+                        includeInactive: true,
+                        warehouseId: nextWarehouseId || undefined,
+                    },
+                });
+                patchState({
+                    isLoadingLocations: false,
+                    locations: result,
+                    locationsPage: 1,
+                });
+            } catch (error) {
+                patchState({ isLoadingLocations: false });
+                toast.error(
+                    error instanceof Error
+                        ? error.message
+                        : "Failed to load locations."
+                );
+            }
+        },
+        [recordsView]
+    );
 
     useEffect(() => {
         const timeoutId = window.setTimeout(() => {
@@ -991,19 +1039,21 @@ function LocationsPage() {
                 </Card>
             </div>
 
-            <CreateLocationCard
-                code={code}
-                isActive={isActive}
-                isSubmitting={isSubmitting}
-                name={name}
-                onCreate={() => {
-                    handleCreateLocation().catch(() => undefined);
-                }}
-                onPatchState={patchState}
-                type={type}
-                warehouseId={warehouseId}
-                warehouses={warehouses}
-            />
+            {recordsView === "live" ? (
+                <CreateLocationCard
+                    code={code}
+                    isActive={isActive}
+                    isSubmitting={isSubmitting}
+                    name={name}
+                    onCreate={() => {
+                        handleCreateLocation().catch(() => undefined);
+                    }}
+                    onPatchState={patchState}
+                    type={type}
+                    warehouseId={warehouseId}
+                    warehouses={warehouses}
+                />
+            ) : null}
 
             <LocationListCard
                 isLoadingLocations={isLoadingLocations}
@@ -1044,6 +1094,15 @@ function LocationsPage() {
                 onDelete={(locationId) => {
                     handleDelete(locationId).catch(() => undefined);
                 }}
+                onRecordsViewChange={(nextView) => {
+                    patchState({
+                        locationsPage: 1,
+                        recordsView: nextView,
+                        searchQuery: "",
+                        statusFilter: "all",
+                        typeFilter: "all",
+                    });
+                }}
                 onToggleActive={(locationId, isActiveValue) => {
                     handleToggleActive(locationId, isActiveValue).catch(
                         () => undefined
@@ -1054,6 +1113,7 @@ function LocationsPage() {
                         () => undefined
                     );
                 }}
+                recordsView={recordsView}
                 searchQuery={searchQuery}
                 statusFilter={statusFilter}
                 typeFilter={typeFilter}

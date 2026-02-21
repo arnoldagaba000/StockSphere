@@ -5,7 +5,9 @@ import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
 
 export const getWarehouses = createServerFn({ method: "GET" })
-    .inputValidator((input: { includeInactive?: boolean }) => input)
+    .inputValidator(
+        (input: { archivedOnly?: boolean; includeInactive?: boolean }) => input
+    )
     .middleware([authMiddleware])
     .handler(async ({ context, data }) => {
         if (!canUser(context.session.user, PERMISSIONS.WAREHOUSES_VIEW_LIST)) {
@@ -14,8 +16,12 @@ export const getWarehouses = createServerFn({ method: "GET" })
 
         return await prisma.warehouse.findMany({
             where: {
-                deletedAt: null,
-                ...(!data.includeInactive && { isActive: true }),
+                ...(data.archivedOnly
+                    ? { deletedAt: { not: null } }
+                    : {
+                          deletedAt: null,
+                          ...(!data.includeInactive && { isActive: true }),
+                      }),
             },
             orderBy: { name: "asc" },
             include: { _count: { select: { locations: true } } },

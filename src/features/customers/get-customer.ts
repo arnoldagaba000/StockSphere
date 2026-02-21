@@ -19,7 +19,6 @@ export const getCustomer = createServerFn({ method: "GET" })
 
         const customer = await prisma.customer.findFirst({
             where: {
-                deletedAt: null,
                 id: data.id,
             },
             include: {

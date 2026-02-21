@@ -13,6 +13,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
+import {
     Table,
     TableBody,
     TableCell,
@@ -59,6 +66,7 @@ interface SuppliersPageState {
     isRowBusyId: string | null;
     isSubmitting: boolean;
     pendingDeleteSupplierId: string | null;
+    recordsView: "live" | "archived";
 }
 
 type SuppliersPageAction =
@@ -229,8 +237,10 @@ interface SupplierListCardProps {
     isRowBusyId: string | null;
     onDeleteSupplier: (supplier: SupplierRecord) => void;
     onEditSupplier: (supplier: SupplierRecord) => void;
+    onRecordsViewChange: (recordsView: "live" | "archived") => void;
     onToggleSupplierActive: (supplier: SupplierRecord) => void;
     pendingDeleteSupplierId: string | null;
+    recordsView: "live" | "archived";
     suppliers: SupplierRecord[];
 }
 
@@ -238,14 +248,41 @@ const SupplierListCard = ({
     isRowBusyId,
     onDeleteSupplier,
     onEditSupplier,
+    onRecordsViewChange,
     onToggleSupplierActive,
     pendingDeleteSupplierId,
+    recordsView,
     suppliers,
 }: SupplierListCardProps) => {
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Supplier List</CardTitle>
+                <div className="flex items-end justify-between gap-3">
+                    <CardTitle>Supplier List</CardTitle>
+                    <div className="w-full max-w-48 space-y-2">
+                        <Label>Record View</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onRecordsViewChange(
+                                    (value as "live" | "archived") ?? "live"
+                                )
+                            }
+                            value={recordsView}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="live">
+                                    Live records
+                                </SelectItem>
+                                <SelectItem value="archived">
+                                    Archived records
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
             </CardHeader>
             <CardContent>
                 <Table>
@@ -306,47 +343,58 @@ const SupplierListCard = ({
                                         >
                                             View
                                         </Button>
-                                        <Button
-                                            disabled={
-                                                isRowBusyId === supplier.id
-                                            }
-                                            onClick={() =>
-                                                onEditSupplier(supplier)
-                                            }
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            Edit
-                                        </Button>
-                                        <Button
-                                            disabled={
-                                                isRowBusyId === supplier.id
-                                            }
-                                            onClick={() =>
-                                                onToggleSupplierActive(supplier)
-                                            }
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            {supplier.isActive
-                                                ? "Deactivate"
-                                                : "Activate"}
-                                        </Button>
-                                        <Button
-                                            disabled={
-                                                isRowBusyId === supplier.id
-                                            }
-                                            onClick={() =>
-                                                onDeleteSupplier(supplier)
-                                            }
-                                            size="sm"
-                                            variant="destructive"
-                                        >
-                                            {pendingDeleteSupplierId ===
-                                            supplier.id
-                                                ? "Confirm Delete"
-                                                : "Delete"}
-                                        </Button>
+                                        {recordsView === "live" ? (
+                                            <>
+                                                <Button
+                                                    disabled={
+                                                        isRowBusyId ===
+                                                        supplier.id
+                                                    }
+                                                    onClick={() =>
+                                                        onEditSupplier(supplier)
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    Edit
+                                                </Button>
+                                                <Button
+                                                    disabled={
+                                                        isRowBusyId ===
+                                                        supplier.id
+                                                    }
+                                                    onClick={() =>
+                                                        onToggleSupplierActive(
+                                                            supplier
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    {supplier.isActive
+                                                        ? "Deactivate"
+                                                        : "Activate"}
+                                                </Button>
+                                                <Button
+                                                    disabled={
+                                                        isRowBusyId ===
+                                                        supplier.id
+                                                    }
+                                                    onClick={() =>
+                                                        onDeleteSupplier(
+                                                            supplier
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="destructive"
+                                                >
+                                                    {pendingDeleteSupplierId ===
+                                                    supplier.id
+                                                        ? "Confirm Delete"
+                                                        : "Delete"}
+                                                </Button>
+                                            </>
+                                        ) : null}
                                     </div>
                                 </TableCell>
                             </TableRow>
@@ -360,19 +408,33 @@ const SupplierListCard = ({
 
 export const Route = createFileRoute("/_dashboard/suppliers")({
     component: SuppliersPage,
-    loader: () => getSuppliers({ data: { includeInactive: true } }),
+    loader: async () => {
+        const [archivedSuppliers, liveSuppliers] = await Promise.all([
+            getSuppliers({
+                data: { archivedOnly: true, includeInactive: true },
+            }),
+            getSuppliers({
+                data: { includeInactive: true },
+            }),
+        ]);
+        return {
+            archivedSuppliers,
+            liveSuppliers,
+        };
+    },
 });
 
 function SuppliersPage() {
     const location = useLocation();
     const router = useRouter();
-    const suppliers = Route.useLoaderData();
+    const { archivedSuppliers, liveSuppliers } = Route.useLoaderData();
     const [state, dispatch] = useReducer(suppliersPageReducer, {
         editingSupplierId: null,
         form: emptySupplierForm,
         isRowBusyId: null,
         isSubmitting: false,
         pendingDeleteSupplierId: null,
+        recordsView: "live",
     });
     const {
         editingSupplierId,
@@ -380,7 +442,10 @@ function SuppliersPage() {
         isRowBusyId,
         isSubmitting,
         pendingDeleteSupplierId,
+        recordsView,
     } = state;
+    const suppliers =
+        recordsView === "archived" ? archivedSuppliers : liveSuppliers;
     const patchState = (patch: Partial<SuppliersPageState>) => {
         dispatch({
             patch,
@@ -553,16 +618,18 @@ function SuppliersPage() {
                 </p>
             </div>
 
-            <SupplierFormCard
-                editingSupplier={editingSupplier}
-                form={form}
-                isSubmitting={isSubmitting}
-                onCancelEdit={resetForm}
-                onSaveSupplier={() => {
-                    handleSaveSupplier().catch(() => undefined);
-                }}
-                onUpdateFormField={updateFormField}
-            />
+            {recordsView === "live" ? (
+                <SupplierFormCard
+                    editingSupplier={editingSupplier}
+                    form={form}
+                    isSubmitting={isSubmitting}
+                    onCancelEdit={resetForm}
+                    onSaveSupplier={() => {
+                        handleSaveSupplier().catch(() => undefined);
+                    }}
+                    onUpdateFormField={updateFormField}
+                />
+            ) : null}
 
             <SupplierListCard
                 isRowBusyId={isRowBusyId}
@@ -570,10 +637,19 @@ function SuppliersPage() {
                     handleDeleteSupplier(supplier).catch(() => undefined);
                 }}
                 onEditSupplier={loadSupplierIntoForm}
+                onRecordsViewChange={(nextView) => {
+                    patchState({
+                        editingSupplierId: null,
+                        form: emptySupplierForm,
+                        pendingDeleteSupplierId: null,
+                        recordsView: nextView,
+                    });
+                }}
                 onToggleSupplierActive={(supplier) => {
                     handleToggleSupplierActive(supplier).catch(() => undefined);
                 }}
                 pendingDeleteSupplierId={pendingDeleteSupplierId}
+                recordsView={recordsView}
                 suppliers={suppliers}
             />
         </section>

@@ -23,6 +23,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import {
     Table,
@@ -42,12 +49,31 @@ import {
 
 export const Route = createFileRoute("/_dashboard/warehouses")({
     component: WarehousesPage,
-    loader: () => getWarehouses({ data: {} }),
+    loader: async () => {
+        const [archivedWarehouses, liveWarehouses] = await Promise.all([
+            getWarehouses({
+                data: {
+                    archivedOnly: true,
+                    includeInactive: true,
+                },
+            }),
+            getWarehouses({
+                data: {
+                    includeInactive: true,
+                },
+            }),
+        ]);
+        return {
+            archivedWarehouses,
+            liveWarehouses,
+        };
+    },
 });
 
 const SHORT_ID_LENGTH = 8;
 
 type WarehouseStatusFilter = "active" | "all" | "inactive";
+type WarehouseRecordsView = "live" | "archived";
 
 interface WarehousesPageState {
     address: string;
@@ -61,6 +87,7 @@ interface WarehousesPageState {
     listStatusFilter: WarehouseStatusFilter;
     name: string;
     postalCode: string;
+    recordsView: WarehouseRecordsView;
 }
 
 type WarehousesPageAction =
@@ -204,9 +231,11 @@ interface WarehouseListCardProps {
     isUpdatingId: string | null;
     onArchiveWarehouse: (warehouseId: string) => void;
     onDeleteWarehouse: (warehouseId: string) => void;
+    onRecordsViewChange: (recordsView: WarehouseRecordsView) => void;
     onSearchChange: (searchQuery: string) => void;
     onStatusFilterChange: (statusFilter: WarehouseStatusFilter) => void;
     onToggleWarehouseActive: (warehouseId: string, isActive: boolean) => void;
+    recordsView: WarehouseRecordsView;
     searchQuery: string;
     statusFilter: WarehouseStatusFilter;
     warehouses: WarehousesList;
@@ -216,9 +245,11 @@ const WarehouseListCard = ({
     isUpdatingId,
     onArchiveWarehouse,
     onDeleteWarehouse,
+    onRecordsViewChange,
     onSearchChange,
     onStatusFilterChange,
     onToggleWarehouseActive,
+    recordsView,
     searchQuery,
     statusFilter,
     warehouses,
@@ -273,7 +304,7 @@ const WarehouseListCard = ({
                 </div>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="grid gap-3 md:grid-cols-2">
+                <div className="grid gap-3 md:grid-cols-3">
                     <div className="space-y-2">
                         <Label htmlFor="warehouse-search">Search</Label>
                         <Input
@@ -284,6 +315,29 @@ const WarehouseListCard = ({
                             placeholder="Code, name, country, district..."
                             value={searchQuery}
                         />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Record View</Label>
+                        <Select
+                            onValueChange={(value) => {
+                                onRecordsViewChange(
+                                    (value as WarehouseRecordsView) ?? "live"
+                                );
+                            }}
+                            value={recordsView}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="live">
+                                    Live records
+                                </SelectItem>
+                                <SelectItem value="archived">
+                                    Archived records
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
                     </div>
                     <div className="space-y-2">
                         <Label>Status Filter</Label>
@@ -409,93 +463,105 @@ const WarehouseListCard = ({
                                                 >
                                                     View
                                                 </Button>
-                                                <Button
-                                                    disabled={
-                                                        isUpdatingId ===
-                                                        warehouse.id
-                                                    }
-                                                    onClick={() =>
-                                                        onToggleWarehouseActive(
-                                                            warehouse.id,
-                                                            warehouse.isActive
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="outline"
-                                                >
-                                                    {warehouse.isActive
-                                                        ? "Deactivate"
-                                                        : "Activate"}
-                                                </Button>
-                                                <Button
-                                                    disabled={
-                                                        isUpdatingId ===
-                                                        warehouse.id
-                                                    }
-                                                    onClick={() =>
-                                                        onArchiveWarehouse(
-                                                            warehouse.id
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="outline"
-                                                >
-                                                    Archive
-                                                </Button>
-                                                <AlertDialog>
-                                                    <AlertDialogTrigger
-                                                        disabled={
-                                                            isUpdatingId ===
-                                                            warehouse.id
-                                                        }
-                                                        render={
-                                                            <Button
+                                                {recordsView === "live" ? (
+                                                    <>
+                                                        <Button
+                                                            disabled={
+                                                                isUpdatingId ===
+                                                                warehouse.id
+                                                            }
+                                                            onClick={() =>
+                                                                onToggleWarehouseActive(
+                                                                    warehouse.id,
+                                                                    warehouse.isActive
+                                                                )
+                                                            }
+                                                            size="sm"
+                                                            variant="outline"
+                                                        >
+                                                            {warehouse.isActive
+                                                                ? "Deactivate"
+                                                                : "Activate"}
+                                                        </Button>
+                                                        <Button
+                                                            disabled={
+                                                                isUpdatingId ===
+                                                                warehouse.id
+                                                            }
+                                                            onClick={() =>
+                                                                onArchiveWarehouse(
+                                                                    warehouse.id
+                                                                )
+                                                            }
+                                                            size="sm"
+                                                            variant="outline"
+                                                        >
+                                                            Archive
+                                                        </Button>
+                                                        <AlertDialog>
+                                                            <AlertDialogTrigger
                                                                 disabled={
                                                                     isUpdatingId ===
                                                                     warehouse.id
                                                                 }
-                                                                size="sm"
-                                                                variant="destructive"
-                                                            >
-                                                                Delete
-                                                            </Button>
-                                                        }
-                                                    />
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>
-                                                                Delete warehouse
-                                                                permanently?
-                                                            </AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                This cannot be
-                                                                undone. Deletion
-                                                                requires zero
-                                                                linked
-                                                                locations, stock
-                                                                buckets, goods
-                                                                receipts, and
-                                                                inventory
-                                                                adjustments.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>
-                                                                Cancel
-                                                            </AlertDialogCancel>
-                                                            <AlertDialogAction
-                                                                onClick={() => {
-                                                                    onDeleteWarehouse(
-                                                                        warehouse.id
-                                                                    );
-                                                                }}
-                                                                variant="destructive"
-                                                            >
-                                                                Delete
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
+                                                                render={
+                                                                    <Button
+                                                                        disabled={
+                                                                            isUpdatingId ===
+                                                                            warehouse.id
+                                                                        }
+                                                                        size="sm"
+                                                                        variant="destructive"
+                                                                    >
+                                                                        Delete
+                                                                    </Button>
+                                                                }
+                                                            />
+                                                            <AlertDialogContent>
+                                                                <AlertDialogHeader>
+                                                                    <AlertDialogTitle>
+                                                                        Delete
+                                                                        warehouse
+                                                                        permanently?
+                                                                    </AlertDialogTitle>
+                                                                    <AlertDialogDescription>
+                                                                        This
+                                                                        cannot
+                                                                        be
+                                                                        undone.
+                                                                        Deletion
+                                                                        requires
+                                                                        zero
+                                                                        linked
+                                                                        locations,
+                                                                        stock
+                                                                        buckets,
+                                                                        goods
+                                                                        receipts,
+                                                                        and
+                                                                        inventory
+                                                                        adjustments.
+                                                                    </AlertDialogDescription>
+                                                                </AlertDialogHeader>
+                                                                <AlertDialogFooter>
+                                                                    <AlertDialogCancel>
+                                                                        Cancel
+                                                                    </AlertDialogCancel>
+                                                                    <AlertDialogAction
+                                                                        onClick={() => {
+                                                                            onDeleteWarehouse(
+                                                                                warehouse.id
+                                                                            );
+                                                                        }}
+                                                                        variant="destructive"
+                                                                    >
+                                                                        Delete
+                                                                    </AlertDialogAction>
+                                                                </AlertDialogFooter>
+                                                            </AlertDialogContent>
+                                                        </AlertDialog>
+                                                    </>
+                                                ) : null}
                                             </div>
                                         </TableCell>
                                     </TableRow>
@@ -512,7 +578,7 @@ const WarehouseListCard = ({
 function WarehousesPage() {
     const location = useLocation();
     const router = useRouter();
-    const warehouses = Route.useLoaderData();
+    const { archivedWarehouses, liveWarehouses } = Route.useLoaderData();
     const [state, setState] = useReducer(warehousesPageReducer, {
         address: "",
         code: "",
@@ -523,9 +589,12 @@ function WarehousesPage() {
         isUpdatingId: null,
         listSearchQuery: "",
         listStatusFilter: "all",
+        recordsView: "live",
         name: "",
         postalCode: "",
     });
+    const warehouses =
+        state.recordsView === "archived" ? archivedWarehouses : liveWarehouses;
 
     const warehouseSummary = useMemo(() => {
         const total = warehouses.length;
@@ -723,13 +792,15 @@ function WarehousesPage() {
                 </Card>
             </div>
 
-            <CreateWarehouseCard
-                onCreateWarehouse={() => {
-                    handleCreateWarehouse().catch(() => undefined);
-                }}
-                onPatchState={setState}
-                state={state}
-            />
+            {state.recordsView === "live" ? (
+                <CreateWarehouseCard
+                    onCreateWarehouse={() => {
+                        handleCreateWarehouse().catch(() => undefined);
+                    }}
+                    onPatchState={setState}
+                    state={state}
+                />
+            ) : null}
 
             <WarehouseListCard
                 isUpdatingId={state.isUpdatingId}
@@ -738,6 +809,13 @@ function WarehousesPage() {
                 }}
                 onDeleteWarehouse={(warehouseId) => {
                     handleDeleteWarehouse(warehouseId).catch(() => undefined);
+                }}
+                onRecordsViewChange={(recordsView) => {
+                    setState({
+                        listSearchQuery: "",
+                        listStatusFilter: "all",
+                        recordsView,
+                    });
                 }}
                 onSearchChange={(listSearchQuery) => {
                     setState({ listSearchQuery });
@@ -750,6 +828,7 @@ function WarehousesPage() {
                         () => undefined
                     );
                 }}
+                recordsView={state.recordsView}
                 searchQuery={state.listSearchQuery}
                 statusFilter={state.listStatusFilter}
                 warehouses={warehouses}

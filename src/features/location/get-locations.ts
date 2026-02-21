@@ -8,6 +8,7 @@ import { authMiddleware } from "@/middleware/auth";
 export const getLocations = createServerFn({ method: "GET" })
     .inputValidator(
         (input: {
+            archivedOnly?: boolean;
             includeInactive?: boolean;
             type?: LocationType;
             warehouseId?: string;
@@ -30,9 +31,13 @@ export const getLocations = createServerFn({ method: "GET" })
                 },
             },
             where: {
-                deletedAt: null,
+                ...(data.archivedOnly
+                    ? { deletedAt: { not: null } }
+                    : { deletedAt: null }),
                 ...(data.warehouseId ? { warehouseId: data.warehouseId } : {}),
-                ...(!data.includeInactive && { isActive: true }),
+                ...(!(data.archivedOnly || data.includeInactive) && {
+                    isActive: true,
+                }),
                 ...(data.type && { type: data.type }),
             },
             orderBy: { code: "asc" },

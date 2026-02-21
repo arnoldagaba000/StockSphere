@@ -19,7 +19,6 @@ export const getLocation = createServerFn({ method: "GET" })
 
         const location = await prisma.location.findFirst({
             where: {
-                deletedAt: null,
                 id: data.id,
             },
             include: {

@@ -19,7 +19,6 @@ export const getSupplier = createServerFn({ method: "GET" })
 
         const supplier = await prisma.supplier.findFirst({
             where: {
-                deletedAt: null,
                 id: data.id,
             },
             include: {

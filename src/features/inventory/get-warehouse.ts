@@ -23,7 +23,6 @@ export const getWarehouse = createServerFn({ method: "GET" })
 
         const warehouse = await prisma.warehouse.findFirst({
             where: {
-                deletedAt: null,
                 id: data.id,
             },
             include: {
