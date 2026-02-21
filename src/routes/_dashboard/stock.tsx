@@ -46,6 +46,7 @@ import { transferStock } from "@/features/inventory/transfer-stock";
 import { getFinancialSettings } from "@/features/settings/get-financial-settings";
 
 const TRAILING_ZEROES_REGEX = /\.?0+$/;
+const CARD_SHELL_CLASS = "border-border/70 shadow-sm";
 const formatQuantity = (value: number): string =>
     Number.isInteger(value)
         ? String(value)
@@ -218,9 +219,13 @@ const StockEntryCard = ({
     };
 
     return (
-        <Card>
-            <CardHeader>
+        <Card className={CARD_SHELL_CLASS}>
+            <CardHeader className="space-y-1">
                 <CardTitle>Initial Stock + Receiving</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Create opening balances or receive inbound units with
+                    tracking-aware fields.
+                </p>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-3">
                 <FieldSelect
@@ -440,9 +445,13 @@ const StockOperationsCard = ({
     warehouses,
 }: StockOperationsCardProps) => {
     return (
-        <Card>
-            <CardHeader>
+        <Card className={CARD_SHELL_CLASS}>
+            <CardHeader className="space-y-1">
                 <CardTitle>Stock Operations</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Transfer, adjust, reserve, release, and cycle count on a
+                    selected stock bucket.
+                </p>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-4">
                 <FieldSelect
@@ -647,9 +656,13 @@ const StockTrackingCard = ({
     trackingSerial,
 }: StockTrackingCardProps) => {
     return (
-        <Card>
-            <CardHeader>
+        <Card className={CARD_SHELL_CLASS}>
+            <CardHeader className="space-y-1">
                 <CardTitle>Tracking, Expiry, Putaway</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Inspect serial and batch activity, manage expiry, and route
+                    putaway.
+                </p>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-3">
                 <FieldInput
@@ -850,9 +863,12 @@ const AdjustmentReviewCard = ({
     setState,
 }: AdjustmentReviewCardProps) => {
     return (
-        <Card>
-            <CardHeader>
+        <Card className={CARD_SHELL_CLASS}>
+            <CardHeader className="space-y-1">
                 <CardTitle>Adjustment Review</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Approve or reject stock adjustments with auditable notes.
+                </p>
             </CardHeader>
             <CardContent className="grid gap-3 md:grid-cols-3">
                 <FieldInput
@@ -948,9 +964,13 @@ const MovementHistoryCard = ({
     warehouses,
 }: MovementHistoryCardProps) => {
     return (
-        <Card>
-            <CardHeader>
+        <Card className={CARD_SHELL_CLASS}>
+            <CardHeader className="space-y-1">
                 <CardTitle>Movement History</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Query historical inventory movement across products and
+                    warehouses.
+                </p>
             </CardHeader>
             <CardContent className="space-y-3">
                 <div className="grid gap-3 md:grid-cols-4">
@@ -1021,63 +1041,69 @@ const MovementHistoryCard = ({
                         Load Movement History
                     </Button>
                 </div>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>When</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Product</TableHead>
-                            <TableHead>Qty</TableHead>
-                            <TableHead>From</TableHead>
-                            <TableHead>To</TableHead>
-                            <TableHead>Reference</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {(movementHistory?.movements ?? []).length === 0 ? (
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[900px]">
+                        <TableHeader>
                             <TableRow>
-                                <TableCell colSpan={7}>
-                                    No movements loaded.
-                                </TableCell>
+                                <TableHead>When</TableHead>
+                                <TableHead>Type</TableHead>
+                                <TableHead>Product</TableHead>
+                                <TableHead>Qty</TableHead>
+                                <TableHead>From</TableHead>
+                                <TableHead>To</TableHead>
+                                <TableHead>Reference</TableHead>
                             </TableRow>
-                        ) : (
-                            movementHistory?.movements.map(
-                                (movement: MovementHistoryItem) => (
-                                    <TableRow key={movement.id}>
-                                        <TableCell>
-                                            {new Date(
-                                                movement.createdAt
-                                            ).toLocaleString()}
-                                        </TableCell>
-                                        <TableCell>{movement.type}</TableCell>
-                                        <TableCell>
-                                            {movement.product
-                                                ? `${movement.product.sku} - ${movement.product.name}`
-                                                : movement.productId}
-                                        </TableCell>
-                                        <TableCell>
-                                            {formatQuantity(movement.quantity)}
-                                        </TableCell>
-                                        <TableCell>
-                                            {movement.fromWarehouse?.code ??
-                                                "\u2014"}
-                                        </TableCell>
-                                        <TableCell>
-                                            {movement.toWarehouse?.code ??
-                                                "\u2014"}
-                                        </TableCell>
-                                        <TableCell>
-                                            {movement.inventoryTransaction
-                                                ?.transactionNumber ??
-                                                movement.referenceNumber ??
-                                                "\u2014"}
-                                        </TableCell>
-                                    </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {(movementHistory?.movements ?? []).length === 0 ? (
+                                <TableRow>
+                                    <TableCell colSpan={7}>
+                                        No movements loaded.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                movementHistory?.movements.map(
+                                    (movement: MovementHistoryItem) => (
+                                        <TableRow key={movement.id}>
+                                            <TableCell>
+                                                {new Date(
+                                                    movement.createdAt
+                                                ).toLocaleString()}
+                                            </TableCell>
+                                            <TableCell>
+                                                {movement.type}
+                                            </TableCell>
+                                            <TableCell>
+                                                {movement.product
+                                                    ? `${movement.product.sku} - ${movement.product.name}`
+                                                    : movement.productId}
+                                            </TableCell>
+                                            <TableCell>
+                                                {formatQuantity(
+                                                    movement.quantity
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {movement.fromWarehouse?.code ??
+                                                    "\u2014"}
+                                            </TableCell>
+                                            <TableCell>
+                                                {movement.toWarehouse?.code ??
+                                                    "\u2014"}
+                                            </TableCell>
+                                            <TableCell>
+                                                {movement.inventoryTransaction
+                                                    ?.transactionNumber ??
+                                                    movement.referenceNumber ??
+                                                    "\u2014"}
+                                            </TableCell>
+                                        </TableRow>
+                                    )
                                 )
-                            )
-                        )}
-                    </TableBody>
-                </Table>
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -1170,7 +1196,7 @@ const StockPageContent = ({
     ]);
 
     return (
-        <section className="w-full space-y-4">
+        <section className="w-full space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                     <h1 className="font-semibold text-2xl">Stock Management</h1>
@@ -1315,9 +1341,13 @@ const StockPageContent = ({
                 warehouses={warehouses}
             />
 
-            <Card>
-                <CardHeader>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardHeader className="space-y-1">
                     <CardTitle>Stock Buckets</CardTitle>
+                    <p className="text-muted-foreground text-sm">
+                        Explore current bucket-level inventory with search and
+                        status filters.
+                    </p>
                 </CardHeader>
                 <CardContent className="space-y-4">
                     <div className="grid gap-3 md:grid-cols-3">
@@ -1367,75 +1397,85 @@ const StockPageContent = ({
                         Showing {filteredStockItems.length} of{" "}
                         {state.stockData.stockItems.length} stock buckets
                     </div>
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Product</TableHead>
-                                <TableHead>Warehouse</TableHead>
-                                <TableHead>Location</TableHead>
-                                <TableHead>Quantity</TableHead>
-                                <TableHead>Reserved</TableHead>
-                                <TableHead>Available</TableHead>
-                                <TableHead>Unit Cost</TableHead>
-                                <TableHead>Status</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {filteredStockItems.length === 0 ? (
+                    <div className="overflow-x-auto rounded-md border">
+                        <Table className="min-w-[960px]">
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell
-                                        className="text-center"
-                                        colSpan={8}
-                                    >
-                                        No stock buckets match your filters.
-                                    </TableCell>
+                                    <TableHead>Product</TableHead>
+                                    <TableHead>Warehouse</TableHead>
+                                    <TableHead>Location</TableHead>
+                                    <TableHead>Quantity</TableHead>
+                                    <TableHead>Reserved</TableHead>
+                                    <TableHead>Available</TableHead>
+                                    <TableHead>Unit Cost</TableHead>
+                                    <TableHead>Status</TableHead>
                                 </TableRow>
-                            ) : (
-                                filteredStockItems.map((item) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell>
-                                            {item.product.sku} -{" "}
-                                            {item.product.name}
+                            </TableHeader>
+                            <TableBody>
+                                {filteredStockItems.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell
+                                            className="text-center"
+                                            colSpan={8}
+                                        >
+                                            No stock buckets match your filters.
                                         </TableCell>
-                                        <TableCell>
-                                            {item.warehouse.name}
-                                        </TableCell>
-                                        <TableCell>
-                                            {item.location
-                                                ? `${item.location.code} - ${item.location.name}`
-                                                : "\u2014"}
-                                        </TableCell>
-                                        <TableCell>
-                                            {formatQuantity(item.quantity)}
-                                        </TableCell>
-                                        <TableCell>
-                                            {formatQuantity(
-                                                item.reservedQuantity
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {formatQuantity(
-                                                item.availableQuantity
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            {formatCurrencyFromMinorUnits(
-                                                item.unitCostDisplay,
-                                                currencyCode
-                                            )}
-                                        </TableCell>
-                                        <TableCell>{item.status}</TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : (
+                                    filteredStockItems.map((item) => (
+                                        <TableRow key={item.id}>
+                                            <TableCell>
+                                                {item.product.sku} -{" "}
+                                                {item.product.name}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.warehouse.name}
+                                            </TableCell>
+                                            <TableCell>
+                                                {item.location
+                                                    ? `${item.location.code} - ${item.location.name}`
+                                                    : "\u2014"}
+                                            </TableCell>
+                                            <TableCell>
+                                                {formatQuantity(item.quantity)}
+                                            </TableCell>
+                                            <TableCell>
+                                                {formatQuantity(
+                                                    item.reservedQuantity
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {formatQuantity(
+                                                    item.availableQuantity
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                {formatCurrencyFromMinorUnits(
+                                                    item.unitCostDisplay,
+                                                    currencyCode
+                                                )}
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline">
+                                                    {item.status}
+                                                </Badge>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardHeader className="space-y-1">
                     <CardTitle>Valuation Summary</CardTitle>
+                    <p className="text-muted-foreground text-sm">
+                        Snapshot of value distribution across warehouse,
+                        location, and category groups.
+                    </p>
                 </CardHeader>
                 <CardContent className="space-y-1 text-sm">
                     <p>
@@ -1673,9 +1713,11 @@ function StockPage() {
 
 function MetricCard({ label, value }: { label: string; value: string }) {
     return (
-        <Card>
-            <CardContent className="p-4">
-                <p className="text-muted-foreground text-xs">{label}</p>
+        <Card className={CARD_SHELL_CLASS}>
+            <CardContent className="space-y-1 p-4">
+                <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                    {label}
+                </p>
                 <p className="font-semibold text-xl">{value}</p>
             </CardContent>
         </Card>
@@ -1701,6 +1743,7 @@ function FieldInput({
         <div className="space-y-2">
             <Label>{label}</Label>
             <Input
+                className="h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                 onChange={(event) => onChange(event.target.value)}
                 required={required}
                 type={type}
@@ -1730,10 +1773,10 @@ function FieldSelect({
                 onValueChange={(nextValue) => onValueChange(nextValue ?? "")}
                 value={value}
             >
-                <SelectTrigger>
+                <SelectTrigger className="h-10 w-full rounded-xl border-border/70 bg-muted/35 px-3 shadow-sm transition-colors hover:bg-muted/55">
                     <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="rounded-xl border-border/70 bg-popover/98 shadow-xl">
                     {options.map((option) => (
                         <SelectItem key={option.value} value={option.value}>
                             {option.label}

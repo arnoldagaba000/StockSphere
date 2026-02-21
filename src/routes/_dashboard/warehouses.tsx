@@ -1,6 +1,7 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useReducer } from "react";
+import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,10 @@ export const Route = createFileRoute("/_dashboard/warehouses")({
     loader: () => getWarehouses({ data: {} }),
 });
 
+const SHORT_ID_LENGTH = 8;
+
+type WarehouseStatusFilter = "active" | "all" | "inactive";
+
 interface WarehousesPageState {
     address: string;
     code: string;
@@ -34,6 +39,8 @@ interface WarehousesPageState {
     isActive: boolean;
     isSubmitting: boolean;
     isUpdatingId: string | null;
+    listSearchQuery: string;
+    listStatusFilter: WarehouseStatusFilter;
     name: string;
     postalCode: string;
 }
@@ -64,11 +71,15 @@ const CreateWarehouseCard = ({
     state,
 }: CreateWarehouseCardProps) => {
     return (
-        <Card>
-            <CardHeader>
+        <Card className="border-border/70">
+            <CardHeader className="space-y-1">
                 <CardTitle>Create Warehouse</CardTitle>
+                <p className="text-muted-foreground text-sm">
+                    Register a warehouse before assigning locations and stock
+                    operations.
+                </p>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-5">
                 <div className="grid gap-3 md:grid-cols-2">
                     <div className="space-y-2">
                         <Label htmlFor="warehouse-code">Code</Label>
@@ -82,6 +93,9 @@ const CreateWarehouseCard = ({
                             placeholder="WH-KLA-01"
                             value={state.code}
                         />
+                        <p className="text-muted-foreground text-xs">
+                            Use a short, stable code for reporting and lookup.
+                        </p>
                     </div>
                     <div className="space-y-2">
                         <Label htmlFor="warehouse-name">Name</Label>
@@ -146,16 +160,23 @@ const CreateWarehouseCard = ({
                         <Label htmlFor="warehouse-active">Active</Label>
                     </div>
                 </div>
-                <Button
-                    disabled={
-                        state.isSubmitting ||
-                        state.code.trim().length === 0 ||
-                        state.name.trim().length === 0
-                    }
-                    onClick={onCreateWarehouse}
-                >
-                    {state.isSubmitting ? "Creating..." : "Create Warehouse"}
-                </Button>
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t pt-3">
+                    <p className="text-muted-foreground text-xs">
+                        Warehouse IDs are generated automatically.
+                    </p>
+                    <Button
+                        disabled={
+                            state.isSubmitting ||
+                            state.code.trim().length === 0 ||
+                            state.name.trim().length === 0
+                        }
+                        onClick={onCreateWarehouse}
+                    >
+                        {state.isSubmitting
+                            ? "Creating..."
+                            : "Create Warehouse"}
+                    </Button>
+                </div>
             </CardContent>
         </Card>
     );
@@ -164,88 +185,235 @@ const CreateWarehouseCard = ({
 interface WarehouseListCardProps {
     isUpdatingId: string | null;
     onArchiveWarehouse: (warehouseId: string) => void;
+    onSearchChange: (searchQuery: string) => void;
+    onStatusFilterChange: (statusFilter: WarehouseStatusFilter) => void;
     onToggleWarehouseActive: (warehouseId: string, isActive: boolean) => void;
+    searchQuery: string;
+    statusFilter: WarehouseStatusFilter;
     warehouses: WarehousesList;
 }
 
 const WarehouseListCard = ({
     isUpdatingId,
     onArchiveWarehouse,
+    onSearchChange,
+    onStatusFilterChange,
     onToggleWarehouseActive,
+    searchQuery,
+    statusFilter,
     warehouses,
 }: WarehouseListCardProps) => {
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+    const filteredWarehouses = useMemo(() => {
+        return warehouses.filter((warehouse) => {
+            let statusMatches = true;
+            if (statusFilter === "active") {
+                statusMatches = warehouse.isActive;
+            } else if (statusFilter === "inactive") {
+                statusMatches = !warehouse.isActive;
+            }
+
+            const searchMatches =
+                normalizedSearchQuery.length === 0
+                    ? true
+                    : [
+                          warehouse.code,
+                          warehouse.name,
+                          warehouse.country,
+                          warehouse.district ?? "",
+                          warehouse.id,
+                      ].some((value) =>
+                          value.toLowerCase().includes(normalizedSearchQuery)
+                      );
+
+            return statusMatches && searchMatches;
+        });
+    }, [normalizedSearchQuery, statusFilter, warehouses]);
+
+    const activeCount = filteredWarehouses.filter(
+        (warehouse) => warehouse.isActive
+    ).length;
+
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>Warehouse List</CardTitle>
+        <Card className="border-border/70">
+            <CardHeader className="space-y-3">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                        <CardTitle>Manage Warehouses</CardTitle>
+                        <p className="text-muted-foreground text-sm">
+                            Filter and manage operational warehouses.
+                        </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 text-xs">
+                        <Badge variant="secondary">
+                            Visible: {filteredWarehouses.length}
+                        </Badge>
+                        <Badge variant="outline">Active: {activeCount}</Badge>
+                    </div>
+                </div>
             </CardHeader>
-            <CardContent>
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>Code</TableHead>
-                            <TableHead>Name</TableHead>
-                            <TableHead>District</TableHead>
-                            <TableHead>Country</TableHead>
-                            <TableHead>Locations</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead className="text-right">
-                                Actions
-                            </TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {warehouses.map((warehouse) => (
-                            <TableRow key={warehouse.id}>
-                                <TableCell>{warehouse.code}</TableCell>
-                                <TableCell>{warehouse.name}</TableCell>
-                                <TableCell>
-                                    {warehouse.district ?? "—"}
-                                </TableCell>
-                                <TableCell>{warehouse.country}</TableCell>
-                                <TableCell>
-                                    {warehouse._count.locations}
-                                </TableCell>
-                                <TableCell>
-                                    {warehouse.isActive ? "Active" : "Inactive"}
-                                </TableCell>
-                                <TableCell className="text-right">
-                                    <div className="flex justify-end gap-2">
-                                        <Button
-                                            disabled={
-                                                isUpdatingId === warehouse.id
-                                            }
-                                            onClick={() =>
-                                                onToggleWarehouseActive(
-                                                    warehouse.id,
-                                                    warehouse.isActive
-                                                )
-                                            }
-                                            size="sm"
-                                            variant="outline"
-                                        >
-                                            {warehouse.isActive
-                                                ? "Deactivate"
-                                                : "Activate"}
-                                        </Button>
-                                        <Button
-                                            disabled={
-                                                isUpdatingId === warehouse.id
-                                            }
-                                            onClick={() =>
-                                                onArchiveWarehouse(warehouse.id)
-                                            }
-                                            size="sm"
-                                            variant="destructive"
-                                        >
-                                            Archive
-                                        </Button>
-                                    </div>
-                                </TableCell>
+            <CardContent className="space-y-4">
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-2">
+                        <Label htmlFor="warehouse-search">Search</Label>
+                        <Input
+                            id="warehouse-search"
+                            onChange={(event) => {
+                                onSearchChange(event.target.value);
+                            }}
+                            placeholder="Code, name, country, district..."
+                            value={searchQuery}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <Label>Status Filter</Label>
+                        <div className="grid grid-cols-3 gap-2">
+                            <Button
+                                onClick={() => {
+                                    onStatusFilterChange("all");
+                                }}
+                                size="sm"
+                                variant={
+                                    statusFilter === "all"
+                                        ? "default"
+                                        : "outline"
+                                }
+                            >
+                                All
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    onStatusFilterChange("active");
+                                }}
+                                size="sm"
+                                variant={
+                                    statusFilter === "active"
+                                        ? "default"
+                                        : "outline"
+                                }
+                            >
+                                Active
+                            </Button>
+                            <Button
+                                onClick={() => {
+                                    onStatusFilterChange("inactive");
+                                }}
+                                size="sm"
+                                variant={
+                                    statusFilter === "inactive"
+                                        ? "default"
+                                        : "outline"
+                                }
+                            >
+                                Inactive
+                            </Button>
+                        </div>
+                    </div>
+                </div>
+                <div className="overflow-x-auto rounded-md border">
+                    <Table className="min-w-[940px]">
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Code</TableHead>
+                                <TableHead>Name</TableHead>
+                                <TableHead>ID</TableHead>
+                                <TableHead>District</TableHead>
+                                <TableHead>Country</TableHead>
+                                <TableHead>Locations</TableHead>
+                                <TableHead>Status</TableHead>
+                                <TableHead className="text-right">
+                                    Actions
+                                </TableHead>
                             </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
+                        </TableHeader>
+                        <TableBody>
+                            {filteredWarehouses.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        className="text-muted-foreground"
+                                        colSpan={8}
+                                    >
+                                        No warehouses match your filters.
+                                    </TableCell>
+                                </TableRow>
+                            ) : (
+                                filteredWarehouses.map((warehouse) => (
+                                    <TableRow key={warehouse.id}>
+                                        <TableCell className="font-medium">
+                                            {warehouse.code}
+                                        </TableCell>
+                                        <TableCell>{warehouse.name}</TableCell>
+                                        <TableCell className="font-mono text-xs">
+                                            {warehouse.id.slice(
+                                                0,
+                                                SHORT_ID_LENGTH
+                                            )}
+                                        </TableCell>
+                                        <TableCell>
+                                            {warehouse.district ?? "—"}
+                                        </TableCell>
+                                        <TableCell>
+                                            {warehouse.country}
+                                        </TableCell>
+                                        <TableCell>
+                                            {warehouse._count.locations}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge
+                                                variant={
+                                                    warehouse.isActive
+                                                        ? "secondary"
+                                                        : "ghost"
+                                                }
+                                            >
+                                                {warehouse.isActive
+                                                    ? "Active"
+                                                    : "Inactive"}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex flex-wrap justify-end gap-2">
+                                                <Button
+                                                    disabled={
+                                                        isUpdatingId ===
+                                                        warehouse.id
+                                                    }
+                                                    onClick={() =>
+                                                        onToggleWarehouseActive(
+                                                            warehouse.id,
+                                                            warehouse.isActive
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="outline"
+                                                >
+                                                    {warehouse.isActive
+                                                        ? "Deactivate"
+                                                        : "Activate"}
+                                                </Button>
+                                                <Button
+                                                    disabled={
+                                                        isUpdatingId ===
+                                                        warehouse.id
+                                                    }
+                                                    onClick={() =>
+                                                        onArchiveWarehouse(
+                                                            warehouse.id
+                                                        )
+                                                    }
+                                                    size="sm"
+                                                    variant="destructive"
+                                                >
+                                                    Archive
+                                                </Button>
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
+                        </TableBody>
+                    </Table>
+                </div>
             </CardContent>
         </Card>
     );
@@ -262,9 +430,25 @@ function WarehousesPage() {
         isActive: true,
         isSubmitting: false,
         isUpdatingId: null,
+        listSearchQuery: "",
+        listStatusFilter: "all",
         name: "",
         postalCode: "",
     });
+
+    const warehouseSummary = useMemo(() => {
+        const total = warehouses.length;
+        const active = warehouses.filter(
+            (warehouse) => warehouse.isActive
+        ).length;
+        const inactive = total - active;
+        const totalLocations = warehouses.reduce(
+            (sum, warehouse) => sum + warehouse._count.locations,
+            0
+        );
+
+        return { active, inactive, total, totalLocations };
+    }, [warehouses]);
 
     const resetForm = () => {
         setState({
@@ -377,12 +561,55 @@ function WarehousesPage() {
     };
 
     return (
-        <section className="w-full space-y-4">
-            <div>
+        <section className="w-full space-y-5">
+            <div className="space-y-1">
                 <h1 className="font-semibold text-2xl">Warehouses</h1>
                 <p className="text-muted-foreground text-sm">
                     Manage warehouse master data and activation status.
                 </p>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <Card className="border-border/70">
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Total Warehouses
+                        </p>
+                        <p className="font-semibold text-2xl">
+                            {warehouseSummary.total}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Active
+                        </p>
+                        <p className="font-semibold text-2xl text-emerald-600 dark:text-emerald-400">
+                            {warehouseSummary.active}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Inactive
+                        </p>
+                        <p className="font-semibold text-2xl text-amber-600 dark:text-amber-400">
+                            {warehouseSummary.inactive}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className="border-border/70">
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Total Locations Linked
+                        </p>
+                        <p className="font-semibold text-2xl">
+                            {warehouseSummary.totalLocations}
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
 
             <CreateWarehouseCard
@@ -398,11 +625,19 @@ function WarehousesPage() {
                 onArchiveWarehouse={(warehouseId) => {
                     handleArchiveWarehouse(warehouseId).catch(() => undefined);
                 }}
+                onSearchChange={(listSearchQuery) => {
+                    setState({ listSearchQuery });
+                }}
+                onStatusFilterChange={(listStatusFilter) => {
+                    setState({ listStatusFilter });
+                }}
                 onToggleWarehouseActive={(warehouseId, isActive) => {
                     handleToggleWarehouseActive(warehouseId, isActive).catch(
                         () => undefined
                     );
                 }}
+                searchQuery={state.listSearchQuery}
+                statusFilter={state.listStatusFilter}
                 warehouses={warehouses}
             />
         </section>

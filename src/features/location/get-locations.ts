@@ -23,6 +23,7 @@ export const getLocations = createServerFn({ method: "GET" })
             include: {
                 warehouse: {
                     select: {
+                        id: true,
                         code: true,
                         name: true,
                     },
