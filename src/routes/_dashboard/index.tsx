@@ -41,7 +41,6 @@ const dashboardMetricsQueryOptions = queryOptions({
 type DashboardMetrics = Awaited<ReturnType<typeof getDashboardMetrics>>;
 
 interface QueueSlice {
-    colorClass: string;
     key: string;
     label: string;
     value: number;
@@ -51,6 +50,20 @@ interface TrendPoint {
     dateLabel: string;
     valueMajor: number;
 }
+
+const CHART_DONUT_COLORS = [
+    "var(--chart-1)",
+    "var(--chart-2)",
+    "var(--chart-3)",
+    "var(--chart-4)",
+] as const;
+const CHART_TREND_STROKE = "var(--primary)";
+const CHART_AXIS_TICK = "var(--foreground)";
+const CHART_GRID = "var(--border)";
+const CHART_TOOLTIP_BG = "var(--popover)";
+const CHART_TOOLTIP_BORDER = "var(--border)";
+const CHART_TOOLTIP_LABEL = "var(--foreground)";
+const CHART_TOOLTIP_TEXT = "var(--foreground)";
 
 export const Route = createFileRoute("/_dashboard/")({
     component: HomePage,
@@ -96,25 +109,21 @@ function HomePage() {
 
     const queueSlices: QueueSlice[] = [
         {
-            colorClass: "fill-amber-500",
             key: "pendingPurchaseOrders",
             label: "Pending Purchases",
             value: metrics.pendingPurchaseOrders,
         },
         {
-            colorClass: "fill-indigo-500",
             key: "pendingSalesOrders",
             label: "Pending Sales",
             value: metrics.pendingSalesOrders,
         },
         {
-            colorClass: "fill-red-500",
             key: "lowStockAlerts",
             label: "Low Stock",
             value: metrics.lowStockAlerts,
         },
         {
-            colorClass: "fill-orange-500",
             key: "expiringIn30Days",
             label: "Expiring 30d",
             value: metrics.expiringIn30Days,
@@ -194,7 +203,7 @@ function HomePage() {
 
 function HeroSection({ lastUpdatedAt }: { lastUpdatedAt: string }) {
     return (
-        <header className="rounded-xl border bg-linear-to-br from-background to-muted/40 p-5">
+        <header className="rounded-xl border border-border/70 bg-linear-to-br from-card via-card to-primary/10 p-5 shadow-sm">
             <div className="flex flex-wrap items-start justify-between gap-4">
                 <div className="space-y-1.5">
                     <h1 className="font-semibold text-2xl">
@@ -235,11 +244,11 @@ function KpiCard({
 }) {
     const toneClassName = toToneClassName(tone);
     return (
-        <Card className="border bg-linear-to-br from-background to-muted/30">
+        <Card className="border border-border/70 bg-linear-to-br from-card to-muted/40 shadow-sm">
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center justify-between gap-2 text-sm">
                     <span>{label}</span>
-                    <span className="rounded-md border bg-background/70 p-1.5 text-muted-foreground">
+                    <span className="rounded-md border border-border/70 bg-background/80 p-1.5 text-primary">
                         {icon}
                     </span>
                 </CardTitle>
@@ -270,7 +279,7 @@ function TrendChartCard({
         <Card className="xl:col-span-2">
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <ActivityIcon className="h-4 w-4 text-muted-foreground" />
+                    <ActivityIcon className="h-4 w-4 text-primary" />
                     Inventory Value Trend (30 days)
                 </CardTitle>
             </CardHeader>
@@ -281,7 +290,7 @@ function TrendChartCard({
                         here automatically.
                     </div>
                 ) : (
-                    <div className="h-72 w-full min-w-0 rounded-md border bg-muted/20 p-2">
+                    <div className="h-72 w-full min-w-0 rounded-md border border-border/70 bg-card/70 p-2">
                         <ResponsiveContainer height="100%" width="100%">
                             <AreaChart data={trendData}>
                                 <defs>
@@ -294,19 +303,27 @@ function TrendChartCard({
                                     >
                                         <stop
                                             offset="5%"
-                                            stopColor="hsl(var(--primary))"
+                                            stopColor={CHART_TREND_STROKE}
                                             stopOpacity={0.3}
                                         />
                                         <stop
                                             offset="95%"
-                                            stopColor="hsl(var(--primary))"
+                                            stopColor={CHART_TREND_STROKE}
                                             stopOpacity={0}
                                         />
                                     </linearGradient>
                                 </defs>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="dateLabel" tickMargin={8} />
+                                <CartesianGrid
+                                    stroke={CHART_GRID}
+                                    strokeDasharray="3 3"
+                                />
+                                <XAxis
+                                    dataKey="dateLabel"
+                                    tick={{ fill: CHART_AXIS_TICK }}
+                                    tickMargin={8}
+                                />
                                 <YAxis
+                                    tick={{ fill: CHART_AXIS_TICK }}
                                     tickFormatter={(value) =>
                                         Intl.NumberFormat("en-US", {
                                             notation: "compact",
@@ -314,17 +331,24 @@ function TrendChartCard({
                                     }
                                 />
                                 <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: CHART_TOOLTIP_BG,
+                                        borderColor: CHART_TOOLTIP_BORDER,
+                                        color: CHART_TOOLTIP_TEXT,
+                                    }}
                                     formatter={(value) =>
                                         formatCurrencyFromMinorUnits(
                                             Math.round(Number(value) * 100),
                                             currencyCode
                                         )
                                     }
+                                    itemStyle={{ color: CHART_TOOLTIP_TEXT }}
+                                    labelStyle={{ color: CHART_TOOLTIP_LABEL }}
                                 />
                                 <Area
                                     dataKey="valueMajor"
                                     fill="url(#dashboardTrendGradient)"
-                                    stroke="hsl(var(--primary))"
+                                    stroke={CHART_TREND_STROKE}
                                     strokeWidth={2}
                                     type="monotone"
                                 />
@@ -362,12 +386,12 @@ function QueueDonutCard({
         <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <AlertTriangleIcon className="h-4 w-4 text-muted-foreground" />
+                    <AlertTriangleIcon className="h-4 w-4 text-chart-2" />
                     Queue Pressure
                 </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-                <div className="h-52 w-full min-w-0">
+                <div className="h-52 w-full min-w-0 rounded-md border border-border/70 bg-card/70 p-2">
                     <ResponsiveContainer height="100%" width="100%">
                         <PieChart>
                             <Pie
@@ -378,37 +402,56 @@ function QueueDonutCard({
                                 innerRadius={48}
                                 nameKey="label"
                                 outerRadius={74}
+                                stroke="var(--border)"
+                                strokeWidth={1}
                             >
-                                {queueSlices.map((slice) => (
+                                {queueSlices.map((slice, index) => (
                                     <Cell
-                                        className={slice.colorClass}
+                                        fill={
+                                            CHART_DONUT_COLORS[
+                                                index %
+                                                    CHART_DONUT_COLORS.length
+                                            ]
+                                        }
                                         key={slice.key}
                                     />
                                 ))}
                             </Pie>
-                            <Tooltip />
+                            <Tooltip
+                                contentStyle={{
+                                    backgroundColor: CHART_TOOLTIP_BG,
+                                    borderColor: CHART_TOOLTIP_BORDER,
+                                    color: CHART_TOOLTIP_TEXT,
+                                }}
+                                itemStyle={{ color: CHART_TOOLTIP_TEXT }}
+                                labelStyle={{ color: CHART_TOOLTIP_LABEL }}
+                            />
                         </PieChart>
                     </ResponsiveContainer>
                 </div>
-                {queueSlices.map((slice) => (
+                {queueSlices.map((slice, index) => (
                     <div className="space-y-1 text-xs" key={slice.key}>
                         <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">
+                            <span className="text-foreground/90">
                                 {slice.label}
                             </span>
                             <span className="font-medium">{slice.value}</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-muted">
                             <div
-                                className={`h-full rounded-full ${slice.colorClass.replace("fill-", "bg-")}`}
+                                className="h-full rounded-full"
                                 style={{
+                                    backgroundColor:
+                                        CHART_DONUT_COLORS[
+                                            index % CHART_DONUT_COLORS.length
+                                        ],
                                     width: `${queueTotal === 0 ? 0 : Math.round((slice.value / queueTotal) * 100)}%`,
                                 }}
                             />
                         </div>
                     </div>
                 ))}
-                <p className="text-muted-foreground text-xs">
+                <p className="text-foreground/80 text-xs">
                     Total active queue items: {queueTotal}
                 </p>
             </CardContent>
@@ -421,7 +464,7 @@ function AlertsCard({ metrics }: { metrics: DashboardMetrics }) {
         <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <AlertTriangleIcon className="h-4 w-4 text-muted-foreground" />
+                    <AlertTriangleIcon className="h-4 w-4 text-chart-5" />
                     Attention Needed
                 </CardTitle>
             </CardHeader>
@@ -451,7 +494,7 @@ function OperationsCard({ metrics }: { metrics: DashboardMetrics }) {
         <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <CalendarClockIcon className="h-4 w-4 text-muted-foreground" />
+                    <CalendarClockIcon className="h-4 w-4 text-chart-1" />
                     Operational Queue
                 </CardTitle>
             </CardHeader>
@@ -478,7 +521,7 @@ function QuickActionsCard() {
         <Card>
             <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2">
-                    <ActivityIcon className="h-4 w-4 text-muted-foreground" />
+                    <ActivityIcon className="h-4 w-4 text-primary" />
                     Quick Actions
                 </CardTitle>
             </CardHeader>
