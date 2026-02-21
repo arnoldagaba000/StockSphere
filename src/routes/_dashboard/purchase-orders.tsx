@@ -45,13 +45,27 @@ interface PurchaseOrderFormItem {
     unitPrice: string;
 }
 
-const createLineItem = (productId: string): PurchaseOrderFormItem => ({
+const getDefaultPurchaseUnitPrice = (
+    products: Awaited<ReturnType<typeof getProducts>>["products"],
+    productId: string
+): string => {
+    const product = products.find((entry) => entry.id === productId);
+    if (!product || product.costPrice == null) {
+        return "";
+    }
+    return String(product.costPrice);
+};
+
+const createLineItem = (
+    products: Awaited<ReturnType<typeof getProducts>>["products"],
+    productId: string
+): PurchaseOrderFormItem => ({
     id: crypto.randomUUID(),
     notes: "",
     productId,
     quantity: "",
     taxRate: "0",
-    unitPrice: "",
+    unitPrice: getDefaultPurchaseUnitPrice(products, productId),
 });
 
 type TransitionAction =
@@ -322,6 +336,10 @@ const CreatePurchaseOrderSection = ({
                                 onValueChange={(value) =>
                                     onUpdateItem(index, {
                                         productId: value ?? "",
+                                        unitPrice: getDefaultPurchaseUnitPrice(
+                                            products,
+                                            value ?? ""
+                                        ),
                                     })
                                 }
                                 value={item.productId}
@@ -409,6 +427,10 @@ const CreatePurchaseOrderSection = ({
                         {formatCurrencyFromMinorUnits(total, currencyCode)}
                     </p>
                 </div>
+                <p className="text-muted-foreground text-xs">
+                    Unit prices auto-fill from product cost. Override if this
+                    supplier gave you a different quote.
+                </p>
 
                 <Button
                     disabled={isSaving || !supplierId}
@@ -757,7 +779,7 @@ function PurchaseOrdersPage() {
         isLoadingDetail: false,
         isSaving: false,
         isTransitioningId: null,
-        items: [createLineItem(products[0]?.id ?? "")],
+        items: [createLineItem(products, products[0]?.id ?? "")],
         selectedOrderDetail: null,
         selectedOrderId: null,
         shippingCost: "0",
@@ -805,7 +827,7 @@ function PurchaseOrdersPage() {
 
     const addLineItem = (): void => {
         patchState({
-            items: [...items, createLineItem(products[0]?.id ?? "")],
+            items: [...items, createLineItem(products, products[0]?.id ?? "")],
         });
     };
 
@@ -886,7 +908,7 @@ function PurchaseOrdersPage() {
             toast.success("Purchase order created.");
             patchState({
                 expectedDate: "",
-                items: [createLineItem(firstProductId)],
+                items: [createLineItem(products, firstProductId)],
                 notes: "",
                 shippingCost: "0",
                 taxAmount: "0",

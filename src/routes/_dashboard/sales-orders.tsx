@@ -64,7 +64,27 @@ interface SalesListFilters {
     status: string;
 }
 
+const getDefaultSalesUnitPrice = (
+    products: Awaited<ReturnType<typeof getProducts>>["products"],
+    productId: string
+): string => {
+    const product = products.find((entry) => entry.id === productId);
+    if (!product || product.sellingPrice == null) {
+        return "";
+    }
+    return String(product.sellingPrice);
+};
+
+const getCustomerDefaultShippingAddress = (
+    customers: Awaited<ReturnType<typeof getCustomers>>,
+    customerId: string
+): string => {
+    const customer = customers.find((entry) => entry.id === customerId);
+    return customer?.address?.trim() ?? "";
+};
+
 const createSalesLineItem = (
+    products: Awaited<ReturnType<typeof getProducts>>["products"],
     productId: string,
     defaultTaxRatePercent: number
 ): SalesOrderLineItemFormState => ({
@@ -72,7 +92,7 @@ const createSalesLineItem = (
     productId,
     quantity: "",
     taxRate: String(defaultTaxRatePercent),
-    unitPrice: "",
+    unitPrice: getDefaultSalesUnitPrice(products, productId),
 });
 
 const createShipmentLine = (
@@ -118,6 +138,7 @@ interface SalesOrdersPageState {
     shipmentLines: ShipmentLineFormState[];
     shipmentTrackingNumber: string;
     shippingAddress: string;
+    shippingAddressSourceCustomerId: string | null;
     shippingCost: string;
     taxAmount: string;
 }
@@ -191,9 +212,14 @@ const useSalesOrdersPageController = (
 ) => {
     const { customers, financialSettings, initialSalesOrders, products } =
         loaderData;
+    const initialCustomerId = customers[0]?.id ?? "";
+    const initialShippingAddress = getCustomerDefaultShippingAddress(
+        customers,
+        initialCustomerId
+    );
     const [state, patchState] = useReducer(salesOrdersPageReducer, {
         cancelReason: "",
-        customerId: customers[0]?.id ?? "",
+        customerId: initialCustomerId,
         draftLines: [],
         draftNotes: "",
         draftRequiredDate: "",
@@ -208,6 +234,7 @@ const useSalesOrdersPageController = (
         isShipping: false,
         items: [
             createSalesLineItem(
+                products,
                 products[0]?.id ?? "",
                 financialSettings.defaultTaxRatePercent
             ),
@@ -220,7 +247,8 @@ const useSalesOrdersPageController = (
         shipmentCarrier: "",
         shipmentLines: [],
         shipmentTrackingNumber: "",
-        shippingAddress: "",
+        shippingAddress: initialShippingAddress,
+        shippingAddressSourceCustomerId: initialCustomerId || null,
         shippingCost: "0",
         taxAmount: "0",
     });
@@ -254,13 +282,35 @@ const useSalesOrdersPageController = (
     } = state;
 
     const setCustomerId = (value: string): void => {
-        patchState({ customerId: value });
+        patchState((currentState) => {
+            const nextDefaultAddress = getCustomerDefaultShippingAddress(
+                customers,
+                value
+            );
+            const shouldReplaceAddress =
+                currentState.shippingAddress.trim().length === 0 ||
+                currentState.shippingAddressSourceCustomerId ===
+                    currentState.customerId;
+
+            if (!shouldReplaceAddress) {
+                return { customerId: value };
+            }
+
+            return {
+                customerId: value,
+                shippingAddress: nextDefaultAddress,
+                shippingAddressSourceCustomerId: value || null,
+            };
+        });
     };
     const setRequiredDate = (value: string): void => {
         patchState({ requiredDate: value });
     };
     const setShippingAddress = (value: string): void => {
-        patchState({ shippingAddress: value });
+        patchState({
+            shippingAddress: value,
+            shippingAddressSourceCustomerId: null,
+        });
     };
     const setTaxAmount = (value: string): void => {
         patchState({ taxAmount: value });
@@ -478,9 +528,20 @@ const useSalesOrdersPageController = (
         index: number,
         patch: Partial<SalesOrderLineItemFormState>
     ): void => {
+        const nextProductId = patch.productId;
+        const nextPatch =
+            typeof nextProductId === "string"
+                ? {
+                      ...patch,
+                      unitPrice: getDefaultSalesUnitPrice(
+                          products,
+                          nextProductId
+                      ),
+                  }
+                : patch;
         setItems((currentItems) =>
             currentItems.map((item, itemIndex) =>
-                itemIndex === index ? { ...item, ...patch } : item
+                itemIndex === index ? { ...item, ...nextPatch } : item
             )
         );
     };
@@ -489,6 +550,7 @@ const useSalesOrdersPageController = (
         setItems((currentItems) => [
             ...currentItems,
             createSalesLineItem(
+                products,
                 products[0]?.id ?? "",
                 financialSettings.defaultTaxRatePercent
             ),
@@ -502,12 +564,20 @@ const useSalesOrdersPageController = (
     };
 
     const resetCreateForm = (): void => {
+        const defaultCustomerAddress = getCustomerDefaultShippingAddress(
+            customers,
+            customerId
+        );
         setRequiredDate("");
-        setShippingAddress("");
+        patchState({
+            shippingAddress: defaultCustomerAddress,
+            shippingAddressSourceCustomerId: customerId || null,
+        });
         setTaxAmount("0");
         setShippingCost("0");
         setItems([
             createSalesLineItem(
+                products,
                 products[0]?.id ?? "",
                 financialSettings.defaultTaxRatePercent
             ),
@@ -1035,6 +1105,10 @@ function renderSalesOrdersPage(
                             placeholder="Optional delivery address"
                             value={shippingAddress}
                         />
+                        <p className="text-muted-foreground text-xs">
+                            Auto-filled from customer profile. You can edit it
+                            for this order.
+                        </p>
                     </div>
 
                     <div className="space-y-3">
@@ -1115,6 +1189,10 @@ function renderSalesOrdersPage(
                             </div>
                         ))}
                     </div>
+                    <p className="text-muted-foreground text-xs">
+                        Unit price auto-fills from product selling price and
+                        stays editable for negotiated changes.
+                    </p>
 
                     <div className="flex flex-wrap items-center gap-2">
                         <Button
@@ -1551,6 +1629,12 @@ function renderSalesOrdersPage(
                                                                                       productId:
                                                                                           value ??
                                                                                           "",
+                                                                                      unitPrice:
+                                                                                          getDefaultSalesUnitPrice(
+                                                                                              products,
+                                                                                              value ??
+                                                                                                  ""
+                                                                                          ),
                                                                                   }
                                                                                 : currentLine
                                                                     )
