@@ -1010,20 +1010,22 @@ function renderSalesOrdersPage(
     } = controller;
 
     return (
-        <section className="w-full space-y-4">
-            <div>
+        <section className="w-full space-y-6">
+            <div className="rounded-xl border bg-card p-5">
                 <h1 className="font-semibold text-2xl">Sales Orders</h1>
-                <p className="text-muted-foreground text-sm">
+                <p className="mt-1 text-muted-foreground text-sm">
                     Draft, confirm, ship, and deliver customer orders.
                 </p>
             </div>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Create Sales Order</CardTitle>
+            <Card className="border-border/60">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base">
+                        Create Sales Order
+                    </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                <CardContent className="space-y-5">
+                    <div className="grid gap-3 rounded-lg border bg-muted/20 p-4 md:grid-cols-2 lg:grid-cols-4">
                         <div className="space-y-2">
                             <Label>Customer</Label>
                             <Select
@@ -1112,80 +1114,104 @@ function renderSalesOrdersPage(
                     </div>
 
                     <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <p className="font-medium text-sm">Line Items</p>
+                            <p className="text-muted-foreground text-xs">
+                                {items.length} line
+                                {items.length === 1 ? "" : "s"}
+                            </p>
+                        </div>
                         {items.map((item, index) => (
                             <div
-                                className="grid gap-2 md:grid-cols-5"
+                                className="grid gap-3 rounded-lg border bg-card/60 p-3 md:grid-cols-12"
                                 key={item.id}
                             >
-                                <Select
-                                    onValueChange={(value) =>
-                                        updateLineItem(index, {
-                                            productId: value ?? "",
-                                        })
-                                    }
-                                    value={item.productId}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="Product" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {products.map(
-                                            (
-                                                product: (typeof products)[number]
-                                            ) => (
-                                                <SelectItem
-                                                    key={product.id}
-                                                    value={product.id}
-                                                >
-                                                    {product.name} (
-                                                    {product.sku})
-                                                </SelectItem>
-                                            )
-                                        )}
-                                    </SelectContent>
-                                </Select>
-                                <Input
-                                    min={0}
-                                    onChange={(event) =>
-                                        updateLineItem(index, {
-                                            quantity: event.target.value,
-                                        })
-                                    }
-                                    placeholder="Qty"
-                                    type="number"
-                                    value={item.quantity}
-                                />
-                                <Input
-                                    min={0}
-                                    onChange={(event) =>
-                                        updateLineItem(index, {
-                                            unitPrice: event.target.value,
-                                        })
-                                    }
-                                    placeholder={`Unit Price (${currencyCode})`}
-                                    type="number"
-                                    value={item.unitPrice}
-                                />
-                                <Input
-                                    max={100}
-                                    min={0}
-                                    onChange={(event) =>
-                                        updateLineItem(index, {
-                                            taxRate: event.target.value,
-                                        })
-                                    }
-                                    placeholder="Tax %"
-                                    type="number"
-                                    value={item.taxRate}
-                                />
-                                <Button
-                                    disabled={items.length === 1}
-                                    onClick={() => removeLineItem(index)}
-                                    type="button"
-                                    variant="outline"
-                                >
-                                    Remove
-                                </Button>
+                                <div className="space-y-1 md:col-span-4">
+                                    <Label className="text-xs">Product</Label>
+                                    <Select
+                                        onValueChange={(value) =>
+                                            updateLineItem(index, {
+                                                productId: value ?? "",
+                                            })
+                                        }
+                                        value={item.productId}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Product" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {products.map(
+                                                (
+                                                    product: (typeof products)[number]
+                                                ) => (
+                                                    <SelectItem
+                                                        key={product.id}
+                                                        value={product.id}
+                                                    >
+                                                        {product.name} (
+                                                        {product.sku})
+                                                    </SelectItem>
+                                                )
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="space-y-1 md:col-span-2">
+                                    <Label className="text-xs">Quantity</Label>
+                                    <Input
+                                        min={0}
+                                        onChange={(event) =>
+                                            updateLineItem(index, {
+                                                quantity: event.target.value,
+                                            })
+                                        }
+                                        placeholder="Qty"
+                                        type="number"
+                                        value={item.quantity}
+                                    />
+                                </div>
+                                <div className="space-y-1 md:col-span-3">
+                                    <Label className="text-xs">
+                                        Unit Price ({currencyCode})
+                                    </Label>
+                                    <Input
+                                        min={0}
+                                        onChange={(event) =>
+                                            updateLineItem(index, {
+                                                unitPrice: event.target.value,
+                                            })
+                                        }
+                                        placeholder={`Unit Price (${currencyCode})`}
+                                        type="number"
+                                        value={item.unitPrice}
+                                    />
+                                </div>
+                                <div className="space-y-1 md:col-span-2">
+                                    <Label className="text-xs">Tax %</Label>
+                                    <Input
+                                        max={100}
+                                        min={0}
+                                        onChange={(event) =>
+                                            updateLineItem(index, {
+                                                taxRate: event.target.value,
+                                            })
+                                        }
+                                        placeholder="Tax %"
+                                        type="number"
+                                        value={item.taxRate}
+                                    />
+                                </div>
+                                <div className="md:col-span-1 md:self-end">
+                                    <Button
+                                        className="w-full"
+                                        disabled={items.length === 1}
+                                        onClick={() => removeLineItem(index)}
+                                        type="button"
+                                        variant="outline"
+                                    >
+                                        Remove
+                                    </Button>
+                                </div>
                             </div>
                         ))}
                     </div>
@@ -1194,7 +1220,7 @@ function renderSalesOrdersPage(
                         stays editable for negotiated changes.
                     </p>
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-3">
                         <Button
                             onClick={addLineItem}
                             type="button"
@@ -1222,12 +1248,12 @@ function renderSalesOrdersPage(
                 </CardContent>
             </Card>
 
-            <Card>
-                <CardHeader>
-                    <CardTitle>Sales Orders</CardTitle>
+            <Card className="border-border/60">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base">Sales Orders</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                    <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:grid-cols-2 lg:grid-cols-5">
                         <Input
                             onChange={(event) =>
                                 setListFilters((current) => ({
@@ -1355,136 +1381,146 @@ function renderSalesOrdersPage(
                         />
                     </div>
 
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Order</TableHead>
-                                <TableHead>Customer</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead className="text-right">
-                                    Total
-                                </TableHead>
-                                <TableHead>Actions</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {salesOrders.length === 0 ? (
+                    <div className="overflow-x-auto rounded-md border">
+                        <Table>
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell
-                                        className="text-muted-foreground"
-                                        colSpan={5}
-                                    >
-                                        No sales orders found.
-                                    </TableCell>
+                                    <TableHead>Order</TableHead>
+                                    <TableHead>Customer</TableHead>
+                                    <TableHead>Status</TableHead>
+                                    <TableHead className="text-right">
+                                        Total
+                                    </TableHead>
+                                    <TableHead>Actions</TableHead>
                                 </TableRow>
-                            ) : (
-                                salesOrders.map((order: SalesOrderListItem) => (
-                                    <TableRow key={order.id}>
-                                        <TableCell className="font-medium">
-                                            {order.orderNumber}
-                                        </TableCell>
-                                        <TableCell>
-                                            {order.customer.name}
-                                        </TableCell>
-                                        <TableCell>
-                                            <Badge variant="outline">
-                                                {order.status}
-                                            </Badge>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            {formatCurrencyFromMinorUnits(
-                                                order.totalAmount,
-                                                currencyCode
-                                            )}
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap gap-2">
-                                                <Button
-                                                    onClick={onLoadOrderDetailClick(
-                                                        order.id
-                                                    )}
-                                                    size="sm"
-                                                    type="button"
-                                                    variant="outline"
-                                                >
-                                                    View
-                                                </Button>
-                                                {order.status === "DRAFT" ? (
-                                                    <Button
-                                                        disabled={
-                                                            isActionBusyId ===
-                                                            order.id
-                                                        }
-                                                        onClick={onConfirmOrderClick(
-                                                            order.id
-                                                        )}
-                                                        size="sm"
-                                                        type="button"
-                                                    >
-                                                        Confirm
-                                                    </Button>
-                                                ) : null}
-                                                {[
-                                                    "DRAFT",
-                                                    "CONFIRMED",
-                                                ].includes(order.status) ? (
-                                                    <Button
-                                                        disabled={
-                                                            isActionBusyId ===
-                                                            order.id
-                                                        }
-                                                        onClick={onCancelOrderClick(
-                                                            order.id
-                                                        )}
-                                                        size="sm"
-                                                        type="button"
-                                                        variant="destructive"
-                                                    >
-                                                        Cancel
-                                                    </Button>
-                                                ) : null}
-                                                {order.status === "DRAFT" ? (
-                                                    <Button
-                                                        disabled={
-                                                            isActionBusyId ===
-                                                            order.id
-                                                        }
-                                                        onClick={onDeleteDraftClick(
-                                                            order.id
-                                                        )}
-                                                        size="sm"
-                                                        type="button"
-                                                        variant="outline"
-                                                    >
-                                                        Delete Draft
-                                                    </Button>
-                                                ) : null}
-                                                {[
-                                                    "SHIPPED",
-                                                    "FULFILLED",
-                                                ].includes(order.status) ? (
-                                                    <Button
-                                                        disabled={
-                                                            isActionBusyId ===
-                                                            order.id
-                                                        }
-                                                        onClick={onMarkDeliveredClick(
-                                                            order.id
-                                                        )}
-                                                        size="sm"
-                                                        type="button"
-                                                        variant="outline"
-                                                    >
-                                                        Mark Delivered
-                                                    </Button>
-                                                ) : null}
-                                            </div>
+                            </TableHeader>
+                            <TableBody>
+                                {salesOrders.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell
+                                            className="text-muted-foreground"
+                                            colSpan={5}
+                                        >
+                                            No sales orders found.
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : (
+                                    salesOrders.map(
+                                        (order: SalesOrderListItem) => (
+                                            <TableRow key={order.id}>
+                                                <TableCell className="font-medium">
+                                                    {order.orderNumber}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {order.customer.name}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <Badge variant="outline">
+                                                        {order.status}
+                                                    </Badge>
+                                                </TableCell>
+                                                <TableCell className="text-right">
+                                                    {formatCurrencyFromMinorUnits(
+                                                        order.totalAmount,
+                                                        currencyCode
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        <Button
+                                                            onClick={onLoadOrderDetailClick(
+                                                                order.id
+                                                            )}
+                                                            size="sm"
+                                                            type="button"
+                                                            variant="outline"
+                                                        >
+                                                            View
+                                                        </Button>
+                                                        {order.status ===
+                                                        "DRAFT" ? (
+                                                            <Button
+                                                                disabled={
+                                                                    isActionBusyId ===
+                                                                    order.id
+                                                                }
+                                                                onClick={onConfirmOrderClick(
+                                                                    order.id
+                                                                )}
+                                                                size="sm"
+                                                                type="button"
+                                                            >
+                                                                Confirm
+                                                            </Button>
+                                                        ) : null}
+                                                        {[
+                                                            "DRAFT",
+                                                            "CONFIRMED",
+                                                        ].includes(
+                                                            order.status
+                                                        ) ? (
+                                                            <Button
+                                                                disabled={
+                                                                    isActionBusyId ===
+                                                                    order.id
+                                                                }
+                                                                onClick={onCancelOrderClick(
+                                                                    order.id
+                                                                )}
+                                                                size="sm"
+                                                                type="button"
+                                                                variant="destructive"
+                                                            >
+                                                                Cancel
+                                                            </Button>
+                                                        ) : null}
+                                                        {order.status ===
+                                                        "DRAFT" ? (
+                                                            <Button
+                                                                disabled={
+                                                                    isActionBusyId ===
+                                                                    order.id
+                                                                }
+                                                                onClick={onDeleteDraftClick(
+                                                                    order.id
+                                                                )}
+                                                                size="sm"
+                                                                type="button"
+                                                                variant="outline"
+                                                            >
+                                                                Delete Draft
+                                                            </Button>
+                                                        ) : null}
+                                                        {[
+                                                            "SHIPPED",
+                                                            "FULFILLED",
+                                                        ].includes(
+                                                            order.status
+                                                        ) ? (
+                                                            <Button
+                                                                disabled={
+                                                                    isActionBusyId ===
+                                                                    order.id
+                                                                }
+                                                                onClick={onMarkDeliveredClick(
+                                                                    order.id
+                                                                )}
+                                                                size="sm"
+                                                                type="button"
+                                                                variant="outline"
+                                                            >
+                                                                Mark Delivered
+                                                            </Button>
+                                                        ) : null}
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    )
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
 
                     <div className="flex items-center justify-end gap-2">
                         <Button
@@ -1523,8 +1559,8 @@ function renderSalesOrdersPage(
             </Card>
 
             {selectedOrderDetail ? (
-                <Card>
-                    <CardHeader>
+                <Card className="border-border/60">
+                    <CardHeader className="pb-3">
                         <CardTitle>
                             Order Detail - {selectedOrderDetail.orderNumber}
                         </CardTitle>
@@ -1537,7 +1573,7 @@ function renderSalesOrdersPage(
                             </div>
                         ) : (
                             <>
-                                <div className="text-sm">
+                                <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 text-sm md:grid-cols-2">
                                     <p>
                                         Customer:{" "}
                                         {selectedOrderDetail.customer.name} (
@@ -1549,12 +1585,12 @@ function renderSalesOrdersPage(
                                 </div>
 
                                 {selectedOrderDetail.status === "DRAFT" ? (
-                                    <Card>
-                                        <CardHeader>
+                                    <Card className="border-border/60">
+                                        <CardHeader className="pb-3">
                                             <CardTitle>Edit Draft</CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-3">
-                                            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+                                            <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:grid-cols-2 lg:grid-cols-4">
                                                 <Input
                                                     onChange={(event) =>
                                                         setDraftRequiredDate(
@@ -1608,146 +1644,172 @@ function renderSalesOrdersPage(
 
                                             {draftLines.map((line, index) => (
                                                 <div
-                                                    className="grid gap-2 md:grid-cols-4"
+                                                    className="grid gap-2 rounded-lg border bg-card/60 p-3 md:grid-cols-12"
                                                     key={line.id}
                                                 >
-                                                    <Select
-                                                        onValueChange={(
-                                                            value
-                                                        ) =>
-                                                            setDraftLines(
-                                                                (current) =>
-                                                                    current.map(
-                                                                        (
-                                                                            currentLine,
-                                                                            currentIndex
-                                                                        ) =>
-                                                                            currentIndex ===
-                                                                            index
-                                                                                ? {
-                                                                                      ...currentLine,
-                                                                                      productId:
-                                                                                          value ??
-                                                                                          "",
-                                                                                      unitPrice:
-                                                                                          getDefaultSalesUnitPrice(
-                                                                                              products,
+                                                    <div className="space-y-1 md:col-span-4">
+                                                        <Label className="text-xs">
+                                                            Product
+                                                        </Label>
+                                                        <Select
+                                                            onValueChange={(
+                                                                value
+                                                            ) =>
+                                                                setDraftLines(
+                                                                    (current) =>
+                                                                        current.map(
+                                                                            (
+                                                                                currentLine,
+                                                                                currentIndex
+                                                                            ) =>
+                                                                                currentIndex ===
+                                                                                index
+                                                                                    ? {
+                                                                                          ...currentLine,
+                                                                                          productId:
                                                                                               value ??
-                                                                                                  ""
-                                                                                          ),
-                                                                                  }
-                                                                                : currentLine
-                                                                    )
-                                                            )
-                                                        }
-                                                        value={line.productId}
-                                                    >
-                                                        <SelectTrigger>
-                                                            <SelectValue placeholder="Product" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                            {products.map(
-                                                                (
-                                                                    product: (typeof products)[number]
-                                                                ) => (
-                                                                    <SelectItem
-                                                                        key={
-                                                                            product.id
-                                                                        }
-                                                                        value={
-                                                                            product.id
-                                                                        }
-                                                                    >
-                                                                        {
-                                                                            product.name
-                                                                        }
-                                                                    </SelectItem>
+                                                                                              "",
+                                                                                          unitPrice:
+                                                                                              getDefaultSalesUnitPrice(
+                                                                                                  products,
+                                                                                                  value ??
+                                                                                                      ""
+                                                                                              ),
+                                                                                      }
+                                                                                    : currentLine
+                                                                        )
                                                                 )
-                                                            )}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <Input
-                                                        min={0}
-                                                        onChange={(event) =>
-                                                            setDraftLines(
-                                                                (current) =>
-                                                                    current.map(
-                                                                        (
-                                                                            currentLine,
-                                                                            currentIndex
-                                                                        ) =>
-                                                                            currentIndex ===
-                                                                            index
-                                                                                ? {
-                                                                                      ...currentLine,
-                                                                                      quantity:
-                                                                                          event
-                                                                                              .target
-                                                                                              .value,
-                                                                                  }
-                                                                                : currentLine
+                                                            }
+                                                            value={
+                                                                line.productId
+                                                            }
+                                                        >
+                                                            <SelectTrigger>
+                                                                <SelectValue placeholder="Product" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {products.map(
+                                                                    (
+                                                                        product: (typeof products)[number]
+                                                                    ) => (
+                                                                        <SelectItem
+                                                                            key={
+                                                                                product.id
+                                                                            }
+                                                                            value={
+                                                                                product.id
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                product.name
+                                                                            }
+                                                                        </SelectItem>
                                                                     )
-                                                            )
-                                                        }
-                                                        placeholder="Qty"
-                                                        type="number"
-                                                        value={line.quantity}
-                                                    />
-                                                    <Input
-                                                        min={0}
-                                                        onChange={(event) =>
-                                                            setDraftLines(
-                                                                (current) =>
-                                                                    current.map(
-                                                                        (
-                                                                            currentLine,
-                                                                            currentIndex
-                                                                        ) =>
-                                                                            currentIndex ===
-                                                                            index
-                                                                                ? {
-                                                                                      ...currentLine,
-                                                                                      unitPrice:
-                                                                                          event
-                                                                                              .target
-                                                                                              .value,
-                                                                                  }
-                                                                                : currentLine
-                                                                    )
-                                                            )
-                                                        }
-                                                        placeholder="Unit Price"
-                                                        type="number"
-                                                        value={line.unitPrice}
-                                                    />
-                                                    <Input
-                                                        max={100}
-                                                        min={0}
-                                                        onChange={(event) =>
-                                                            setDraftLines(
-                                                                (current) =>
-                                                                    current.map(
-                                                                        (
-                                                                            currentLine,
-                                                                            currentIndex
-                                                                        ) =>
-                                                                            currentIndex ===
-                                                                            index
-                                                                                ? {
-                                                                                      ...currentLine,
-                                                                                      taxRate:
-                                                                                          event
-                                                                                              .target
-                                                                                              .value,
-                                                                                  }
-                                                                                : currentLine
-                                                                    )
-                                                            )
-                                                        }
-                                                        placeholder="Tax %"
-                                                        type="number"
-                                                        value={line.taxRate}
-                                                    />
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                    <div className="space-y-1 md:col-span-2">
+                                                        <Label className="text-xs">
+                                                            Quantity
+                                                        </Label>
+                                                        <Input
+                                                            min={0}
+                                                            onChange={(event) =>
+                                                                setDraftLines(
+                                                                    (current) =>
+                                                                        current.map(
+                                                                            (
+                                                                                currentLine,
+                                                                                currentIndex
+                                                                            ) =>
+                                                                                currentIndex ===
+                                                                                index
+                                                                                    ? {
+                                                                                          ...currentLine,
+                                                                                          quantity:
+                                                                                              event
+                                                                                                  .target
+                                                                                                  .value,
+                                                                                      }
+                                                                                    : currentLine
+                                                                        )
+                                                                )
+                                                            }
+                                                            placeholder="Qty"
+                                                            type="number"
+                                                            value={
+                                                                line.quantity
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1 md:col-span-3">
+                                                        <Label className="text-xs">
+                                                            Unit Price
+                                                        </Label>
+                                                        <Input
+                                                            min={0}
+                                                            onChange={(event) =>
+                                                                setDraftLines(
+                                                                    (current) =>
+                                                                        current.map(
+                                                                            (
+                                                                                currentLine,
+                                                                                currentIndex
+                                                                            ) =>
+                                                                                currentIndex ===
+                                                                                index
+                                                                                    ? {
+                                                                                          ...currentLine,
+                                                                                          unitPrice:
+                                                                                              event
+                                                                                                  .target
+                                                                                                  .value,
+                                                                                      }
+                                                                                    : currentLine
+                                                                        )
+                                                                )
+                                                            }
+                                                            placeholder="Unit Price"
+                                                            type="number"
+                                                            value={
+                                                                line.unitPrice
+                                                            }
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1 md:col-span-3">
+                                                        <Label className="text-xs">
+                                                            Tax %
+                                                        </Label>
+                                                        <Input
+                                                            max={100}
+                                                            min={0}
+                                                            onChange={(event) =>
+                                                                setDraftLines(
+                                                                    (current) =>
+                                                                        current.map(
+                                                                            (
+                                                                                currentLine,
+                                                                                currentIndex
+                                                                            ) =>
+                                                                                currentIndex ===
+                                                                                index
+                                                                                    ? {
+                                                                                          ...currentLine,
+                                                                                          taxRate:
+                                                                                              event
+                                                                                                  .target
+                                                                                                  .value,
+                                                                                      }
+                                                                                    : currentLine
+                                                                        )
+                                                                )
+                                                            }
+                                                            placeholder="Tax %"
+                                                            type="number"
+                                                            value={line.taxRate}
+                                                        />
+                                                    </div>
                                                 </div>
                                             ))}
 
@@ -1771,14 +1833,14 @@ function renderSalesOrdersPage(
                                 {["CONFIRMED", "PARTIALLY_FULFILLED"].includes(
                                     selectedOrderDetail.status
                                 ) ? (
-                                    <Card>
-                                        <CardHeader>
+                                    <Card className="border-border/60">
+                                        <CardHeader className="pb-3">
                                             <CardTitle>
                                                 Create Shipment
                                             </CardTitle>
                                         </CardHeader>
                                         <CardContent className="space-y-3">
-                                            <div className="grid gap-3 md:grid-cols-2">
+                                            <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:grid-cols-2">
                                                 <Input
                                                     onChange={(event) =>
                                                         setShipmentCarrier(
@@ -1823,7 +1885,7 @@ function renderSalesOrdersPage(
 
                                                 return (
                                                     <div
-                                                        className="grid gap-2 md:grid-cols-4"
+                                                        className="grid gap-2 rounded-lg border bg-card/60 p-3 md:grid-cols-4"
                                                         key={line.orderItemId}
                                                     >
                                                         <p className="md:col-span-2">
