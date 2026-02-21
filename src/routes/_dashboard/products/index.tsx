@@ -7,6 +7,7 @@ import {
 } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,12 @@ type ProductListItem = Awaited<
     ReturnType<typeof getProducts>
 >["products"][number];
 type CategoryListItem = Awaited<ReturnType<typeof getCategories>>[number];
+
+const CARD_SHELL_CLASS = "rounded-xl border border-border/70 bg-card shadow-sm";
+const SELECT_TRIGGER_CLASS =
+    "h-10 w-full rounded-xl border-border/70 bg-muted/35 px-3 shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_CONTENT_CLASS =
+    "rounded-xl border-border/70 bg-popover/98 shadow-xl";
 
 type TrackingFilter = "all" | "no" | "yes";
 type ProductStatusFilter = "active" | "all" | "inactive";
@@ -247,35 +254,49 @@ interface ProductMetricsProps {
 const ProductMetrics = ({ analytics, currencyCode }: ProductMetricsProps) => {
     return (
         <div className="grid gap-3 md:grid-cols-4">
-            <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground text-xs">Total Products</p>
-                <p className="font-semibold text-2xl">
-                    {analytics.totalProducts}
-                </p>
-            </div>
-            <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground text-xs">Active</p>
-                <p className="font-semibold text-2xl">
-                    {analytics.activeProducts}
-                </p>
-            </div>
-            <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground text-xs">Inactive</p>
-                <p className="font-semibold text-2xl">
-                    {analytics.inactiveProducts}
-                </p>
-            </div>
-            <div className="rounded-lg border p-3">
-                <p className="text-muted-foreground text-xs">
-                    Estimated Stock Value
-                </p>
-                <p className="font-semibold text-2xl">
-                    {formatCurrencyFromMinorUnits(
-                        analytics.stockValueMinor,
-                        currencyCode
-                    )}
-                </p>
-            </div>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Total Products
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {analytics.totalProducts}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Active
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {analytics.activeProducts}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Inactive
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {analytics.inactiveProducts}
+                    </p>
+                </CardContent>
+            </Card>
+            <Card className={CARD_SHELL_CLASS}>
+                <CardContent className="space-y-1 p-4">
+                    <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                        Estimated Stock Value
+                    </p>
+                    <p className="font-semibold text-2xl">
+                        {formatCurrencyFromMinorUnits(
+                            analytics.stockValueMinor,
+                            currencyCode
+                        )}
+                    </p>
+                </CardContent>
+            </Card>
         </div>
     );
 };
@@ -328,10 +349,11 @@ const ProductFilters = ({
     trackingSerialValue,
 }: ProductFiltersProps) => {
     return (
-        <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+        <div className={`${CARD_SHELL_CLASS} grid gap-3 p-4 md:grid-cols-4`}>
             <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="product-search">Search</Label>
                 <Input
+                    className="h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                     id="product-search"
                     onChange={(event) =>
                         setState({ searchValue: event.target.value })
@@ -350,10 +372,10 @@ const ProductFilters = ({
                     }
                     value={statusValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="active">Active</SelectItem>
                         <SelectItem value="inactive">Inactive</SelectItem>
                         <SelectItem value="all">All</SelectItem>
@@ -368,10 +390,10 @@ const ProductFilters = ({
                     }
                     value={categoryValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="all">All categories</SelectItem>
                         {categoryOptions.map((category) => (
                             <SelectItem key={category.id} value={category.id}>
@@ -384,6 +406,7 @@ const ProductFilters = ({
             <div className="space-y-2">
                 <Label>Min Selling Price</Label>
                 <Input
+                    className="h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                     min={0}
                     onChange={(event) =>
                         setState({ minPriceValue: event.target.value })
@@ -396,6 +419,7 @@ const ProductFilters = ({
             <div className="space-y-2">
                 <Label>Max Selling Price</Label>
                 <Input
+                    className="h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                     min={0}
                     onChange={(event) =>
                         setState({ maxPriceValue: event.target.value })
@@ -415,10 +439,10 @@ const ProductFilters = ({
                     }
                     value={trackingBatchValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
@@ -435,10 +459,10 @@ const ProductFilters = ({
                     }
                     value={trackingSerialValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
@@ -455,10 +479,10 @@ const ProductFilters = ({
                     }
                     value={trackingExpiryValue}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="all">All</SelectItem>
                         <SelectItem value="yes">Yes</SelectItem>
                         <SelectItem value="no">No</SelectItem>
@@ -510,7 +534,7 @@ const ProductBulkActions = ({
     setState,
 }: ProductBulkActionsProps) => {
     return (
-        <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-4">
+        <div className={`${CARD_SHELL_CLASS} grid gap-3 p-4 md:grid-cols-4`}>
             <div className="space-y-2 md:col-span-2">
                 <Label>Bulk Action</Label>
                 <Select
@@ -519,10 +543,10 @@ const ProductBulkActions = ({
                     }
                     value={bulkAction}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="markInactive">
                             Mark Inactive
                         </SelectItem>
@@ -542,10 +566,10 @@ const ProductBulkActions = ({
                     }
                     value={bulkCategoryId}
                 >
-                    <SelectTrigger>
+                    <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                         <SelectValue />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className={SELECT_CONTENT_CLASS}>
                         <SelectItem value="none">Select category</SelectItem>
                         {categoryOptions.map((category) => (
                             <SelectItem key={category.id} value={category.id}>
@@ -594,8 +618,8 @@ const ProductTable = ({
     visibleProducts,
 }: ProductTableProps) => {
     return (
-        <div className="overflow-hidden rounded-lg border">
-            <Table>
+        <div className={`${CARD_SHELL_CLASS} overflow-x-auto`}>
+            <Table className="min-w-[980px]">
                 <TableHeader>
                     <TableRow>
                         <TableHead className="w-10">
@@ -681,7 +705,7 @@ const ProductTable = ({
                                     </Badge>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                    <div className="flex justify-end gap-2">
+                                    <div className="flex flex-wrap justify-end gap-2">
                                         <Button
                                             nativeButton={false}
                                             render={
@@ -930,7 +954,7 @@ function ProductsPage() {
     };
 
     return (
-        <section className="w-full space-y-4">
+        <section className="w-full space-y-5">
             <ProductMetrics analytics={analytics} currencyCode={currencyCode} />
             <ProductsHeader />
             <ProductFilters

@@ -37,44 +37,53 @@ function EditCategoryPage() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     return (
-        <Card className="w-full">
-            <CardHeader>
-                <CardTitle>Edit Category</CardTitle>
-            </CardHeader>
-            <CardContent>
-                <CategoryForm
-                    categories={categories}
-                    defaultValues={{
-                        description: category.description ?? "",
-                        name: category.name,
-                        parentId: category.parentId ?? "",
-                    }}
-                    excludeCategoryIds={[category.id]}
-                    isSubmitting={isSubmitting}
-                    onSubmit={async (data) => {
-                        try {
-                            setIsSubmitting(true);
-                            await updateCategory({
-                                data: {
-                                    ...data,
-                                    id: category.id,
-                                },
-                            });
-                            toast.success("Category updated.");
-                            await navigate({ to: "/categories" });
-                            setIsSubmitting(false);
-                        } catch (error) {
-                            setIsSubmitting(false);
-                            const message =
-                                error instanceof Error
-                                    ? error.message
-                                    : "Failed to update category.";
-                            toast.error(message);
-                        }
-                    }}
-                    submitLabel="Save Changes"
-                />
-            </CardContent>
-        </Card>
+        <div className="w-full space-y-4">
+            <div>
+                <h1 className="font-semibold text-2xl">Edit Category</h1>
+                <p className="text-muted-foreground text-sm">
+                    Update hierarchy and metadata without breaking linked
+                    products.
+                </p>
+            </div>
+            <Card className="w-full rounded-xl border-border/70 shadow-sm">
+                <CardHeader className="space-y-1">
+                    <CardTitle>Edit Category</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <CategoryForm
+                        categories={categories}
+                        defaultValues={{
+                            description: category.description ?? "",
+                            name: category.name,
+                            parentId: category.parentId ?? "",
+                        }}
+                        excludeCategoryIds={[category.id]}
+                        isSubmitting={isSubmitting}
+                        onSubmit={async (data) => {
+                            try {
+                                setIsSubmitting(true);
+                                await updateCategory({
+                                    data: {
+                                        ...data,
+                                        id: category.id,
+                                    },
+                                });
+                                toast.success("Category updated.");
+                                await navigate({ to: "/categories" });
+                                setIsSubmitting(false);
+                            } catch (error) {
+                                setIsSubmitting(false);
+                                const message =
+                                    error instanceof Error
+                                        ? error.message
+                                        : "Failed to update category.";
+                                toast.error(message);
+                            }
+                        }}
+                        submitLabel="Save Changes"
+                    />
+                </CardContent>
+            </Card>
+        </div>
     );
 }

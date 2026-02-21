@@ -12,6 +12,13 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
+const INPUT_CLASS =
+    "h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_TRIGGER_CLASS =
+    "h-10 w-full rounded-xl border-border/70 bg-muted/35 px-3 shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_CONTENT_CLASS =
+    "rounded-xl border-border/70 bg-popover/98 shadow-xl";
+
 export interface CategoryOption {
     id: string;
     label: string;
@@ -113,6 +120,7 @@ const ProductIdentitySection = ({
         <div className="space-y-2">
             <Label htmlFor="name">Product Name</Label>
             <Input
+                className={INPUT_CLASS}
                 id="name"
                 onChange={(event) =>
                     setValues({
@@ -126,6 +134,7 @@ const ProductIdentitySection = ({
         <div className="space-y-2">
             <Label htmlFor="sku">SKU</Label>
             <Input
+                className={INPUT_CLASS}
                 id="sku"
                 onChange={(event) =>
                     setValues({
@@ -139,6 +148,7 @@ const ProductIdentitySection = ({
         <div className="space-y-2 md:col-span-2">
             <Label htmlFor="description">Description</Label>
             <Textarea
+                className="rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                 id="description"
                 onChange={(event) =>
                     setValues({
@@ -152,6 +162,7 @@ const ProductIdentitySection = ({
         <div className="space-y-2">
             <Label htmlFor="barcode">Barcode</Label>
             <Input
+                className={INPUT_CLASS}
                 id="barcode"
                 onChange={(event) =>
                     setValues({
@@ -172,10 +183,10 @@ const ProductIdentitySection = ({
                 }
                 value={values.categoryId || "none"}
             >
-                <SelectTrigger id="category">
+                <SelectTrigger className={SELECT_TRIGGER_CLASS} id="category">
                     <SelectValue placeholder="Select category" />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={SELECT_CONTENT_CLASS}>
                     <SelectItem value="none">No category</SelectItem>
                     {categories.map((category) => (
                         <SelectItem key={category.id} value={category.id}>
@@ -201,6 +212,7 @@ const ProductPricingSection = ({
         <div className="space-y-2">
             <Label htmlFor="cost-price">Cost Price</Label>
             <Input
+                className={INPUT_CLASS}
                 id="cost-price"
                 min={0}
                 onChange={(event) =>
@@ -216,6 +228,7 @@ const ProductPricingSection = ({
         <div className="space-y-2">
             <Label htmlFor="selling-price">Selling Price</Label>
             <Input
+                className={INPUT_CLASS}
                 id="selling-price"
                 min={0}
                 onChange={(event) =>
@@ -231,6 +244,7 @@ const ProductPricingSection = ({
         <div className="space-y-2">
             <Label htmlFor="tax-rate">Tax Rate (%)</Label>
             <Input
+                className={INPUT_CLASS}
                 id="tax-rate"
                 max={100}
                 min={0}
@@ -259,10 +273,10 @@ const ProductPricingSection = ({
                 }
                 value={values.status}
             >
-                <SelectTrigger id="status">
+                <SelectTrigger className={SELECT_TRIGGER_CLASS} id="status">
                     <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className={SELECT_CONTENT_CLASS}>
                     <SelectItem value="ACTIVE">Active</SelectItem>
                     <SelectItem value="DRAFT">Draft</SelectItem>
                     <SelectItem value="DISCONTINUED">Discontinued</SelectItem>
@@ -286,6 +300,7 @@ const ProductInventorySection = ({
         <div className="space-y-2">
             <Label htmlFor="unit">Unit</Label>
             <Input
+                className={INPUT_CLASS}
                 id="unit"
                 onChange={(event) =>
                     setValues({
@@ -298,6 +313,7 @@ const ProductInventorySection = ({
         <div className="space-y-2">
             <Label htmlFor="weight">Weight</Label>
             <Input
+                className={INPUT_CLASS}
                 id="weight"
                 min={0}
                 onChange={(event) =>
@@ -313,6 +329,7 @@ const ProductInventorySection = ({
         <div className="space-y-2">
             <Label htmlFor="weight-unit">Weight Unit</Label>
             <Input
+                className={INPUT_CLASS}
                 id="weight-unit"
                 onChange={(event) =>
                     setValues({
@@ -325,6 +342,7 @@ const ProductInventorySection = ({
         <div className="space-y-2">
             <Label htmlFor="dimensions">Dimensions</Label>
             <Input
+                className={INPUT_CLASS}
                 id="dimensions"
                 onChange={(event) =>
                     setValues({
@@ -338,6 +356,7 @@ const ProductInventorySection = ({
         <div className="space-y-2">
             <Label htmlFor="reorder-point">Reorder Point</Label>
             <Input
+                className={INPUT_CLASS}
                 id="reorder-point"
                 min={0}
                 onChange={(event) =>
@@ -353,6 +372,7 @@ const ProductInventorySection = ({
         <div className="space-y-2">
             <Label htmlFor="reorder-quantity">Reorder Quantity</Label>
             <Input
+                className={INPUT_CLASS}
                 id="reorder-quantity"
                 min={0}
                 onChange={(event) =>
@@ -368,6 +388,7 @@ const ProductInventorySection = ({
         <div className="space-y-2">
             <Label htmlFor="minimum-stock">Minimum Stock</Label>
             <Input
+                className={INPUT_CLASS}
                 id="minimum-stock"
                 min={0}
                 onChange={(event) =>
@@ -383,6 +404,7 @@ const ProductInventorySection = ({
         <div className="space-y-2">
             <Label htmlFor="maximum-stock">Maximum Stock</Label>
             <Input
+                className={INPUT_CLASS}
                 id="maximum-stock"
                 min={0}
                 onChange={(event) =>
@@ -407,10 +429,10 @@ const ProductTrackingSection = ({
     setValues,
     values,
 }: ProductTrackingSectionProps) => (
-    <div className="space-y-3 rounded-lg border p-3 md:col-span-2">
+    <div className="space-y-3 rounded-xl border border-border/70 bg-card/70 p-4 md:col-span-2">
         <p className="font-medium text-sm">Tracking</p>
         <div className="grid gap-3 md:grid-cols-4">
-            <Label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+            <Label className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
                 Is Kit
                 <Switch
                     checked={values.isKit}
@@ -421,7 +443,7 @@ const ProductTrackingSection = ({
                     }
                 />
             </Label>
-            <Label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+            <Label className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
                 Serial Number
                 <Switch
                     checked={values.trackBySerialNumber}
@@ -432,7 +454,7 @@ const ProductTrackingSection = ({
                     }
                 />
             </Label>
-            <Label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+            <Label className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
                 Batch
                 <Switch
                     checked={values.trackByBatch}
@@ -443,7 +465,7 @@ const ProductTrackingSection = ({
                     }
                 />
             </Label>
-            <Label className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+            <Label className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/20 px-3 py-2">
                 Expiry
                 <Switch
                     checked={values.trackByExpiry}

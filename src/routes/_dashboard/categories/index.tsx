@@ -5,6 +5,7 @@ import { buildCategoryHierarchy } from "@/components/features/categories/utils";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -31,6 +32,12 @@ type CategoryListItem = Awaited<ReturnType<typeof listCategories>>[number];
 type CategoryAnalyticsItem = Awaited<
     ReturnType<typeof getCategoryAnalytics>
 >["categories"][number];
+
+const CARD_SHELL_CLASS = "rounded-xl border border-border/70 bg-card shadow-sm";
+const SELECT_TRIGGER_CLASS =
+    "h-10 w-full rounded-xl border-border/70 bg-muted/35 px-3 shadow-sm transition-colors hover:bg-muted/55";
+const SELECT_CONTENT_CLASS =
+    "rounded-xl border-border/70 bg-popover/98 shadow-xl";
 
 export const Route = createFileRoute("/_dashboard/categories/")({
     component: CategoriesPage,
@@ -92,10 +99,13 @@ const CategoriesFilters = ({
 }: CategoriesFiltersProps) => {
     return (
         <>
-            <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-3">
+            <div
+                className={`${CARD_SHELL_CLASS} grid gap-3 p-4 md:grid-cols-3`}
+            >
                 <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="category-search">Search</Label>
                     <Input
+                        className="h-10 rounded-xl border-border/70 bg-muted/35 shadow-sm transition-colors hover:bg-muted/55"
                         id="category-search"
                         onChange={(event) => onSearchChange(event.target.value)}
                         placeholder="Search categories by name"
@@ -105,10 +115,10 @@ const CategoriesFilters = ({
                 <div className="space-y-2">
                     <Label>Status</Label>
                     <Select onValueChange={onStatusChange} value={statusValue}>
-                        <SelectTrigger>
+                        <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                             <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className={SELECT_CONTENT_CLASS}>
                             <SelectItem value="active">Active</SelectItem>
                             <SelectItem value="inactive">Inactive</SelectItem>
                             <SelectItem value="all">All</SelectItem>
@@ -122,7 +132,9 @@ const CategoriesFilters = ({
                 </div>
             </div>
 
-            <div className="grid gap-3 rounded-lg border p-4 md:grid-cols-2">
+            <div
+                className={`${CARD_SHELL_CLASS} grid gap-3 p-4 md:grid-cols-2`}
+            >
                 <div className="space-y-2">
                     <Label>Reassign products on archive</Label>
                     <Select
@@ -131,10 +143,10 @@ const CategoriesFilters = ({
                         }
                         value={reassignProductsTo}
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                             <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className={SELECT_CONTENT_CLASS}>
                             <SelectItem value="none">
                                 Do not reassign
                             </SelectItem>
@@ -157,10 +169,10 @@ const CategoriesFilters = ({
                         }
                         value={reassignChildrenTo}
                     >
-                        <SelectTrigger>
+                        <SelectTrigger className={SELECT_TRIGGER_CLASS}>
                             <SelectValue />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent className={SELECT_CONTENT_CLASS}>
                             <SelectItem value="none">
                                 Do not reassign
                             </SelectItem>
@@ -200,8 +212,8 @@ const CategoriesTable = ({
     parentNameById,
 }: CategoriesTableProps) => {
     return (
-        <div className="overflow-hidden rounded-lg border">
-            <Table>
+        <div className={`${CARD_SHELL_CLASS} overflow-x-auto`}>
+            <Table className="min-w-[920px]">
                 <TableHeader>
                     <TableRow>
                         <TableHead>Name</TableHead>
@@ -264,7 +276,7 @@ const CategoriesTable = ({
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right">
-                                        <div className="flex justify-end gap-2">
+                                        <div className="flex flex-wrap justify-end gap-2">
                                             <Button
                                                 render={
                                                     <Link
@@ -371,6 +383,14 @@ function CategoriesPage() {
     const analyticsByCategoryId = new Map(
         analytics.map((item) => [item.categoryId, item])
     );
+    const totalStockValueMinor = analytics.reduce(
+        (sum, item) => sum + item.estimatedStockValueMinor,
+        0
+    );
+    const activeCount = categories.filter(
+        (category) => category.isActive
+    ).length;
+    const inactiveCount = categories.length - activeCount;
 
     const applyFilters = async () => {
         const isActiveFilter =
@@ -427,7 +447,7 @@ function CategoriesPage() {
     };
 
     return (
-        <section className="w-full space-y-4">
+        <section className="w-full space-y-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="font-semibold text-2xl">Categories</h1>
@@ -441,6 +461,51 @@ function CategoriesPage() {
                 >
                     New Category
                 </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-4">
+                <Card className={CARD_SHELL_CLASS}>
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Total Categories
+                        </p>
+                        <p className="font-semibold text-2xl">
+                            {categories.length}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className={CARD_SHELL_CLASS}>
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Active
+                        </p>
+                        <p className="font-semibold text-2xl text-emerald-600 dark:text-emerald-400">
+                            {activeCount}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className={CARD_SHELL_CLASS}>
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Inactive
+                        </p>
+                        <p className="font-semibold text-2xl text-amber-600 dark:text-amber-400">
+                            {inactiveCount}
+                        </p>
+                    </CardContent>
+                </Card>
+                <Card className={CARD_SHELL_CLASS}>
+                    <CardContent className="space-y-1 p-4">
+                        <p className="text-muted-foreground text-xs uppercase tracking-wide">
+                            Estimated Stock Value
+                        </p>
+                        <p className="font-semibold text-xl">
+                            {formatCurrencyFromMinorUnits(
+                                totalStockValueMinor,
+                                currencyCode
+                            )}
+                        </p>
+                    </CardContent>
+                </Card>
             </div>
             <CategoriesFilters
                 categories={categories}
