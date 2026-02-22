@@ -5,6 +5,10 @@ import {
     generatePurchaseOrderNumber,
     retryOnUniqueConstraint,
 } from "@/features/purchases/purchase-helpers";
+import {
+    buildPurchaseOrderLineTotals,
+    computePurchaseOrderTotals,
+} from "@/features/purchases/purchase-order-calculations";
 import { getNumberingPrefixes } from "@/features/settings/get-numbering-prefixes";
 import { getRequestIpAddress, logActivity } from "@/lib/audit/activity-log";
 import { canUser } from "@/lib/auth/authorize";
@@ -61,26 +65,15 @@ export const createPurchaseOrder = createServerFn({ method: "POST" })
                     numberingPrefixes.purchaseOrder
                 );
 
-                const itemsWithTotals = data.items.map((item) => {
-                    const unitPrice = Math.round(item.unitPrice);
-                    const totalPrice = Math.round(item.quantity * unitPrice);
-                    return {
-                        notes: item.notes ?? null,
-                        productId: item.productId,
-                        quantity: item.quantity,
-                        taxRate: item.taxRate,
-                        totalPrice,
-                        unitPrice,
-                    };
-                });
-
-                const subtotal = itemsWithTotals.reduce(
-                    (sum, item) => sum + item.totalPrice,
-                    0
+                const itemsWithTotals = buildPurchaseOrderLineTotals(
+                    data.items
                 );
-                const taxAmount = Math.round(data.taxAmount);
-                const shippingCost = Math.round(data.shippingCost);
-                const totalAmount = subtotal + taxAmount + shippingCost;
+                const { shippingCost, subtotal, taxAmount, totalAmount } =
+                    computePurchaseOrderTotals({
+                        items: itemsWithTotals,
+                        shippingCost: data.shippingCost,
+                        taxAmount: data.taxAmount,
+                    });
 
                 return await tx.purchaseOrder.create({
                     data: {
