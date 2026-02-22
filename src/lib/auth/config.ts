@@ -13,7 +13,7 @@ import { adminAccessControl, betterAuthAdminRoles } from "./admin-access";
 import { DEFAULT_USER_ROLE, isSuperAdminEmail } from "./roles";
 import { ensureSuperAdminRole } from "./super-admin";
 
-const baseURL = process.env.BETTER_AUTH_BASE_URL ?? "http://localhost:5173";
+const baseURL = process.env.BETTER_AUTH_BASE_URL ?? "http://localhost:3000";
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
 const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;

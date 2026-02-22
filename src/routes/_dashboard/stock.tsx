@@ -84,6 +84,8 @@ const MOVEMENT_TYPE_OPTIONS = [
 ] as const;
 
 export const stockSearchSchema = z.object({
+    movementDateFrom: z.string().optional().catch(""),
+    movementDateTo: z.string().optional().catch(""),
     movementPage: z.string().optional().catch("1"),
     movementPageSize: z.string().optional().catch("25"),
     movementProductId: z.string().optional().catch(""),
@@ -109,6 +111,8 @@ interface StockPageState {
     entryUnitCost: string;
     entryWarehouseId: string;
     expiryAlerts: ExpiryAlertsData;
+    movementDateFrom: string;
+    movementDateTo: string;
     movementHistory: MovementHistoryData | null;
     movementIsLoading: boolean;
     movementPage: string;
@@ -143,6 +147,53 @@ const stockPageReducer = (
 ): StockPageState => {
     const patch = typeof action === "function" ? action(state) : action;
     return { ...state, ...patch };
+};
+
+const buildMovementQuery = (
+    state: StockPageState,
+    pageOverride?: number,
+    pageSizeOverride?: number
+) => {
+    const movementType =
+        state.movementType.length > 0
+            ? (state.movementType as
+                  | "ADJUSTMENT"
+                  | "ASSEMBLY"
+                  | "DISASSEMBLY"
+                  | "PURCHASE_RECEIPT"
+                  | "RETURN"
+                  | "SALES_SHIPMENT"
+                  | "TRANSFER")
+            : undefined;
+
+    const page = pageOverride ?? (Number(state.movementPage) || 1);
+    const pageSize = pageSizeOverride ?? (Number(state.movementPageSize) || 25);
+    const dateFrom =
+        state.movementDateFrom.length > 0
+            ? new Date(state.movementDateFrom)
+            : undefined;
+    const dateTo =
+        state.movementDateTo.length > 0
+            ? new Date(`${state.movementDateTo}T23:59:59.999Z`)
+            : undefined;
+    const productId =
+        state.movementProductId.length > 0
+            ? state.movementProductId
+            : undefined;
+    const warehouseId =
+        state.movementWarehouseId.length > 0
+            ? state.movementWarehouseId
+            : undefined;
+
+    return {
+        dateFrom,
+        dateTo,
+        movementType,
+        page,
+        pageSize,
+        productId,
+        warehouseId,
+    };
 };
 
 const loadStockBootstrapWithRetry = async (): Promise<StockBootstrapData> => {
@@ -989,6 +1040,8 @@ const AdjustmentReviewCard = ({
 };
 
 interface MovementHistoryCardProps {
+    movementDateFrom: string;
+    movementDateTo: string;
     movementHistory: MovementHistoryData | null;
     movementIsLoading: boolean;
     movementPage: string;
@@ -1005,6 +1058,8 @@ interface MovementHistoryCardProps {
         patch: Partial<
             Pick<
                 StockPageState,
+                | "movementDateFrom"
+                | "movementDateTo"
                 | "movementPage"
                 | "movementPageSize"
                 | "movementProductId"
@@ -1018,6 +1073,8 @@ interface MovementHistoryCardProps {
 
 const MovementHistoryCard = ({
     movementHistory,
+    movementDateFrom,
+    movementDateTo,
     movementIsLoading,
     movementPage,
     movementPageSize,
@@ -1119,7 +1176,7 @@ const MovementHistoryCard = ({
                 </p>
             </CardHeader>
             <CardContent className="space-y-3">
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-6">
                     <FieldSelect
                         label="Warehouse"
                         onValueChange={(value) =>
@@ -1177,6 +1234,22 @@ const MovementHistoryCard = ({
                         type="number"
                         value={movementPage}
                     />
+                    <FieldInput
+                        label="Date From"
+                        onChange={(value) =>
+                            setMovementFilters({ movementDateFrom: value })
+                        }
+                        type="date"
+                        value={movementDateFrom}
+                    />
+                    <FieldInput
+                        label="Date To"
+                        onChange={(value) =>
+                            setMovementFilters({ movementDateTo: value })
+                        }
+                        type="date"
+                        value={movementDateTo}
+                    />
                     <FieldSelect
                         label="Page Size"
                         onValueChange={(value) => {
@@ -1207,6 +1280,74 @@ const MovementHistoryCard = ({
                     >
                         Load Movement History
                     </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            onClick={() => {
+                                const today = new Date();
+                                const start = today.toISOString().slice(0, 10);
+                                setMovementFilters({
+                                    movementDateFrom: start,
+                                    movementDateTo: start,
+                                    movementPage: "1",
+                                });
+                                onLoadHistory(1, currentPageSize).catch(
+                                    () => undefined
+                                );
+                            }}
+                            size="sm"
+                            variant="ghost"
+                        >
+                            Today
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                const today = new Date();
+                                const from = new Date(
+                                    today.getTime() - 6 * 24 * 60 * 60 * 1000
+                                );
+                                setMovementFilters({
+                                    movementDateFrom: from
+                                        .toISOString()
+                                        .slice(0, 10),
+                                    movementDateTo: today
+                                        .toISOString()
+                                        .slice(0, 10),
+                                    movementPage: "1",
+                                });
+                                onLoadHistory(1, currentPageSize).catch(
+                                    () => undefined
+                                );
+                            }}
+                            size="sm"
+                            variant="ghost"
+                        >
+                            Last 7 days
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                const today = new Date();
+                                const from = new Date(
+                                    today.getTime() - 29 * 24 * 60 * 60 * 1000
+                                );
+                                setMovementFilters({
+                                    movementDateFrom: from
+                                        .toISOString()
+                                        .slice(0, 10),
+                                    movementDateTo: today
+                                        .toISOString()
+                                        .slice(0, 10),
+                                    movementPage: "1",
+                                });
+                                onLoadHistory(1, currentPageSize).catch(
+                                    () => undefined
+                                );
+                            }}
+                            size="sm"
+                            variant="ghost"
+                        >
+                            Last 30 days
+                        </Button>
+                    </div>
                     <div className="flex items-center gap-2">
                         <Button
                             disabled={movementIsLoading || currentPage <= 1}
@@ -1520,6 +1661,8 @@ const useStockPageContentView = ({
             />
 
             <MovementHistoryCard
+                movementDateFrom={state.movementDateFrom}
+                movementDateTo={state.movementDateTo}
                 movementHistory={state.movementHistory}
                 movementIsLoading={movementIsLoading}
                 movementPage={state.movementPage}
@@ -1716,6 +1859,8 @@ function StockPage() {
         entryWarehouseId: warehouses[0]?.id ?? "",
         expiryAlerts: [],
         movementHistory: null,
+        movementDateFrom: searchParams.movementDateFrom ?? "",
+        movementDateTo: searchParams.movementDateTo ?? "",
         movementIsLoading: false,
         movementPage: searchParams.movementPage ?? "1",
         movementPageSize: searchParams.movementPageSize ?? "25",
@@ -1746,6 +1891,14 @@ function StockPage() {
                 movementPage:
                     nextState.movementPage.length > 0
                         ? nextState.movementPage
+                        : undefined,
+                movementDateFrom:
+                    nextState.movementDateFrom.length > 0
+                        ? nextState.movementDateFrom
+                        : undefined,
+                movementDateTo:
+                    nextState.movementDateTo.length > 0
+                        ? nextState.movementDateTo
                         : undefined,
                 movementProductId:
                     nextState.movementProductId.length > 0
@@ -1800,7 +1953,10 @@ function StockPage() {
         patch: Partial<
             Pick<
                 StockPageState,
+                | "movementDateFrom"
+                | "movementDateTo"
                 | "movementPage"
+                | "movementPageSize"
                 | "movementProductId"
                 | "movementType"
                 | "movementWarehouseId"
@@ -1890,56 +2046,45 @@ function StockPage() {
         pageSizeOverride?: number
     ) => {
         setState({ movementIsLoading: true });
-        const movementType =
-            state.movementType.length > 0
-                ? (state.movementType as
-                      | "ADJUSTMENT"
-                      | "ASSEMBLY"
-                      | "DISASSEMBLY"
-                      | "PURCHASE_RECEIPT"
-                      | "RETURN"
-                      | "SALES_SHIPMENT"
-                      | "TRANSFER")
-                : undefined;
-        const page = pageOverride ?? (Number(state.movementPage) || 1);
-        const pageSize =
-            pageSizeOverride ?? (Number(state.movementPageSize) || 25);
-        const productId =
-            state.movementProductId.length > 0
-                ? state.movementProductId
-                : undefined;
-        const warehouseId =
-            state.movementWarehouseId.length > 0
-                ? state.movementWarehouseId
-                : undefined;
+
+        const query = buildMovementQuery(state, pageOverride, pageSizeOverride);
+
+        let movementHistory: MovementHistoryData | null = null;
 
         try {
-            const movementHistory = await getMovementHistory({
+            movementHistory = await getMovementHistory({
                 data: {
-                    movementType,
-                    page,
-                    pageSize,
-                    productId,
-                    warehouseId,
+                    dateFrom: query.dateFrom,
+                    dateTo: query.dateTo,
+                    movementType: query.movementType,
+                    page: query.page,
+                    pageSize: query.pageSize,
+                    productId: query.productId,
+                    warehouseId: query.warehouseId,
                 },
             });
-            setState({ movementHistory, movementIsLoading: false });
             syncSearchParams({
                 ...state,
-                movementPage: String(page),
-                movementPageSize: String(pageSize),
-                movementProductId: productId ?? "",
-                movementType: movementType ?? "",
-                movementWarehouseId: warehouseId ?? "",
+                movementDateFrom: state.movementDateFrom,
+                movementDateTo: state.movementDateTo,
+                movementPage: String(query.page),
+                movementPageSize: String(query.pageSize),
+                movementProductId: query.productId ?? "",
+                movementType: query.movementType ?? "",
+                movementWarehouseId: query.warehouseId ?? "",
             });
             toast.success("Movement history loaded.");
         } catch (error) {
-            setState({ movementHistory: null, movementIsLoading: false });
             toast.error(
                 error instanceof Error
                     ? error.message
                     : "Failed to load movement history."
             );
+        } finally {
+            setState({
+                movementHistory,
+                movementIsLoading: false,
+            });
         }
     };
 

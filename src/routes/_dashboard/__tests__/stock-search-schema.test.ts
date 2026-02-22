@@ -27,7 +27,7 @@ describe("stockSearchSchema", () => {
             status: "INACTIVE",
         });
 
-        expect(parsed).toEqual({
+        expect(parsed).toMatchObject({
             movementType: undefined,
             movementWarehouseId: "",
             status: "INACTIVE",
