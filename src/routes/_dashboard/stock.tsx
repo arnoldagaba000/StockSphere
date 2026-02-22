@@ -993,7 +993,7 @@ interface MovementHistoryCardProps {
     movementProductId: string;
     movementType: string;
     movementWarehouseId: string;
-    onLoadHistory: () => Promise<void>;
+    onLoadHistory: (pageOverride?: number) => Promise<void>;
     products: Product[];
     setMovementFilters: (
         patch: Partial<
@@ -1021,6 +1021,15 @@ const MovementHistoryCard = ({
     setMovementFilters,
     warehouses,
 }: MovementHistoryCardProps) => {
+    const currentPage = Number(movementPage) || 1;
+    const totalPages =
+        movementHistory?.total && movementHistory.pageSize
+            ? Math.max(
+                  1,
+                  Math.ceil(movementHistory.total / movementHistory.pageSize)
+              )
+            : 1;
+
     let movementRows: JSX.Element[];
 
     if (movementIsLoading) {
@@ -1160,7 +1169,7 @@ const MovementHistoryCard = ({
                         value={movementPage}
                     />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <Button
                         onClick={() => {
                             onLoadHistory().catch(() => undefined);
@@ -1170,6 +1179,44 @@ const MovementHistoryCard = ({
                     >
                         Load Movement History
                     </Button>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            disabled={movementIsLoading || currentPage <= 1}
+                            onClick={() => {
+                                const nextPage = Math.max(1, currentPage - 1);
+                                setMovementFilters({
+                                    movementPage: String(nextPage),
+                                });
+                                onLoadHistory(nextPage).catch(() => undefined);
+                            }}
+                            size="icon"
+                            variant="outline"
+                        >
+                            {"<"}
+                        </Button>
+                        <div className="text-muted-foreground text-sm">
+                            Page {currentPage} of {totalPages}
+                            {movementHistory
+                                ? ` · ${movementHistory.total} movements`
+                                : ""}
+                        </div>
+                        <Button
+                            disabled={
+                                movementIsLoading || currentPage >= totalPages
+                            }
+                            onClick={() => {
+                                const nextPage = currentPage + 1;
+                                setMovementFilters({
+                                    movementPage: String(nextPage),
+                                });
+                                onLoadHistory(nextPage).catch(() => undefined);
+                            }}
+                            size="icon"
+                            variant="outline"
+                        >
+                            {">"}
+                        </Button>
+                    </div>
                 </div>
                 <div className="overflow-x-auto rounded-md border">
                     <Table className="min-w-[900px]">
@@ -1800,7 +1847,7 @@ function StockPage() {
         }
     };
 
-    const loadMovementHistory = async () => {
+    const loadMovementHistory = async (pageOverride?: number) => {
         setState({ movementIsLoading: true });
         const movementType =
             state.movementType.length > 0
@@ -1813,7 +1860,7 @@ function StockPage() {
                       | "SALES_SHIPMENT"
                       | "TRANSFER")
                 : undefined;
-        const page = Number(state.movementPage) || 1;
+        const page = pageOverride ?? (Number(state.movementPage) || 1);
         const productId =
             state.movementProductId.length > 0
                 ? state.movementProductId
