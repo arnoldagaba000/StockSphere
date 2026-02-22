@@ -23,6 +23,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table,
     TableBody,
@@ -96,7 +97,7 @@ type ProductsPageAction =
     | Partial<ProductsPageState>
     | ((state: ProductsPageState) => Partial<ProductsPageState>);
 
-const productsSearchSchema = z.object({
+export const productsSearchSchema = z.object({
     categoryId: z.string().optional().catch(undefined),
     includeDescendants: z.coerce.boolean().optional().catch(false),
     maxPrice: z.coerce.number().nonnegative().optional().catch(undefined),
@@ -647,6 +648,7 @@ interface ProductTableProps {
     categoryNameById: Map<string, string>;
     currencyCode: string;
     deletingProductId: string | null;
+    isFiltering: boolean;
     onSoftDelete: (productId: string) => void;
     selectedProductIds: string[];
     setState: (action: ProductsPageAction) => void;
@@ -658,6 +660,7 @@ const ProductTable = ({
     categoryNameById,
     currencyCode,
     deletingProductId,
+    isFiltering,
     onSoftDelete,
     selectedProductIds,
     setState,
@@ -691,13 +694,41 @@ const ProductTable = ({
                     </TableRow>
                 </TableHeader>
                 <TableBody>
-                    {visibleProducts.length === 0 ? (
+                    {isFiltering &&
+                        ["one", "two", "three", "four", "five"].map((key) => (
+                            <TableRow key={`skeleton-${key}`}>
+                                <TableCell>
+                                    <Skeleton className="h-4 w-4 rounded" />
+                                </TableCell>
+                                <TableCell>
+                                    <Skeleton className="h-4 w-40" />
+                                </TableCell>
+                                <TableCell>
+                                    <Skeleton className="h-4 w-24" />
+                                </TableCell>
+                                <TableCell>
+                                    <Skeleton className="h-4 w-28" />
+                                </TableCell>
+                                <TableCell>
+                                    <Skeleton className="h-4 w-20" />
+                                </TableCell>
+                                <TableCell>
+                                    <Skeleton className="h-4 w-16" />
+                                </TableCell>
+                                <TableCell className="text-right">
+                                    <Skeleton className="h-8 w-24 rounded-full" />
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    {!isFiltering && visibleProducts.length === 0 && (
                         <TableRow>
                             <TableCell className="text-center" colSpan={7}>
                                 No products found.
                             </TableCell>
                         </TableRow>
-                    ) : (
+                    )}
+                    {!isFiltering &&
+                        visibleProducts.length > 0 &&
                         visibleProducts.map((product) => (
                             <TableRow key={product.id}>
                                 <TableCell>
@@ -733,7 +764,7 @@ const ProductTable = ({
                                 </TableCell>
                                 <TableCell>
                                     {formatCurrencyFromMinorUnits(
-                                        product.sellingPrice,
+                                        product.sellingUnitPrice ?? 0,
                                         currencyCode
                                     )}
                                 </TableCell>
@@ -786,8 +817,7 @@ const ProductTable = ({
                                     </div>
                                 </TableCell>
                             </TableRow>
-                        ))
-                    )}
+                        ))}
                 </TableBody>
             </Table>
         </div>
@@ -1077,6 +1107,7 @@ function ProductsPage() {
                 categoryNameById={categoryNameById}
                 currencyCode={currencyCode}
                 deletingProductId={deletingProductId}
+                isFiltering={isFiltering}
                 onSoftDelete={(productId) => {
                     handleSoftDelete(productId).catch(() => undefined);
                 }}

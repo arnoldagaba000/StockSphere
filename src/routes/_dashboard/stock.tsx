@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import { z } from "zod";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import {
     RouteErrorFallback,
@@ -81,6 +82,12 @@ const MOVEMENT_TYPE_OPTIONS = [
     "DISASSEMBLY",
 ] as const;
 
+const stockSearchSchema = z.object({
+    search: z.string().optional().catch(""),
+    status: z.string().optional().catch("all"),
+    warehouse: z.string().optional().catch(""),
+});
+
 interface StockPageState {
     adjustmentApprovalNotes: string;
     adjustmentId: string;
@@ -157,6 +164,7 @@ export const Route = createFileRoute("/_dashboard/stock")({
         return { financialSettings, ...stockBootstrap };
     },
     pendingComponent: StockRoutePending,
+    validateSearch: stockSearchSchema,
 });
 
 function StockRoutePending() {
@@ -1157,6 +1165,16 @@ interface StockPageContentProps {
     selectedEntryProduct: Product | undefined;
     selectedItem: StockItem | undefined;
     setState: (action: StockPageAction) => void;
+    setStockFilters: (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "stockSearchQuery"
+                | "stockStatusFilter"
+                | "stockWarehouseFilter"
+            >
+        >
+    ) => void;
     state: StockPageState;
     warehouses: Warehouse[];
 }
@@ -1177,6 +1195,7 @@ const useStockPageContentView = ({
     selectedEntryProduct,
     selectedItem,
     setState,
+    setStockFilters,
     state,
     warehouses,
 }: StockPageContentProps) => {
@@ -1389,14 +1408,14 @@ const useStockPageContentView = ({
                         <FieldInput
                             label="Search Stock"
                             onChange={(value) =>
-                                setState({ stockSearchQuery: value })
+                                setStockFilters({ stockSearchQuery: value })
                             }
                             value={state.stockSearchQuery}
                         />
                         <FieldSelect
                             label="Warehouse"
                             onValueChange={(value) =>
-                                setState({
+                                setStockFilters({
                                     stockWarehouseFilter:
                                         value === "all" ? "" : value,
                                 })
@@ -1413,7 +1432,7 @@ const useStockPageContentView = ({
                         <FieldSelect
                             label="Status"
                             onValueChange={(value) =>
-                                setState({
+                                setStockFilters({
                                     stockStatusFilter:
                                         value === "all" ? "all" : value,
                                 })
@@ -1532,6 +1551,8 @@ const useStockPageContentView = ({
 };
 
 function StockPage() {
+    const navigate = Route.useNavigate();
+    const searchParams = Route.useSearch();
     const {
         financialSettings,
         initialStock,
@@ -1567,9 +1588,9 @@ function StockPage() {
         selectedStockItemId: "",
         serialHistoryData: null,
         stockData: initialStock,
-        stockStatusFilter: "all",
-        stockSearchQuery: "",
-        stockWarehouseFilter: "",
+        stockStatusFilter: searchParams.status ?? "all",
+        stockSearchQuery: searchParams.search ?? "",
+        stockWarehouseFilter: searchParams.warehouse ?? "",
         traceabilityData: null,
         trackingBatch: "",
         trackingSerial: "",
@@ -1577,6 +1598,48 @@ function StockPage() {
         transferWarehouseId: warehouses[0]?.id ?? "",
         valuation: initialValuation,
     });
+
+    const syncStockSearch = (
+        filters: Pick<
+            StockPageState,
+            "stockSearchQuery" | "stockStatusFilter" | "stockWarehouseFilter"
+        >
+    ): void => {
+        navigate({
+            replace: true,
+            search: {
+                search: filters.stockSearchQuery.trim() || undefined,
+                status:
+                    filters.stockStatusFilter === "all"
+                        ? undefined
+                        : filters.stockStatusFilter,
+                warehouse:
+                    filters.stockWarehouseFilter.length > 0
+                        ? filters.stockWarehouseFilter
+                        : undefined,
+            },
+        }).catch(() => undefined);
+    };
+
+    const setStockFilters = (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "stockSearchQuery"
+                | "stockStatusFilter"
+                | "stockWarehouseFilter"
+            >
+        >
+    ): void => {
+        setState((current) => {
+            const next = {
+                ...current,
+                ...patch,
+            };
+            syncStockSearch(next);
+            return next;
+        });
+    };
 
     const loadExpiryAlerts = async () => {
         const warehouseId =
@@ -1740,6 +1803,7 @@ function StockPage() {
             selectedEntryProduct={selectedEntryProduct}
             selectedItem={selectedItem}
             setState={setState}
+            setStockFilters={setStockFilters}
             state={state}
             warehouses={warehouses}
         />
