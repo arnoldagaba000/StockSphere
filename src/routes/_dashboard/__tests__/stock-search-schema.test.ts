@@ -11,10 +11,12 @@ describe("stockSearchSchema", () => {
     test("coerces movement page to string and ignores invalid numbers", () => {
         const parsed = stockSearchSchema.parse({
             movementPage: 3,
+            movementPageSize: 50,
             search: "bin",
         });
 
         expect(parsed.movementPage).toBe("1");
+        expect(parsed.movementPageSize).toBe("25");
         expect(parsed.search).toBe("bin");
     });
 

@@ -85,6 +85,7 @@ const MOVEMENT_TYPE_OPTIONS = [
 
 export const stockSearchSchema = z.object({
     movementPage: z.string().optional().catch("1"),
+    movementPageSize: z.string().optional().catch("25"),
     movementProductId: z.string().optional().catch(""),
     movementType: z.string().optional().catch(""),
     movementWarehouseId: z.string().optional().catch(""),
@@ -111,6 +112,7 @@ interface StockPageState {
     movementHistory: MovementHistoryData | null;
     movementIsLoading: boolean;
     movementPage: string;
+    movementPageSize: string;
     movementProductId: string;
     movementType: string;
     movementWarehouseId: string;
@@ -990,16 +992,21 @@ interface MovementHistoryCardProps {
     movementHistory: MovementHistoryData | null;
     movementIsLoading: boolean;
     movementPage: string;
+    movementPageSize: string;
     movementProductId: string;
     movementType: string;
     movementWarehouseId: string;
-    onLoadHistory: (pageOverride?: number) => Promise<void>;
+    onLoadHistory: (
+        pageOverride?: number,
+        pageSizeOverride?: number
+    ) => Promise<void>;
     products: Product[];
     setMovementFilters: (
         patch: Partial<
             Pick<
                 StockPageState,
                 | "movementPage"
+                | "movementPageSize"
                 | "movementProductId"
                 | "movementType"
                 | "movementWarehouseId"
@@ -1013,6 +1020,7 @@ const MovementHistoryCard = ({
     movementHistory,
     movementIsLoading,
     movementPage,
+    movementPageSize,
     movementProductId,
     movementType,
     movementWarehouseId,
@@ -1022,6 +1030,7 @@ const MovementHistoryCard = ({
     warehouses,
 }: MovementHistoryCardProps) => {
     const currentPage = Number(movementPage) || 1;
+    const currentPageSize = Number(movementPageSize) || 25;
     const totalPages =
         movementHistory?.total && movementHistory.pageSize
             ? Math.max(
@@ -1168,6 +1177,25 @@ const MovementHistoryCard = ({
                         type="number"
                         value={movementPage}
                     />
+                    <FieldSelect
+                        label="Page Size"
+                        onValueChange={(value) => {
+                            setMovementFilters({
+                                movementPage: "1",
+                                movementPageSize: value,
+                            });
+                            onLoadHistory(1, Number(value)).catch(
+                                () => undefined
+                            );
+                        }}
+                        options={[
+                            { label: "10", value: "10" },
+                            { label: "25", value: "25" },
+                            { label: "50", value: "50" },
+                            { label: "100", value: "100" },
+                        ]}
+                        value={movementPageSize || "25"}
+                    />
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <Button
@@ -1187,7 +1215,9 @@ const MovementHistoryCard = ({
                                 setMovementFilters({
                                     movementPage: String(nextPage),
                                 });
-                                onLoadHistory(nextPage).catch(() => undefined);
+                                onLoadHistory(nextPage, currentPageSize).catch(
+                                    () => undefined
+                                );
                             }}
                             size="icon"
                             variant="outline"
@@ -1209,7 +1239,9 @@ const MovementHistoryCard = ({
                                 setMovementFilters({
                                     movementPage: String(nextPage),
                                 });
-                                onLoadHistory(nextPage).catch(() => undefined);
+                                onLoadHistory(nextPage, currentPageSize).catch(
+                                    () => undefined
+                                );
                             }}
                             size="icon"
                             variant="outline"
@@ -1491,6 +1523,7 @@ const useStockPageContentView = ({
                 movementHistory={state.movementHistory}
                 movementIsLoading={movementIsLoading}
                 movementPage={state.movementPage}
+                movementPageSize={state.movementPageSize}
                 movementProductId={state.movementProductId}
                 movementType={state.movementType}
                 movementWarehouseId={state.movementWarehouseId}
@@ -1685,6 +1718,7 @@ function StockPage() {
         movementHistory: null,
         movementIsLoading: false,
         movementPage: searchParams.movementPage ?? "1",
+        movementPageSize: searchParams.movementPageSize ?? "25",
         movementProductId: searchParams.movementProductId ?? "",
         movementType: searchParams.movementType ?? "",
         movementWarehouseId: searchParams.movementWarehouseId ?? "",
@@ -1720,6 +1754,10 @@ function StockPage() {
                 movementType:
                     nextState.movementType.length > 0
                         ? nextState.movementType
+                        : undefined,
+                movementPageSize:
+                    nextState.movementPageSize.length > 0
+                        ? nextState.movementPageSize
                         : undefined,
                 movementWarehouseId:
                     nextState.movementWarehouseId.length > 0
@@ -1847,7 +1885,10 @@ function StockPage() {
         }
     };
 
-    const loadMovementHistory = async (pageOverride?: number) => {
+    const loadMovementHistory = async (
+        pageOverride?: number,
+        pageSizeOverride?: number
+    ) => {
         setState({ movementIsLoading: true });
         const movementType =
             state.movementType.length > 0
@@ -1861,6 +1902,8 @@ function StockPage() {
                       | "TRANSFER")
                 : undefined;
         const page = pageOverride ?? (Number(state.movementPage) || 1);
+        const pageSize =
+            pageSizeOverride ?? (Number(state.movementPageSize) || 25);
         const productId =
             state.movementProductId.length > 0
                 ? state.movementProductId
@@ -1875,7 +1918,7 @@ function StockPage() {
                 data: {
                     movementType,
                     page,
-                    pageSize: 25,
+                    pageSize,
                     productId,
                     warehouseId,
                 },
@@ -1884,6 +1927,7 @@ function StockPage() {
             syncSearchParams({
                 ...state,
                 movementPage: String(page),
+                movementPageSize: String(pageSize),
                 movementProductId: productId ?? "",
                 movementType: movementType ?? "",
                 movementWarehouseId: warehouseId ?? "",
