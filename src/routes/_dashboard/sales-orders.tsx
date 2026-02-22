@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import { z } from "zod";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -90,13 +95,14 @@ const createShipmentLine = (
     stockItemId,
 });
 
-const emptyFilters: SalesListFilters = {
-    customerId: "",
-    dateFrom: "",
-    dateTo: "",
-    search: "",
-    status: "",
-};
+const salesOrdersSearchSchema = z.object({
+    customerId: z.string().optional().catch(""),
+    dateFrom: z.string().optional().catch(""),
+    dateTo: z.string().optional().catch(""),
+    page: z.number().int().min(1).optional().catch(1),
+    search: z.string().optional().catch(""),
+    status: z.string().optional().catch(""),
+});
 
 interface SalesOrdersPageState {
     cancelReason: string;
@@ -170,7 +176,16 @@ const buildSalesOrdersQuery = (
 
 export const Route = createFileRoute("/_dashboard/sales-orders")({
     component: SalesOrdersPage,
-    loader: async () => {
+    errorComponent: SalesOrdersRouteError,
+    loader: async ({ search }) => {
+        const initialFilters: SalesListFilters = {
+            customerId: search.customerId ?? "",
+            dateFrom: search.dateFrom ?? "",
+            dateTo: search.dateTo ?? "",
+            search: search.search ?? "",
+            status: search.status ?? "",
+        };
+        const initialPage = search.page ?? 1;
         const [
             customers,
             financialSettings,
@@ -180,23 +195,59 @@ export const Route = createFileRoute("/_dashboard/sales-orders")({
             getCustomers({ data: { isActive: true } }),
             getFinancialSettings(),
             getProducts({ data: { isActive: true, pageSize: 200 } }),
-            getSalesOrders(buildSalesOrdersQuery(emptyFilters, 1)),
+            getSalesOrders(buildSalesOrdersQuery(initialFilters, initialPage)),
         ]);
 
         return {
             customers,
             financialSettings,
+            initialFilters,
+            initialPage,
             initialSalesOrders,
             products: productsResponse.products,
         };
     },
+    pendingComponent: SalesOrdersRoutePending,
+    validateSearch: salesOrdersSearchSchema,
 });
+
+function SalesOrdersRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading sales orders, customers, and fulfillment data."
+            title="Loading Sales Orders"
+        />
+    );
+}
+
+function SalesOrdersRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Sales orders failed to load"
+            to="/"
+        />
+    );
+}
 
 const useSalesOrdersPageController = (
     loaderData: ReturnType<typeof Route.useLoaderData>
 ) => {
-    const { customers, financialSettings, initialSalesOrders, products } =
-        loaderData;
+    const navigate = Route.useNavigate();
+    const {
+        customers,
+        financialSettings,
+        initialFilters,
+        initialSalesOrders,
+        products,
+    } = loaderData;
     const initialCustomerId = customers[0]?.id ?? "";
     const initialShippingAddress = getCustomerDefaultShippingAddress(
         customers,
@@ -224,7 +275,7 @@ const useSalesOrdersPageController = (
                 financialSettings.defaultTaxRatePercent
             ),
         ],
-        listFilters: emptyFilters,
+        listFilters: initialFilters,
         requiredDate: "",
         salesOrdersResponse: initialSalesOrders,
         selectedOrderDetail: null,
@@ -265,6 +316,20 @@ const useSalesOrdersPageController = (
         shippingCost,
         taxAmount,
     } = state;
+
+    const syncSearchState = (filters: SalesListFilters, page: number): void => {
+        navigate({
+            replace: true,
+            search: {
+                customerId: filters.customerId || undefined,
+                dateFrom: filters.dateFrom || undefined,
+                dateTo: filters.dateTo || undefined,
+                page,
+                search: filters.search || undefined,
+                status: filters.status || undefined,
+            },
+        }).catch(() => undefined);
+    };
 
     const setCustomerId = (value: string): void => {
         patchState((currentState) => {
@@ -319,12 +384,16 @@ const useSalesOrdersPageController = (
             | SalesListFilters
             | ((current: SalesListFilters) => SalesListFilters)
     ): void => {
-        patchState((currentState) => ({
-            listFilters:
+        patchState((currentState) => {
+            const nextFilters =
                 typeof next === "function"
                     ? next(currentState.listFilters)
-                    : next,
-        }));
+                    : next;
+            syncSearchState(nextFilters, 1);
+            return {
+                listFilters: nextFilters,
+            };
+        });
     };
     const setSalesOrdersResponse = (value: SalesOrdersListResponse): void => {
         patchState({ salesOrdersResponse: value });
@@ -491,6 +560,7 @@ const useSalesOrdersPageController = (
                 buildSalesOrdersQuery(listFilters, page)
             );
             setSalesOrdersResponse(response);
+            syncSearchState(listFilters, page);
             setIsLoadingOrders(false);
         } catch (error) {
             setIsLoadingOrders(false);
@@ -1973,6 +2043,14 @@ function renderSalesOrdersPage(
 
 function SalesOrdersPage() {
     const loaderData = Route.useLoaderData();
+    const search = Route.useSearch();
     const controller = useSalesOrdersPageController(loaderData);
+    const currentPage = search.page ?? loaderData.initialPage ?? 1;
+
+    // Keep initial URL page aligned in state-driven refreshes.
+    if (controller.salesOrdersResponse.pagination.page !== currentPage) {
+        controller.loadSalesOrders(currentPage).catch(() => undefined);
+    }
+
     return renderSalesOrdersPage(controller);
 }

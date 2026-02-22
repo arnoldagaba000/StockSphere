@@ -3,6 +3,10 @@ import { ArrowRight, FileText, PackageCheck, ReceiptText } from "lucide-react";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -790,6 +794,7 @@ const PurchaseOrderDetailSection = ({
 
 export const Route = createFileRoute("/_dashboard/purchase-orders")({
     component: PurchaseOrdersPage,
+    errorComponent: PurchaseOrdersRouteError,
     loader: async () => {
         const [
             financialSettings,
@@ -813,7 +818,34 @@ export const Route = createFileRoute("/_dashboard/purchase-orders")({
             suppliers,
         };
     },
+    pendingComponent: PurchaseOrdersRoutePending,
 });
+
+function PurchaseOrdersRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading purchase orders, suppliers, products, and purchasing insights."
+            title="Loading Purchase Orders"
+        />
+    );
+}
+
+function PurchaseOrdersRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Purchase orders failed to load"
+            to="/"
+        />
+    );
+}
 
 function PurchaseOrdersPage() {
     const router = useRouter();

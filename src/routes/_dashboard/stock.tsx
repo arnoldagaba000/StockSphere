@@ -2,6 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -144,6 +148,7 @@ const loadStockBootstrapWithRetry = async (): Promise<StockBootstrapData> => {
 
 export const Route = createFileRoute("/_dashboard/stock")({
     component: StockPage,
+    errorComponent: StockRouteError,
     loader: async () => {
         const [financialSettings, stockBootstrap] = await Promise.all([
             getFinancialSettings(),
@@ -151,7 +156,34 @@ export const Route = createFileRoute("/_dashboard/stock")({
         ]);
         return { financialSettings, ...stockBootstrap };
     },
+    pendingComponent: StockRoutePending,
 });
+
+function StockRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading inventory snapshots, movement history, and stock controls."
+            title="Loading Stock Workspace"
+        />
+    );
+}
+
+function StockRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Stock page failed to load"
+            to="/"
+        />
+    );
+}
 
 interface StockEntryCardProps {
     currencyCode: string;
