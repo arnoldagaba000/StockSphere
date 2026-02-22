@@ -19,6 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table,
     TableBody,
@@ -82,7 +83,11 @@ const MOVEMENT_TYPE_OPTIONS = [
     "DISASSEMBLY",
 ] as const;
 
-const stockSearchSchema = z.object({
+export const stockSearchSchema = z.object({
+    movementPage: z.string().optional().catch("1"),
+    movementProductId: z.string().optional().catch(""),
+    movementType: z.string().optional().catch(""),
+    movementWarehouseId: z.string().optional().catch(""),
     search: z.string().optional().catch(""),
     status: z.string().optional().catch("all"),
     warehouse: z.string().optional().catch(""),
@@ -104,6 +109,7 @@ interface StockPageState {
     entryWarehouseId: string;
     expiryAlerts: ExpiryAlertsData;
     movementHistory: MovementHistoryData | null;
+    movementIsLoading: boolean;
     movementPage: string;
     movementProductId: string;
     movementType: string;
@@ -982,27 +988,109 @@ const AdjustmentReviewCard = ({
 
 interface MovementHistoryCardProps {
     movementHistory: MovementHistoryData | null;
+    movementIsLoading: boolean;
     movementPage: string;
     movementProductId: string;
     movementType: string;
     movementWarehouseId: string;
     onLoadHistory: () => Promise<void>;
     products: Product[];
-    setState: (action: StockPageAction) => void;
+    setMovementFilters: (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "movementPage"
+                | "movementProductId"
+                | "movementType"
+                | "movementWarehouseId"
+            >
+        >
+    ) => void;
     warehouses: Warehouse[];
 }
 
 const MovementHistoryCard = ({
     movementHistory,
+    movementIsLoading,
     movementPage,
     movementProductId,
     movementType,
     movementWarehouseId,
     onLoadHistory,
     products,
-    setState,
+    setMovementFilters,
     warehouses,
 }: MovementHistoryCardProps) => {
+    let movementRows: JSX.Element[];
+
+    if (movementIsLoading) {
+        movementRows = ["one", "two", "three", "four"].map((key) => (
+            <TableRow key={`movement-skeleton-${key}`}>
+                <TableCell>
+                    <Skeleton className="h-4 w-48" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-40" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-16" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-16" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-28" />
+                </TableCell>
+            </TableRow>
+        ));
+    } else {
+        const movements = movementHistory?.movements ?? [];
+
+        movementRows =
+            movements.length === 0
+                ? [
+                      <TableRow key="movement-empty">
+                          <TableCell colSpan={7}>
+                              No movements loaded.
+                          </TableCell>
+                      </TableRow>,
+                  ]
+                : movements.map((movement: MovementHistoryItem) => (
+                      <TableRow key={movement.id}>
+                          <TableCell>
+                              {new Date(movement.createdAt).toLocaleString()}
+                          </TableCell>
+                          <TableCell>{movement.type}</TableCell>
+                          <TableCell>
+                              {movement.product
+                                  ? `${movement.product.sku} - ${movement.product.name}`
+                                  : movement.productId}
+                          </TableCell>
+                          <TableCell>
+                              {formatQuantity(movement.quantity)}
+                          </TableCell>
+                          <TableCell>
+                              {movement.fromWarehouse?.code ?? "\u2014"}
+                          </TableCell>
+                          <TableCell>
+                              {movement.toWarehouse?.code ?? "\u2014"}
+                          </TableCell>
+                          <TableCell>
+                              {movement.inventoryTransaction
+                                  ?.transactionNumber ??
+                                  movement.referenceNumber ??
+                                  "\u2014"}
+                          </TableCell>
+                      </TableRow>
+                  ));
+    }
+
     return (
         <Card className={CARD_SHELL_CLASS}>
             <CardHeader className="space-y-1">
@@ -1017,7 +1105,7 @@ const MovementHistoryCard = ({
                     <FieldSelect
                         label="Warehouse"
                         onValueChange={(value) =>
-                            setState({
+                            setMovementFilters({
                                 movementWarehouseId:
                                     value === "all" ? "" : value,
                             })
@@ -1034,7 +1122,7 @@ const MovementHistoryCard = ({
                     <FieldSelect
                         label="Product"
                         onValueChange={(value) =>
-                            setState({
+                            setMovementFilters({
                                 movementProductId: value === "all" ? "" : value,
                             })
                         }
@@ -1050,7 +1138,7 @@ const MovementHistoryCard = ({
                     <FieldSelect
                         label="Movement Type"
                         onValueChange={(value) =>
-                            setState({
+                            setMovementFilters({
                                 movementType: value === "all" ? "" : value,
                             })
                         }
@@ -1065,7 +1153,9 @@ const MovementHistoryCard = ({
                     />
                     <FieldInput
                         label="Page"
-                        onChange={(value) => setState({ movementPage: value })}
+                        onChange={(value) =>
+                            setMovementFilters({ movementPage: value })
+                        }
                         type="number"
                         value={movementPage}
                     />
@@ -1094,54 +1184,7 @@ const MovementHistoryCard = ({
                                 <TableHead>Reference</TableHead>
                             </TableRow>
                         </TableHeader>
-                        <TableBody>
-                            {(movementHistory?.movements ?? []).length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7}>
-                                        No movements loaded.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                movementHistory?.movements.map(
-                                    (movement: MovementHistoryItem) => (
-                                        <TableRow key={movement.id}>
-                                            <TableCell>
-                                                {new Date(
-                                                    movement.createdAt
-                                                ).toLocaleString()}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.type}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.product
-                                                    ? `${movement.product.sku} - ${movement.product.name}`
-                                                    : movement.productId}
-                                            </TableCell>
-                                            <TableCell>
-                                                {formatQuantity(
-                                                    movement.quantity
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.fromWarehouse?.code ??
-                                                    "\u2014"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.toWarehouse?.code ??
-                                                    "\u2014"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.inventoryTransaction
-                                                    ?.transactionNumber ??
-                                                    movement.referenceNumber ??
-                                                    "\u2014"}
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                )
-                            )}
-                        </TableBody>
+                        <TableBody>{movementRows}</TableBody>
                     </Table>
                 </div>
             </CardContent>
@@ -1156,6 +1199,7 @@ interface StockPageContentProps {
     loadExpiryAlerts: () => Promise<void>;
     loadMovementHistory: () => Promise<void>;
     loadSerialHistory: () => Promise<void>;
+    movementIsLoading: boolean;
     onRefresh: () => Promise<void>;
     products: Product[];
     runAction: (
@@ -1164,6 +1208,17 @@ interface StockPageContentProps {
     ) => Promise<void>;
     selectedEntryProduct: Product | undefined;
     selectedItem: StockItem | undefined;
+    setMovementFilters: (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "movementPage"
+                | "movementProductId"
+                | "movementType"
+                | "movementWarehouseId"
+            >
+        >
+    ) => void;
     setState: (action: StockPageAction) => void;
     setStockFilters: (
         patch: Partial<
@@ -1188,12 +1243,14 @@ const useStockPageContentView = ({
     loadBatchTraceability,
     loadExpiryAlerts,
     loadMovementHistory,
-    onRefresh,
     loadSerialHistory,
+    movementIsLoading,
+    onRefresh,
     products,
     runAction,
     selectedEntryProduct,
     selectedItem,
+    setMovementFilters,
     setState,
     setStockFilters,
     state,
@@ -1385,13 +1442,14 @@ const useStockPageContentView = ({
 
             <MovementHistoryCard
                 movementHistory={state.movementHistory}
+                movementIsLoading={movementIsLoading}
                 movementPage={state.movementPage}
                 movementProductId={state.movementProductId}
                 movementType={state.movementType}
                 movementWarehouseId={state.movementWarehouseId}
                 onLoadHistory={loadMovementHistory}
                 products={products}
-                setState={setState}
+                setMovementFilters={setMovementFilters}
                 warehouses={warehouses}
             />
 
@@ -1578,10 +1636,11 @@ function StockPage() {
         entryWarehouseId: warehouses[0]?.id ?? "",
         expiryAlerts: [],
         movementHistory: null,
-        movementPage: "1",
-        movementProductId: "",
-        movementType: "",
-        movementWarehouseId: "",
+        movementIsLoading: false,
+        movementPage: searchParams.movementPage ?? "1",
+        movementProductId: searchParams.movementProductId ?? "",
+        movementType: searchParams.movementType ?? "",
+        movementWarehouseId: searchParams.movementWarehouseId ?? "",
         releaseQuantity: "",
         reserveQuantity: "",
         quarantineReason: "",
@@ -1599,23 +1658,34 @@ function StockPage() {
         valuation: initialValuation,
     });
 
-    const syncStockSearch = (
-        filters: Pick<
-            StockPageState,
-            "stockSearchQuery" | "stockStatusFilter" | "stockWarehouseFilter"
-        >
-    ): void => {
+    const syncSearchParams = (nextState: StockPageState): void => {
         navigate({
             replace: true,
             search: {
-                search: filters.stockSearchQuery.trim() || undefined,
+                movementPage:
+                    nextState.movementPage.length > 0
+                        ? nextState.movementPage
+                        : undefined,
+                movementProductId:
+                    nextState.movementProductId.length > 0
+                        ? nextState.movementProductId
+                        : undefined,
+                movementType:
+                    nextState.movementType.length > 0
+                        ? nextState.movementType
+                        : undefined,
+                movementWarehouseId:
+                    nextState.movementWarehouseId.length > 0
+                        ? nextState.movementWarehouseId
+                        : undefined,
+                search: nextState.stockSearchQuery.trim() || undefined,
                 status:
-                    filters.stockStatusFilter === "all"
+                    nextState.stockStatusFilter === "all"
                         ? undefined
-                        : filters.stockStatusFilter,
+                        : nextState.stockStatusFilter,
                 warehouse:
-                    filters.stockWarehouseFilter.length > 0
-                        ? filters.stockWarehouseFilter
+                    nextState.stockWarehouseFilter.length > 0
+                        ? nextState.stockWarehouseFilter
                         : undefined,
             },
         }).catch(() => undefined);
@@ -1636,7 +1706,28 @@ function StockPage() {
                 ...current,
                 ...patch,
             };
-            syncStockSearch(next);
+            syncSearchParams(next);
+            return next;
+        });
+    };
+
+    const setMovementFilters = (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "movementPage"
+                | "movementProductId"
+                | "movementType"
+                | "movementWarehouseId"
+            >
+        >
+    ): void => {
+        setState((current) => {
+            const next = {
+                ...current,
+                ...patch,
+            };
+            syncSearchParams(next);
             return next;
         });
     };
@@ -1710,6 +1801,7 @@ function StockPage() {
     };
 
     const loadMovementHistory = async () => {
+        setState({ movementIsLoading: true });
         const movementType =
             state.movementType.length > 0
                 ? (state.movementType as
@@ -1741,9 +1833,17 @@ function StockPage() {
                     warehouseId,
                 },
             });
-            setState({ movementHistory });
+            setState({ movementHistory, movementIsLoading: false });
+            syncSearchParams({
+                ...state,
+                movementPage: String(page),
+                movementProductId: productId ?? "",
+                movementType: movementType ?? "",
+                movementWarehouseId: warehouseId ?? "",
+            });
             toast.success("Movement history loaded.");
         } catch (error) {
+            setState({ movementHistory: null, movementIsLoading: false });
             toast.error(
                 error instanceof Error
                     ? error.message
@@ -1797,11 +1897,13 @@ function StockPage() {
             loadExpiryAlerts={loadExpiryAlerts}
             loadMovementHistory={loadMovementHistory}
             loadSerialHistory={loadSerialHistory}
+            movementIsLoading={state.movementIsLoading}
             onRefresh={refreshAll}
             products={products}
             runAction={runAction}
             selectedEntryProduct={selectedEntryProduct}
             selectedItem={selectedItem}
+            setMovementFilters={setMovementFilters}
             setState={setState}
             setStockFilters={setStockFilters}
             state={state}

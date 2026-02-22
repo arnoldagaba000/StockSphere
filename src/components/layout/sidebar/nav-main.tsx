@@ -62,6 +62,7 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                                             }}
                                             className="rounded-md"
                                             onClick={handleNavigation}
+                                            preload="intent"
                                             to={nav.to}
                                         />
                                     }
@@ -110,6 +111,7 @@ const NavMain = ({ mainItems }: NavMainProps) => {
                                                             onClick={
                                                                 handleNavigation
                                                             }
+                                                            preload="intent"
                                                             to={item.to}
                                                         />
                                                     }
