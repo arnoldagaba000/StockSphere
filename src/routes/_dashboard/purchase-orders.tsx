@@ -108,7 +108,7 @@ const purchaseOrdersPageReducer = (
     ...patch,
 });
 
-const purchaseOrdersSearchSchema = z.object({
+export const purchaseOrdersSearchSchema = z.object({
     search: z.string().optional().catch(""),
     status: z
         .enum([
