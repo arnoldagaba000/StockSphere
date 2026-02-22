@@ -1,7 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import { z } from "zod";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table,
     TableBody,
@@ -77,6 +83,19 @@ const MOVEMENT_TYPE_OPTIONS = [
     "DISASSEMBLY",
 ] as const;
 
+export const stockSearchSchema = z.object({
+    movementDateFrom: z.string().optional().catch(""),
+    movementDateTo: z.string().optional().catch(""),
+    movementPage: z.string().optional().catch("1"),
+    movementPageSize: z.string().optional().catch("25"),
+    movementProductId: z.string().optional().catch(""),
+    movementType: z.string().optional().catch(""),
+    movementWarehouseId: z.string().optional().catch(""),
+    search: z.string().optional().catch(""),
+    status: z.string().optional().catch("all"),
+    warehouse: z.string().optional().catch(""),
+});
+
 interface StockPageState {
     adjustmentApprovalNotes: string;
     adjustmentId: string;
@@ -92,8 +111,12 @@ interface StockPageState {
     entryUnitCost: string;
     entryWarehouseId: string;
     expiryAlerts: ExpiryAlertsData;
+    movementDateFrom: string;
+    movementDateTo: string;
     movementHistory: MovementHistoryData | null;
+    movementIsLoading: boolean;
     movementPage: string;
+    movementPageSize: string;
     movementProductId: string;
     movementType: string;
     movementWarehouseId: string;
@@ -126,6 +149,53 @@ const stockPageReducer = (
     return { ...state, ...patch };
 };
 
+const buildMovementQuery = (
+    state: StockPageState,
+    pageOverride?: number,
+    pageSizeOverride?: number
+) => {
+    const movementType =
+        state.movementType.length > 0
+            ? (state.movementType as
+                  | "ADJUSTMENT"
+                  | "ASSEMBLY"
+                  | "DISASSEMBLY"
+                  | "PURCHASE_RECEIPT"
+                  | "RETURN"
+                  | "SALES_SHIPMENT"
+                  | "TRANSFER")
+            : undefined;
+
+    const page = pageOverride ?? (Number(state.movementPage) || 1);
+    const pageSize = pageSizeOverride ?? (Number(state.movementPageSize) || 25);
+    const dateFrom =
+        state.movementDateFrom.length > 0
+            ? new Date(state.movementDateFrom)
+            : undefined;
+    const dateTo =
+        state.movementDateTo.length > 0
+            ? new Date(`${state.movementDateTo}T23:59:59.999Z`)
+            : undefined;
+    const productId =
+        state.movementProductId.length > 0
+            ? state.movementProductId
+            : undefined;
+    const warehouseId =
+        state.movementWarehouseId.length > 0
+            ? state.movementWarehouseId
+            : undefined;
+
+    return {
+        dateFrom,
+        dateTo,
+        movementType,
+        page,
+        pageSize,
+        productId,
+        warehouseId,
+    };
+};
+
 const loadStockBootstrapWithRetry = async (): Promise<StockBootstrapData> => {
     try {
         return await getStockBootstrap();
@@ -144,6 +214,7 @@ const loadStockBootstrapWithRetry = async (): Promise<StockBootstrapData> => {
 
 export const Route = createFileRoute("/_dashboard/stock")({
     component: StockPage,
+    errorComponent: StockRouteError,
     loader: async () => {
         const [financialSettings, stockBootstrap] = await Promise.all([
             getFinancialSettings(),
@@ -151,7 +222,35 @@ export const Route = createFileRoute("/_dashboard/stock")({
         ]);
         return { financialSettings, ...stockBootstrap };
     },
+    pendingComponent: StockRoutePending,
+    validateSearch: stockSearchSchema,
 });
+
+function StockRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading inventory snapshots, movement history, and stock controls."
+            title="Loading Stock Workspace"
+        />
+    );
+}
+
+function StockRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Stock page failed to load"
+            to="/"
+        />
+    );
+}
 
 interface StockEntryCardProps {
     currencyCode: string;
@@ -941,28 +1040,132 @@ const AdjustmentReviewCard = ({
 };
 
 interface MovementHistoryCardProps {
+    movementDateFrom: string;
+    movementDateTo: string;
     movementHistory: MovementHistoryData | null;
+    movementIsLoading: boolean;
     movementPage: string;
+    movementPageSize: string;
     movementProductId: string;
     movementType: string;
     movementWarehouseId: string;
-    onLoadHistory: () => Promise<void>;
+    onLoadHistory: (
+        pageOverride?: number,
+        pageSizeOverride?: number
+    ) => Promise<void>;
     products: Product[];
-    setState: (action: StockPageAction) => void;
+    setMovementFilters: (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "movementDateFrom"
+                | "movementDateTo"
+                | "movementPage"
+                | "movementPageSize"
+                | "movementProductId"
+                | "movementType"
+                | "movementWarehouseId"
+            >
+        >
+    ) => void;
     warehouses: Warehouse[];
 }
 
 const MovementHistoryCard = ({
     movementHistory,
+    movementDateFrom,
+    movementDateTo,
+    movementIsLoading,
     movementPage,
+    movementPageSize,
     movementProductId,
     movementType,
     movementWarehouseId,
     onLoadHistory,
     products,
-    setState,
+    setMovementFilters,
     warehouses,
 }: MovementHistoryCardProps) => {
+    const currentPage = Number(movementPage) || 1;
+    const currentPageSize = Number(movementPageSize) || 25;
+    const totalPages =
+        movementHistory?.total && movementHistory.pageSize
+            ? Math.max(
+                  1,
+                  Math.ceil(movementHistory.total / movementHistory.pageSize)
+              )
+            : 1;
+
+    let movementRows: JSX.Element[];
+
+    if (movementIsLoading) {
+        movementRows = ["one", "two", "three", "four"].map((key) => (
+            <TableRow key={`movement-skeleton-${key}`}>
+                <TableCell>
+                    <Skeleton className="h-4 w-48" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-40" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-20" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-16" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-16" />
+                </TableCell>
+                <TableCell>
+                    <Skeleton className="h-4 w-28" />
+                </TableCell>
+            </TableRow>
+        ));
+    } else {
+        const movements = movementHistory?.movements ?? [];
+
+        movementRows =
+            movements.length === 0
+                ? [
+                      <TableRow key="movement-empty">
+                          <TableCell colSpan={7}>
+                              No movements loaded.
+                          </TableCell>
+                      </TableRow>,
+                  ]
+                : movements.map((movement: MovementHistoryItem) => (
+                      <TableRow key={movement.id}>
+                          <TableCell>
+                              {new Date(movement.createdAt).toLocaleString()}
+                          </TableCell>
+                          <TableCell>{movement.type}</TableCell>
+                          <TableCell>
+                              {movement.product
+                                  ? `${movement.product.sku} - ${movement.product.name}`
+                                  : movement.productId}
+                          </TableCell>
+                          <TableCell>
+                              {formatQuantity(movement.quantity)}
+                          </TableCell>
+                          <TableCell>
+                              {movement.fromWarehouse?.code ?? "\u2014"}
+                          </TableCell>
+                          <TableCell>
+                              {movement.toWarehouse?.code ?? "\u2014"}
+                          </TableCell>
+                          <TableCell>
+                              {movement.inventoryTransaction
+                                  ?.transactionNumber ??
+                                  movement.referenceNumber ??
+                                  "\u2014"}
+                          </TableCell>
+                      </TableRow>
+                  ));
+    }
+
     return (
         <Card className={CARD_SHELL_CLASS}>
             <CardHeader className="space-y-1">
@@ -973,11 +1176,11 @@ const MovementHistoryCard = ({
                 </p>
             </CardHeader>
             <CardContent className="space-y-3">
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid gap-3 md:grid-cols-6">
                     <FieldSelect
                         label="Warehouse"
                         onValueChange={(value) =>
-                            setState({
+                            setMovementFilters({
                                 movementWarehouseId:
                                     value === "all" ? "" : value,
                             })
@@ -994,7 +1197,7 @@ const MovementHistoryCard = ({
                     <FieldSelect
                         label="Product"
                         onValueChange={(value) =>
-                            setState({
+                            setMovementFilters({
                                 movementProductId: value === "all" ? "" : value,
                             })
                         }
@@ -1010,7 +1213,7 @@ const MovementHistoryCard = ({
                     <FieldSelect
                         label="Movement Type"
                         onValueChange={(value) =>
-                            setState({
+                            setMovementFilters({
                                 movementType: value === "all" ? "" : value,
                             })
                         }
@@ -1025,12 +1228,49 @@ const MovementHistoryCard = ({
                     />
                     <FieldInput
                         label="Page"
-                        onChange={(value) => setState({ movementPage: value })}
+                        onChange={(value) =>
+                            setMovementFilters({ movementPage: value })
+                        }
                         type="number"
                         value={movementPage}
                     />
+                    <FieldInput
+                        label="Date From"
+                        onChange={(value) =>
+                            setMovementFilters({ movementDateFrom: value })
+                        }
+                        type="date"
+                        value={movementDateFrom}
+                    />
+                    <FieldInput
+                        label="Date To"
+                        onChange={(value) =>
+                            setMovementFilters({ movementDateTo: value })
+                        }
+                        type="date"
+                        value={movementDateTo}
+                    />
+                    <FieldSelect
+                        label="Page Size"
+                        onValueChange={(value) => {
+                            setMovementFilters({
+                                movementPage: "1",
+                                movementPageSize: value,
+                            });
+                            onLoadHistory(1, Number(value)).catch(
+                                () => undefined
+                            );
+                        }}
+                        options={[
+                            { label: "10", value: "10" },
+                            { label: "25", value: "25" },
+                            { label: "50", value: "50" },
+                            { label: "100", value: "100" },
+                        ]}
+                        value={movementPageSize || "25"}
+                    />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <Button
                         onClick={() => {
                             onLoadHistory().catch(() => undefined);
@@ -1040,6 +1280,116 @@ const MovementHistoryCard = ({
                     >
                         Load Movement History
                     </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            onClick={() => {
+                                const today = new Date();
+                                const start = today.toISOString().slice(0, 10);
+                                setMovementFilters({
+                                    movementDateFrom: start,
+                                    movementDateTo: start,
+                                    movementPage: "1",
+                                });
+                                onLoadHistory(1, currentPageSize).catch(
+                                    () => undefined
+                                );
+                            }}
+                            size="sm"
+                            variant="ghost"
+                        >
+                            Today
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                const today = new Date();
+                                const from = new Date(
+                                    today.getTime() - 6 * 24 * 60 * 60 * 1000
+                                );
+                                setMovementFilters({
+                                    movementDateFrom: from
+                                        .toISOString()
+                                        .slice(0, 10),
+                                    movementDateTo: today
+                                        .toISOString()
+                                        .slice(0, 10),
+                                    movementPage: "1",
+                                });
+                                onLoadHistory(1, currentPageSize).catch(
+                                    () => undefined
+                                );
+                            }}
+                            size="sm"
+                            variant="ghost"
+                        >
+                            Last 7 days
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                const today = new Date();
+                                const from = new Date(
+                                    today.getTime() - 29 * 24 * 60 * 60 * 1000
+                                );
+                                setMovementFilters({
+                                    movementDateFrom: from
+                                        .toISOString()
+                                        .slice(0, 10),
+                                    movementDateTo: today
+                                        .toISOString()
+                                        .slice(0, 10),
+                                    movementPage: "1",
+                                });
+                                onLoadHistory(1, currentPageSize).catch(
+                                    () => undefined
+                                );
+                            }}
+                            size="sm"
+                            variant="ghost"
+                        >
+                            Last 30 days
+                        </Button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            disabled={movementIsLoading || currentPage <= 1}
+                            onClick={() => {
+                                const nextPage = Math.max(1, currentPage - 1);
+                                setMovementFilters({
+                                    movementPage: String(nextPage),
+                                });
+                                onLoadHistory(nextPage, currentPageSize).catch(
+                                    () => undefined
+                                );
+                            }}
+                            size="icon"
+                            variant="outline"
+                        >
+                            {"<"}
+                        </Button>
+                        <div className="text-muted-foreground text-sm">
+                            Page {currentPage} of {totalPages}
+                            {movementHistory
+                                ? ` · ${movementHistory.total} movements`
+                                : ""}
+                        </div>
+                        <Button
+                            disabled={
+                                movementIsLoading || currentPage >= totalPages
+                            }
+                            onClick={() => {
+                                const nextPage = currentPage + 1;
+                                setMovementFilters({
+                                    movementPage: String(nextPage),
+                                });
+                                onLoadHistory(nextPage, currentPageSize).catch(
+                                    () => undefined
+                                );
+                            }}
+                            size="icon"
+                            variant="outline"
+                        >
+                            {">"}
+                        </Button>
+                    </div>
                 </div>
                 <div className="overflow-x-auto rounded-md border">
                     <Table className="min-w-[900px]">
@@ -1054,54 +1404,7 @@ const MovementHistoryCard = ({
                                 <TableHead>Reference</TableHead>
                             </TableRow>
                         </TableHeader>
-                        <TableBody>
-                            {(movementHistory?.movements ?? []).length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={7}>
-                                        No movements loaded.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                movementHistory?.movements.map(
-                                    (movement: MovementHistoryItem) => (
-                                        <TableRow key={movement.id}>
-                                            <TableCell>
-                                                {new Date(
-                                                    movement.createdAt
-                                                ).toLocaleString()}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.type}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.product
-                                                    ? `${movement.product.sku} - ${movement.product.name}`
-                                                    : movement.productId}
-                                            </TableCell>
-                                            <TableCell>
-                                                {formatQuantity(
-                                                    movement.quantity
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.fromWarehouse?.code ??
-                                                    "\u2014"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.toWarehouse?.code ??
-                                                    "\u2014"}
-                                            </TableCell>
-                                            <TableCell>
-                                                {movement.inventoryTransaction
-                                                    ?.transactionNumber ??
-                                                    movement.referenceNumber ??
-                                                    "\u2014"}
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                )
-                            )}
-                        </TableBody>
+                        <TableBody>{movementRows}</TableBody>
                     </Table>
                 </div>
             </CardContent>
@@ -1116,6 +1419,7 @@ interface StockPageContentProps {
     loadExpiryAlerts: () => Promise<void>;
     loadMovementHistory: () => Promise<void>;
     loadSerialHistory: () => Promise<void>;
+    movementIsLoading: boolean;
     onRefresh: () => Promise<void>;
     products: Product[];
     runAction: (
@@ -1124,7 +1428,28 @@ interface StockPageContentProps {
     ) => Promise<void>;
     selectedEntryProduct: Product | undefined;
     selectedItem: StockItem | undefined;
+    setMovementFilters: (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "movementPage"
+                | "movementProductId"
+                | "movementType"
+                | "movementWarehouseId"
+            >
+        >
+    ) => void;
     setState: (action: StockPageAction) => void;
+    setStockFilters: (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "stockSearchQuery"
+                | "stockStatusFilter"
+                | "stockWarehouseFilter"
+            >
+        >
+    ) => void;
     state: StockPageState;
     warehouses: Warehouse[];
 }
@@ -1138,13 +1463,16 @@ const useStockPageContentView = ({
     loadBatchTraceability,
     loadExpiryAlerts,
     loadMovementHistory,
-    onRefresh,
     loadSerialHistory,
+    movementIsLoading,
+    onRefresh,
     products,
     runAction,
     selectedEntryProduct,
     selectedItem,
+    setMovementFilters,
     setState,
+    setStockFilters,
     state,
     warehouses,
 }: StockPageContentProps) => {
@@ -1333,14 +1661,18 @@ const useStockPageContentView = ({
             />
 
             <MovementHistoryCard
+                movementDateFrom={state.movementDateFrom}
+                movementDateTo={state.movementDateTo}
                 movementHistory={state.movementHistory}
+                movementIsLoading={movementIsLoading}
                 movementPage={state.movementPage}
+                movementPageSize={state.movementPageSize}
                 movementProductId={state.movementProductId}
                 movementType={state.movementType}
                 movementWarehouseId={state.movementWarehouseId}
                 onLoadHistory={loadMovementHistory}
                 products={products}
-                setState={setState}
+                setMovementFilters={setMovementFilters}
                 warehouses={warehouses}
             />
 
@@ -1357,14 +1689,14 @@ const useStockPageContentView = ({
                         <FieldInput
                             label="Search Stock"
                             onChange={(value) =>
-                                setState({ stockSearchQuery: value })
+                                setStockFilters({ stockSearchQuery: value })
                             }
                             value={state.stockSearchQuery}
                         />
                         <FieldSelect
                             label="Warehouse"
                             onValueChange={(value) =>
-                                setState({
+                                setStockFilters({
                                     stockWarehouseFilter:
                                         value === "all" ? "" : value,
                                 })
@@ -1381,7 +1713,7 @@ const useStockPageContentView = ({
                         <FieldSelect
                             label="Status"
                             onValueChange={(value) =>
-                                setState({
+                                setStockFilters({
                                     stockStatusFilter:
                                         value === "all" ? "all" : value,
                                 })
@@ -1500,6 +1832,8 @@ const useStockPageContentView = ({
 };
 
 function StockPage() {
+    const navigate = Route.useNavigate();
+    const searchParams = Route.useSearch();
     const {
         financialSettings,
         initialStock,
@@ -1525,19 +1859,23 @@ function StockPage() {
         entryWarehouseId: warehouses[0]?.id ?? "",
         expiryAlerts: [],
         movementHistory: null,
-        movementPage: "1",
-        movementProductId: "",
-        movementType: "",
-        movementWarehouseId: "",
+        movementDateFrom: searchParams.movementDateFrom ?? "",
+        movementDateTo: searchParams.movementDateTo ?? "",
+        movementIsLoading: false,
+        movementPage: searchParams.movementPage ?? "1",
+        movementPageSize: searchParams.movementPageSize ?? "25",
+        movementProductId: searchParams.movementProductId ?? "",
+        movementType: searchParams.movementType ?? "",
+        movementWarehouseId: searchParams.movementWarehouseId ?? "",
         releaseQuantity: "",
         reserveQuantity: "",
         quarantineReason: "",
         selectedStockItemId: "",
         serialHistoryData: null,
         stockData: initialStock,
-        stockStatusFilter: "all",
-        stockSearchQuery: "",
-        stockWarehouseFilter: "",
+        stockStatusFilter: searchParams.status ?? "all",
+        stockSearchQuery: searchParams.search ?? "",
+        stockWarehouseFilter: searchParams.warehouse ?? "",
         traceabilityData: null,
         trackingBatch: "",
         trackingSerial: "",
@@ -1545,6 +1883,95 @@ function StockPage() {
         transferWarehouseId: warehouses[0]?.id ?? "",
         valuation: initialValuation,
     });
+
+    const syncSearchParams = (nextState: StockPageState): void => {
+        navigate({
+            replace: true,
+            search: {
+                movementPage:
+                    nextState.movementPage.length > 0
+                        ? nextState.movementPage
+                        : undefined,
+                movementDateFrom:
+                    nextState.movementDateFrom.length > 0
+                        ? nextState.movementDateFrom
+                        : undefined,
+                movementDateTo:
+                    nextState.movementDateTo.length > 0
+                        ? nextState.movementDateTo
+                        : undefined,
+                movementProductId:
+                    nextState.movementProductId.length > 0
+                        ? nextState.movementProductId
+                        : undefined,
+                movementType:
+                    nextState.movementType.length > 0
+                        ? nextState.movementType
+                        : undefined,
+                movementPageSize:
+                    nextState.movementPageSize.length > 0
+                        ? nextState.movementPageSize
+                        : undefined,
+                movementWarehouseId:
+                    nextState.movementWarehouseId.length > 0
+                        ? nextState.movementWarehouseId
+                        : undefined,
+                search: nextState.stockSearchQuery.trim() || undefined,
+                status:
+                    nextState.stockStatusFilter === "all"
+                        ? undefined
+                        : nextState.stockStatusFilter,
+                warehouse:
+                    nextState.stockWarehouseFilter.length > 0
+                        ? nextState.stockWarehouseFilter
+                        : undefined,
+            },
+        }).catch(() => undefined);
+    };
+
+    const setStockFilters = (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "stockSearchQuery"
+                | "stockStatusFilter"
+                | "stockWarehouseFilter"
+            >
+        >
+    ): void => {
+        setState((current) => {
+            const next = {
+                ...current,
+                ...patch,
+            };
+            syncSearchParams(next);
+            return next;
+        });
+    };
+
+    const setMovementFilters = (
+        patch: Partial<
+            Pick<
+                StockPageState,
+                | "movementDateFrom"
+                | "movementDateTo"
+                | "movementPage"
+                | "movementPageSize"
+                | "movementProductId"
+                | "movementType"
+                | "movementWarehouseId"
+            >
+        >
+    ): void => {
+        setState((current) => {
+            const next = {
+                ...current,
+                ...patch,
+            };
+            syncSearchParams(next);
+            return next;
+        });
+    };
 
     const loadExpiryAlerts = async () => {
         const warehouseId =
@@ -1614,39 +2041,38 @@ function StockPage() {
         }
     };
 
-    const loadMovementHistory = async () => {
-        const movementType =
-            state.movementType.length > 0
-                ? (state.movementType as
-                      | "ADJUSTMENT"
-                      | "ASSEMBLY"
-                      | "DISASSEMBLY"
-                      | "PURCHASE_RECEIPT"
-                      | "RETURN"
-                      | "SALES_SHIPMENT"
-                      | "TRANSFER")
-                : undefined;
-        const page = Number(state.movementPage) || 1;
-        const productId =
-            state.movementProductId.length > 0
-                ? state.movementProductId
-                : undefined;
-        const warehouseId =
-            state.movementWarehouseId.length > 0
-                ? state.movementWarehouseId
-                : undefined;
+    const loadMovementHistory = async (
+        pageOverride?: number,
+        pageSizeOverride?: number
+    ) => {
+        setState({ movementIsLoading: true });
+
+        const query = buildMovementQuery(state, pageOverride, pageSizeOverride);
+
+        let movementHistory: MovementHistoryData | null = null;
 
         try {
-            const movementHistory = await getMovementHistory({
+            movementHistory = await getMovementHistory({
                 data: {
-                    movementType,
-                    page,
-                    pageSize: 25,
-                    productId,
-                    warehouseId,
+                    dateFrom: query.dateFrom,
+                    dateTo: query.dateTo,
+                    movementType: query.movementType,
+                    page: query.page,
+                    pageSize: query.pageSize,
+                    productId: query.productId,
+                    warehouseId: query.warehouseId,
                 },
             });
-            setState({ movementHistory });
+            syncSearchParams({
+                ...state,
+                movementDateFrom: state.movementDateFrom,
+                movementDateTo: state.movementDateTo,
+                movementPage: String(query.page),
+                movementPageSize: String(query.pageSize),
+                movementProductId: query.productId ?? "",
+                movementType: query.movementType ?? "",
+                movementWarehouseId: query.warehouseId ?? "",
+            });
             toast.success("Movement history loaded.");
         } catch (error) {
             toast.error(
@@ -1654,6 +2080,11 @@ function StockPage() {
                     ? error.message
                     : "Failed to load movement history."
             );
+        } finally {
+            setState({
+                movementHistory,
+                movementIsLoading: false,
+            });
         }
     };
 
@@ -1702,12 +2133,15 @@ function StockPage() {
             loadExpiryAlerts={loadExpiryAlerts}
             loadMovementHistory={loadMovementHistory}
             loadSerialHistory={loadSerialHistory}
+            movementIsLoading={state.movementIsLoading}
             onRefresh={refreshAll}
             products={products}
             runAction={runAction}
             selectedEntryProduct={selectedEntryProduct}
             selectedItem={selectedItem}
+            setMovementFilters={setMovementFilters}
             setState={setState}
+            setStockFilters={setStockFilters}
             state={state}
             warehouses={warehouses}
         />

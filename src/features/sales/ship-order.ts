@@ -18,39 +18,13 @@ import {
     retryOnUniqueConstraint,
     toNumber,
 } from "./sales-helpers";
+import {
+    ALLOWED_SHIP_ORDER_STATUSES,
+    getNextOrderStatusAfterShipment,
+    validateShipmentLineQuantity,
+} from "./shipment-rules";
 
 type ShipmentInputItem = ShipmentFormData["items"][number];
-
-const ALLOWED_ORDER_STATUSES = new Set(["CONFIRMED", "PARTIALLY_FULFILLED"]);
-
-const getNextOrderStatus = (allShipped: boolean, anyShipped: boolean) => {
-    if (allShipped) {
-        return "FULFILLED";
-    }
-
-    if (anyShipped) {
-        return "PARTIALLY_FULFILLED";
-    }
-
-    return "CONFIRMED";
-};
-
-const validateShipmentLine = ({
-    orderItem,
-    shipItem,
-}: {
-    orderItem: SalesOrderItem;
-    shipItem: ShipmentInputItem;
-}): void => {
-    const remainingOrderQty =
-        toNumber(orderItem.quantity) - toNumber(orderItem.shippedQuantity);
-
-    if (shipItem.quantity > remainingOrderQty) {
-        throw new Error(
-            `Shipment quantity exceeds remaining quantity for order line ${orderItem.id}.`
-        );
-    }
-};
 
 const processShipmentLine = async ({
     index,
@@ -165,7 +139,7 @@ export const shipOrder = createServerFn({ method: "POST" })
             throw new Error("Sales order not found.");
         }
         const numberingPrefixes = await getNumberingPrefixes();
-        if (!ALLOWED_ORDER_STATUSES.has(order.status)) {
+        if (!ALLOWED_SHIP_ORDER_STATUSES.has(order.status)) {
             throw new Error(
                 `Cannot ship an order in "${order.status}" status.`
             );
@@ -220,7 +194,18 @@ export const shipOrder = createServerFn({ method: "POST" })
                         );
                     }
 
-                    validateShipmentLine({ orderItem, shipItem });
+                    validateShipmentLineQuantity({
+                        orderItem: {
+                            id: orderItem.id,
+                            quantity: toNumber(orderItem.quantity),
+                            shippedQuantity: toNumber(
+                                orderItem.shippedQuantity
+                            ),
+                        },
+                        shipItem: {
+                            quantity: shipItem.quantity,
+                        },
+                    });
 
                     await processShipmentLine({
                         index,
@@ -249,7 +234,10 @@ export const shipOrder = createServerFn({ method: "POST" })
                 const anyShipped = refreshedOrderItems.some(
                     (item) => toNumber(item.shippedQuantity) > 0
                 );
-                const newStatus = getNextOrderStatus(allShipped, anyShipped);
+                const newStatus = getNextOrderStatusAfterShipment(
+                    allShipped,
+                    anyShipped
+                );
 
                 await tx.salesOrder.update({
                     data: {

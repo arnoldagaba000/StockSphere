@@ -13,6 +13,10 @@ import {
     buildCategoryHierarchy,
     formatCurrencyFromMinorUnits,
 } from "@/components/features/products/utils";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -1197,6 +1201,7 @@ const PriceHistorySection = ({
 
 export const Route = createFileRoute("/_dashboard/products/$productId")({
     component: EditProductPage,
+    errorComponent: EditProductRouteError,
     loader: async ({ params }): Promise<ProductEditLoaderData> => {
         const [
             categories,
@@ -1239,7 +1244,34 @@ export const Route = createFileRoute("/_dashboard/products/$productId")({
             variants,
         };
     },
+    pendingComponent: EditProductRoutePending,
 });
+
+function EditProductRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading product details, pricing history, variants, media, and supplier links."
+            title="Loading Product Detail"
+        />
+    );
+}
+
+function EditProductRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Product detail failed to load"
+            to="/products"
+        />
+    );
+}
 
 function EditProductPage() {
     const navigate = useNavigate();

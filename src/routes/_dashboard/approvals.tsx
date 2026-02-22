@@ -2,10 +2,15 @@ import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
     Table,
     TableBody,
@@ -47,6 +52,7 @@ const approvalsPageReducer = (
 
 export const Route = createFileRoute("/_dashboard/approvals")({
     component: ApprovalsPage,
+    errorComponent: ApprovalsRouteError,
     loader: async () => {
         const [approvalInbox, financialSettings] = await Promise.all([
             getApprovalInbox(),
@@ -58,7 +64,34 @@ export const Route = createFileRoute("/_dashboard/approvals")({
             financialSettings,
         };
     },
+    pendingComponent: ApprovalsRoutePending,
 });
+
+function ApprovalsRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading approvals, pricing changes, and inventory requests."
+            title="Loading Approvals"
+        />
+    );
+}
+
+function ApprovalsRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Approvals failed to load"
+            to="/"
+        />
+    );
+}
 
 function ApprovalsPage() {
     const router = useRouter();
@@ -428,13 +461,19 @@ function PurchaseOrdersSection({
                 <CardTitle>Submitted Purchase Orders</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-                <Input
-                    onChange={(event) =>
-                        onRejectionReasonChange(event.target.value)
-                    }
-                    placeholder="Optional rejection reason"
-                    value={rejectionReason}
-                />
+                <div className="space-y-1">
+                    <Label htmlFor="po-rejection-reason">
+                        Rejection Reason (optional)
+                    </Label>
+                    <Input
+                        id="po-rejection-reason"
+                        onChange={(event) =>
+                            onRejectionReasonChange(event.target.value)
+                        }
+                        placeholder="Enter why this purchase order is rejected"
+                        value={rejectionReason}
+                    />
+                </div>
                 <Table>
                     <TableHeader>
                         <TableRow>

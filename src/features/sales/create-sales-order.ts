@@ -12,6 +12,10 @@ import {
     retryOnUniqueConstraint,
     toNumber,
 } from "./sales-helpers";
+import {
+    buildSalesOrderLineTotals,
+    computeSalesOrderTotals,
+} from "./sales-order-calculations";
 
 export const createSalesOrder = createServerFn({ method: "POST" })
     .inputValidator(salesOrderSchema)
@@ -56,42 +60,13 @@ export const createSalesOrder = createServerFn({ method: "POST" })
             }
         }
 
-        const itemRows = data.items.map((item) => {
-            const quantity = item.quantity;
-            const discountAmount = Math.round(
-                item.quantity *
-                    item.unitPrice *
-                    ((item.discountPercent ?? 0) / 100)
-            );
-            const netBeforeTax =
-                item.quantity * item.unitPrice - discountAmount;
-            const lineTax = Math.round(netBeforeTax * (item.taxRate / 100));
-            const totalPrice = netBeforeTax + lineTax;
-
-            return {
-                notes: item.notes ?? null,
-                productId: item.productId,
-                quantity,
-                taxRate: item.taxRate,
-                totalPrice,
-                unitPrice: item.unitPrice,
-            };
-        });
-
-        const subtotal = itemRows.reduce(
-            (sum, item) =>
-                sum + Math.round(toNumber(item.quantity) * item.unitPrice),
-            0
-        );
-        const computedTaxAmount = itemRows.reduce((sum, item) => {
-            const lineBase = Math.round(
-                toNumber(item.quantity) * item.unitPrice
-            );
-            return sum + Math.round(lineBase * (item.taxRate / 100));
-        }, 0);
-        const taxAmount = computedTaxAmount + data.taxAmount;
-        const shippingCost = data.shippingCost;
-        const totalAmount = subtotal + taxAmount + shippingCost;
+        const itemRows = buildSalesOrderLineTotals(data.items);
+        const { shippingCost, subtotal, taxAmount, totalAmount } =
+            computeSalesOrderTotals({
+                additionalTaxAmount: data.taxAmount,
+                items: itemRows,
+                shippingCost: data.shippingCost,
+            });
 
         if (
             customer.creditLimit !== null &&

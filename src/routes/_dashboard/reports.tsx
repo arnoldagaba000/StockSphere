@@ -3,6 +3,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -55,6 +59,7 @@ const dashboardMetricsQueryOptions = queryOptions({
 
 export const Route = createFileRoute("/_dashboard/reports")({
     component: ReportsPage,
+    errorComponent: ReportsRouteError,
     loader: async ({ context }) => {
         const [financialSettings, metrics] = await Promise.all([
             getFinancialSettings(),
@@ -62,7 +67,34 @@ export const Route = createFileRoute("/_dashboard/reports")({
         ]);
         return { financialSettings, metrics };
     },
+    pendingComponent: ReportsRoutePending,
 });
+
+function ReportsRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading dashboards, valuation, and movement reports."
+            title="Loading Reports"
+        />
+    );
+}
+
+function ReportsRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Reports failed to load"
+            to="/"
+        />
+    );
+}
 
 function ReportsPage() {
     const { financialSettings, metrics: loaderMetrics } = Route.useLoaderData();

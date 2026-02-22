@@ -15,6 +15,7 @@ import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
 import { assertPositiveQuantity, toNumber } from "./helpers";
+import { validateRequiredTrackingFields } from "./tracking-validation";
 
 const receiveGoodsSchema = z.object({
     items: z
@@ -91,15 +92,18 @@ const validateTrackingForReceiptItem = async ({
     if (!product) {
         throw new Error("Product not found.");
     }
-    if (product.trackByBatch && !item.batchNumber) {
-        throw new Error("This product requires a batch number.");
-    }
-    if (product.trackByExpiry && !item.expiryDate) {
-        throw new Error("This product requires an expiry date.");
-    }
-    if (product.trackBySerialNumber && !item.serialNumber) {
-        throw new Error("This product requires a serial number.");
-    }
+    validateRequiredTrackingFields(
+        {
+            trackByBatch: product.trackByBatch,
+            trackByExpiry: product.trackByExpiry,
+            trackBySerialNumber: product.trackBySerialNumber,
+        },
+        {
+            batchNumber: item.batchNumber,
+            expiryDate: item.expiryDate,
+            serialNumber: item.serialNumber,
+        }
+    );
     if (product.trackBySerialNumber && Math.trunc(item.quantity) !== 1) {
         throw new Error(
             "Serial-tracked receipts must be received with quantity 1 per line."

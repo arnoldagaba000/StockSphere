@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { formatDistanceToNow } from "date-fns";
+import { MailIcon, ShieldCheckIcon } from "lucide-react";
 import { useReducer } from "react";
 import toast from "react-hot-toast";
 import {
@@ -15,6 +16,13 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -194,109 +202,130 @@ function SecuritySettingsPage() {
     };
 
     return (
-        <div className="w-full min-w-0 max-w-3xl space-y-4">
-            <section className="space-y-4 rounded-lg border p-4">
-                <div className="space-y-1">
-                    <h2 className="font-medium text-lg">Change Password</h2>
-                    <p className="text-muted-foreground text-sm">
+        <section className="w-full min-w-0 max-w-4xl space-y-4">
+            <div className="space-y-1">
+                <h1 className="font-semibold text-2xl">Security Settings</h1>
+                <p className="text-muted-foreground text-sm">
+                    Protect your account by updating credentials and controlling
+                    active sessions.
+                </p>
+            </div>
+
+            <Card className="border border-border/70">
+                <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2">
+                        <ShieldCheckIcon className="h-4 w-4 text-primary" />
+                        Change Password
+                    </CardTitle>
+                    <CardDescription>
                         Password must be at least 10 characters and include
                         uppercase, lowercase, number, and symbol.
-                    </p>
-                </div>
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="current-password">
+                            Current Password
+                        </Label>
+                        <Input
+                            id="current-password"
+                            onChange={(event) =>
+                                setState({
+                                    currentPassword: event.target.value,
+                                })
+                            }
+                            type="password"
+                            value={state.currentPassword}
+                        />
+                    </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="current-password">Current Password</Label>
-                    <Input
-                        id="current-password"
-                        onChange={(event) =>
-                            setState({ currentPassword: event.target.value })
-                        }
-                        type="password"
-                        value={state.currentPassword}
-                    />
-                </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="new-password">New Password</Label>
+                        <Input
+                            id="new-password"
+                            onChange={(event) =>
+                                setState({ newPassword: event.target.value })
+                            }
+                            type="password"
+                            value={state.newPassword}
+                        />
+                    </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="new-password">New Password</Label>
-                    <Input
-                        id="new-password"
-                        onChange={(event) =>
-                            setState({ newPassword: event.target.value })
-                        }
-                        type="password"
-                        value={state.newPassword}
-                    />
-                </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="confirm-password">
+                            Confirm New Password
+                        </Label>
+                        <Input
+                            id="confirm-password"
+                            onChange={(event) =>
+                                setState({
+                                    confirmPassword: event.target.value,
+                                })
+                            }
+                            type="password"
+                            value={state.confirmPassword}
+                        />
+                    </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="confirm-password">
-                        Confirm New Password
-                    </Label>
-                    <Input
-                        id="confirm-password"
-                        onChange={(event) =>
-                            setState({ confirmPassword: event.target.value })
-                        }
-                        type="password"
-                        value={state.confirmPassword}
-                    />
-                </div>
+                    <Button
+                        disabled={state.isSubmittingPassword}
+                        onClick={handleChangePassword}
+                    >
+                        {state.isSubmittingPassword
+                            ? "Updating..."
+                            : "Update Password"}
+                    </Button>
+                </CardContent>
+            </Card>
 
-                <Button
-                    disabled={state.isSubmittingPassword}
-                    onClick={handleChangePassword}
-                >
-                    {state.isSubmittingPassword
-                        ? "Updating..."
-                        : "Update Password"}
-                </Button>
-            </section>
-
-            <section className="space-y-4 rounded-lg border p-4">
-                <div className="space-y-1">
-                    <h2 className="font-medium text-lg">Change Email</h2>
-                    <p className="text-muted-foreground text-sm">
+            <Card className="border border-border/70">
+                <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2">
+                        <MailIcon className="h-4 w-4 text-primary" />
+                        Change Email
+                    </CardTitle>
+                    <CardDescription>
                         We will send a verification link before your email is
                         changed.
-                    </p>
-                </div>
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="new-email">New Email Address</Label>
+                        <Input
+                            id="new-email"
+                            onChange={(event) =>
+                                setState({ newEmail: event.target.value })
+                            }
+                            placeholder={`Current: ${user.email}`}
+                            type="email"
+                            value={state.newEmail}
+                        />
+                    </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="new-email">New Email Address</Label>
-                    <Input
-                        id="new-email"
-                        onChange={(event) =>
-                            setState({ newEmail: event.target.value })
+                    <Button
+                        disabled={
+                            state.isSubmittingEmail ||
+                            state.newEmail.trim().length === 0
                         }
-                        placeholder={`Current: ${user.email}`}
-                        type="email"
-                        value={state.newEmail}
-                    />
-                </div>
+                        onClick={handleRequestEmailChange}
+                    >
+                        {state.isSubmittingEmail
+                            ? "Sending..."
+                            : "Request Email Change"}
+                    </Button>
+                </CardContent>
+            </Card>
 
-                <Button
-                    disabled={
-                        state.isSubmittingEmail ||
-                        state.newEmail.trim().length === 0
-                    }
-                    onClick={handleRequestEmailChange}
-                >
-                    {state.isSubmittingEmail
-                        ? "Sending..."
-                        : "Request Email Change"}
-                </Button>
-            </section>
-
-            <section className="space-y-4 rounded-lg border p-4">
-                <div className="space-y-1">
-                    <h2 className="font-medium text-lg">Active Sessions</h2>
-                    <p className="text-muted-foreground text-sm">
+            <Card className="border border-border/70">
+                <CardHeader className="pb-2">
+                    <CardTitle>Active Sessions</CardTitle>
+                    <CardDescription>
                         Review and revoke sessions from devices you no longer
                         trust.
-                    </p>
-                </div>
-
-                <div className="space-y-2">
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
                     {sessions.map((session) => {
                         const isCurrent = session.token === currentSessionToken;
                         const isRevoking =
@@ -345,8 +374,8 @@ function SecuritySettingsPage() {
                             </div>
                         );
                     })}
-                </div>
-            </section>
-        </div>
+                </CardContent>
+            </Card>
+        </section>
     );
 }
