@@ -7,6 +7,10 @@ import {
 } from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -94,6 +98,7 @@ const customersPageReducer = (
 
 export const Route = createFileRoute("/_dashboard/customers")({
     component: CustomersPage,
+    errorComponent: CustomersRouteError,
     loader: async () => {
         const [archivedCustomers, financialSettings, liveCustomers] =
             await Promise.all([
@@ -108,7 +113,34 @@ export const Route = createFileRoute("/_dashboard/customers")({
             liveCustomers,
         };
     },
+    pendingComponent: CustomersRoutePending,
 });
+
+function CustomersRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading customers, balances, and contact details."
+            title="Loading Customers"
+        />
+    );
+}
+
+function CustomersRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Customers failed to load"
+            to="/"
+        />
+    );
+}
 
 interface CustomerFormProps {
     currencyCode: string;

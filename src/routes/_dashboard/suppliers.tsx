@@ -7,6 +7,10 @@ import {
 } from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -460,6 +464,7 @@ const SupplierListCard = ({
 
 export const Route = createFileRoute("/_dashboard/suppliers")({
     component: SuppliersPage,
+    errorComponent: SuppliersRouteError,
     loader: async () => {
         const [archivedSuppliers, liveSuppliers] = await Promise.all([
             getSuppliers({
@@ -474,7 +479,34 @@ export const Route = createFileRoute("/_dashboard/suppliers")({
             liveSuppliers,
         };
     },
+    pendingComponent: SuppliersRoutePending,
 });
+
+function SuppliersRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading suppliers, contacts, and payment terms."
+            title="Loading Suppliers"
+        />
+    );
+}
+
+function SuppliersRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Suppliers failed to load"
+            to="/"
+        />
+    );
+}
 
 function SuppliersPage() {
     const location = useLocation();

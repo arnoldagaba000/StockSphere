@@ -6,6 +6,10 @@ import {
     WarehouseToolbar,
 } from "@/components/features/kits/kits-sections";
 import { useKitsPageController } from "@/components/features/kits/use-kits-page-controller";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { getWarehouses } from "@/features/inventory/get-warehouses";
 import { getKitGenealogy } from "@/features/kits/get-kit-genealogy";
 import { getKitStockItems } from "@/features/kits/get-kit-stock-items";
@@ -14,6 +18,7 @@ import { getProducts } from "@/features/products/get-products";
 
 export const Route = createFileRoute("/_dashboard/kits")({
     component: KitsPage,
+    errorComponent: KitsRouteError,
     loader: async () => {
         const [warehouses, productsPage] = await Promise.all([
             getWarehouses({ data: {} }),
@@ -52,7 +57,34 @@ export const Route = createFileRoute("/_dashboard/kits")({
             warehouses,
         };
     },
+    pendingComponent: KitsRoutePending,
 });
+
+function KitsRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading kits, BOMs, genealogy, and warehouse inventory."
+            title="Loading Kits Workspace"
+        />
+    );
+}
+
+function KitsRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Kits workspace failed to load"
+            to="/"
+        />
+    );
+}
 
 function KitsPage() {
     const loaderData = Route.useLoaderData();

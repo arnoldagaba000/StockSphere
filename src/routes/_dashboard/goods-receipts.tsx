@@ -1,6 +1,10 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useEffect, useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -487,6 +491,7 @@ const ReceiptHistoryCard = ({
 
 export const Route = createFileRoute("/_dashboard/goods-receipts")({
     component: GoodsReceiptsPage,
+    errorComponent: GoodsReceiptsRouteError,
     loader: async () => {
         const [locations, receipts, purchaseOrders, warehouses] =
             await Promise.all([
@@ -498,7 +503,34 @@ export const Route = createFileRoute("/_dashboard/goods-receipts")({
 
         return { locations, purchaseOrders, receipts, warehouses };
     },
+    pendingComponent: GoodsReceiptsRoutePending,
 });
+
+function GoodsReceiptsRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading receipts, warehouses, and purchase orders."
+            title="Loading Goods Receipts"
+        />
+    );
+}
+
+function GoodsReceiptsRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Goods receipts failed to load"
+            to="/"
+        />
+    );
+}
 
 function GoodsReceiptsPage() {
     const router = useRouter();
