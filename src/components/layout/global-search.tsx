@@ -84,10 +84,19 @@ const groupSearchItems = (items: SearchItem[]) => {
     return [...groupedItems.entries()];
 };
 
+const getShortcutLabel = (): string => {
+    if (typeof window === "undefined") {
+        return "Ctrl K";
+    }
+    return window.navigator.platform.toLowerCase().includes("mac")
+        ? "⌘ K"
+        : "Ctrl K";
+};
+
 const GlobalSearch = ({ role }: GlobalSearchProps) => {
     const navigate = useNavigate();
     const [isOpen, setIsOpen] = useState(false);
-    const [shortcutLabel, setShortcutLabel] = useState("Ctrl K");
+    const [shortcutLabel] = useState(getShortcutLabel);
     const [queryText, setQueryText] = useState("");
     const searchItems = useMemo(() => buildSearchItems(role), [role]);
     const groupedSearchItems = useMemo(
@@ -131,13 +140,6 @@ const GlobalSearch = ({ role }: GlobalSearchProps) => {
         return () => {
             window.removeEventListener("keydown", handleKeyDown);
         };
-    }, []);
-
-    useEffect(() => {
-        const isMacPlatform = window.navigator.platform
-            .toLowerCase()
-            .includes("mac");
-        setShortcutLabel(isMacPlatform ? "⌘ K" : "Ctrl K");
     }, []);
 
     const handleSelectItem = (to: string) => {
