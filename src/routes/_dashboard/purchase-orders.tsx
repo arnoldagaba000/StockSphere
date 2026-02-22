@@ -699,54 +699,47 @@ const PurchaseOrderListSection = ({
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {filteredOrders.map((order) => (
-                                <TableRow key={order.id}>
-                                    <TableCell className="font-medium">
-                                        {order.orderNumber}
+                            {filteredOrders.length === 0 ? (
+                                <TableRow>
+                                    <TableCell
+                                        className="text-center"
+                                        colSpan={5}
+                                    >
+                                        No purchase orders found.
                                     </TableCell>
-                                    <TableCell>{order.supplier.name}</TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary">
-                                            {order.status}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        {formatCurrencyFromMinorUnits(
-                                            order.totalAmount,
-                                            currencyCode
-                                        )}
-                                    </TableCell>
-                                    <TableCell className="text-right">
-                                        <div className="flex flex-wrap justify-end gap-2">
-                                            <Button
-                                                onClick={() =>
-                                                    onLoadDetail(order.id)
-                                                }
-                                                size="sm"
-                                                variant="outline"
-                                            >
-                                                View
-                                            </Button>
-                                            {order.status === "DRAFT" ? (
+                                </TableRow>
+                            ) : (
+                                filteredOrders.map((order) => (
+                                    <TableRow key={order.id}>
+                                        <TableCell className="font-medium">
+                                            {order.orderNumber}
+                                        </TableCell>
+                                        <TableCell>
+                                            {order.supplier.name}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge variant="secondary">
+                                                {order.status}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            {formatCurrencyFromMinorUnits(
+                                                order.totalAmount,
+                                                currencyCode
+                                            )}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex flex-wrap justify-end gap-2">
                                                 <Button
-                                                    disabled={
-                                                        isTransitioningId ===
-                                                        order.id
-                                                    }
                                                     onClick={() =>
-                                                        onTransitionOrder(
-                                                            order.id,
-                                                            "submit"
-                                                        )
+                                                        onLoadDetail(order.id)
                                                     }
                                                     size="sm"
                                                     variant="outline"
                                                 >
-                                                    Submit
+                                                    View
                                                 </Button>
-                                            ) : null}
-                                            {order.status === "SUBMITTED" ? (
-                                                <>
+                                                {order.status === "DRAFT" ? (
                                                     <Button
                                                         disabled={
                                                             isTransitioningId ===
@@ -755,77 +748,98 @@ const PurchaseOrderListSection = ({
                                                         onClick={() =>
                                                             onTransitionOrder(
                                                                 order.id,
-                                                                "approve"
-                                                            )
-                                                        }
-                                                        size="sm"
-                                                    >
-                                                        Approve
-                                                    </Button>
-                                                    <Button
-                                                        disabled={
-                                                            isTransitioningId ===
-                                                            order.id
-                                                        }
-                                                        onClick={() =>
-                                                            onTransitionOrder(
-                                                                order.id,
-                                                                "reject"
+                                                                "submit"
                                                             )
                                                         }
                                                         size="sm"
                                                         variant="outline"
                                                     >
-                                                        Reject
+                                                        Submit
                                                     </Button>
-                                                </>
-                                            ) : null}
-                                            {(order.status === "APPROVED" ||
-                                                order.status ===
-                                                    "PARTIALLY_RECEIVED") && (
-                                                <Button
-                                                    disabled={
-                                                        isTransitioningId ===
-                                                        order.id
-                                                    }
-                                                    onClick={() =>
-                                                        onTransitionOrder(
-                                                            order.id,
-                                                            "markOrdered"
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="outline"
-                                                >
-                                                    Mark Ordered
-                                                </Button>
-                                            )}
-                                            {[
-                                                "DRAFT",
-                                                "SUBMITTED",
-                                                "APPROVED",
-                                            ].includes(order.status) ? (
-                                                <Button
-                                                    disabled={
-                                                        isTransitioningId ===
-                                                        order.id
-                                                    }
-                                                    onClick={() =>
-                                                        onTransitionOrder(
-                                                            order.id,
-                                                            "cancel"
-                                                        )
-                                                    }
-                                                    size="sm"
-                                                    variant="destructive"
-                                                >
-                                                    Cancel
-                                                </Button>
-                                            ) : null}
-                                        </div>
-                                    </TableCell>
-                                </TableRow>
-                            ))}
+                                                ) : null}
+                                                {order.status ===
+                                                "SUBMITTED" ? (
+                                                    <>
+                                                        <Button
+                                                            disabled={
+                                                                isTransitioningId ===
+                                                                order.id
+                                                            }
+                                                            onClick={() =>
+                                                                onTransitionOrder(
+                                                                    order.id,
+                                                                    "approve"
+                                                                )
+                                                            }
+                                                            size="sm"
+                                                        >
+                                                            Approve
+                                                        </Button>
+                                                        <Button
+                                                            disabled={
+                                                                isTransitioningId ===
+                                                                order.id
+                                                            }
+                                                            onClick={() =>
+                                                                onTransitionOrder(
+                                                                    order.id,
+                                                                    "reject"
+                                                                )
+                                                            }
+                                                            size="sm"
+                                                            variant="outline"
+                                                        >
+                                                            Reject
+                                                        </Button>
+                                                    </>
+                                                ) : null}
+                                                {(order.status === "APPROVED" ||
+                                                    order.status ===
+                                                        "PARTIALLY_RECEIVED") && (
+                                                    <Button
+                                                        disabled={
+                                                            isTransitioningId ===
+                                                            order.id
+                                                        }
+                                                        onClick={() =>
+                                                            onTransitionOrder(
+                                                                order.id,
+                                                                "markOrdered"
+                                                            )
+                                                        }
+                                                        size="sm"
+                                                        variant="outline"
+                                                    >
+                                                        Mark Ordered
+                                                    </Button>
+                                                )}
+                                                {[
+                                                    "DRAFT",
+                                                    "SUBMITTED",
+                                                    "APPROVED",
+                                                ].includes(order.status) ? (
+                                                    <Button
+                                                        disabled={
+                                                            isTransitioningId ===
+                                                            order.id
+                                                        }
+                                                        onClick={() =>
+                                                            onTransitionOrder(
+                                                                order.id,
+                                                                "cancel"
+                                                            )
+                                                        }
+                                                        size="sm"
+                                                        variant="destructive"
+                                                    >
+                                                        Cancel
+                                                    </Button>
+                                                ) : null}
+                                            </div>
+                                        </TableCell>
+                                    </TableRow>
+                                ))
+                            )}
                         </TableBody>
                     </Table>
                 </div>
