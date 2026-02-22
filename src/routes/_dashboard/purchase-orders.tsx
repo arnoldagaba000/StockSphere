@@ -541,6 +541,299 @@ interface PurchaseOrderListSectionProps {
     purchaseOrders: PurchaseOrderList;
 }
 
+const PurchaseOrderFilters = ({
+    cancelReason,
+    filterSearch,
+    filterStatus,
+    filterSupplierId,
+    onPatchState,
+    onSetFilters,
+    suppliers,
+}: {
+    cancelReason: string;
+    filterSearch: string;
+    filterStatus: PurchaseOrdersPageState["filterStatus"];
+    filterSupplierId: string;
+    onPatchState: (patch: Partial<PurchaseOrdersPageState>) => void;
+    onSetFilters: (
+        patch: Partial<
+            Pick<
+                PurchaseOrdersPageState,
+                "filterSearch" | "filterStatus" | "filterSupplierId"
+            >
+        >
+    ) => void;
+    suppliers: PurchaseOrderList[number]["supplier"][];
+}) => (
+    <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="space-y-1">
+            <Label htmlFor="po-search">Search</Label>
+            <Input
+                id="po-search"
+                onChange={(event) =>
+                    onSetFilters({
+                        filterSearch: event.target.value,
+                    })
+                }
+                placeholder="Search by PO number or supplier"
+                value={filterSearch}
+            />
+        </div>
+        <div className="space-y-1">
+            <Label htmlFor="po-status">Status</Label>
+            <Select
+                onValueChange={(value) =>
+                    onSetFilters({
+                        filterStatus:
+                            value as PurchaseOrdersPageState["filterStatus"],
+                    })
+                }
+                value={filterStatus}
+            >
+                <SelectTrigger id="po-status">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="DRAFT">Draft</SelectItem>
+                    <SelectItem value="SUBMITTED">Submitted</SelectItem>
+                    <SelectItem value="APPROVED">Approved</SelectItem>
+                    <SelectItem value="ORDERED">Ordered</SelectItem>
+                    <SelectItem value="PARTIALLY_RECEIVED">
+                        Partially Received
+                    </SelectItem>
+                    <SelectItem value="RECEIVED">Received</SelectItem>
+                    <SelectItem value="REJECTED">Rejected</SelectItem>
+                    <SelectItem value="CANCELLED">Cancelled</SelectItem>
+                </SelectContent>
+            </Select>
+        </div>
+        <div className="space-y-1">
+            <Label htmlFor="po-supplier">Supplier</Label>
+            <Select
+                onValueChange={(value) =>
+                    onSetFilters({
+                        filterSupplierId: value === "all" ? "" : value,
+                    })
+                }
+                value={filterSupplierId.length > 0 ? filterSupplierId : "all"}
+            >
+                <SelectTrigger id="po-supplier">
+                    <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Suppliers</SelectItem>
+                    {suppliers.map((supplier) => (
+                        <SelectItem key={supplier.id} value={supplier.id}>
+                            {supplier.name}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+        <div className="space-y-1">
+            <Label htmlFor="po-cancel-reason">Cancel Reason (optional)</Label>
+            <Input
+                id="po-cancel-reason"
+                onChange={(event) =>
+                    onPatchState({
+                        cancelReason: event.target.value,
+                    })
+                }
+                placeholder="Reason included in audit trail"
+                value={cancelReason}
+            />
+        </div>
+    </div>
+);
+
+const PurchaseOrderTable = ({
+    currencyCode,
+    isFiltering,
+    isTransitioningId,
+    onLoadDetail,
+    onTransitionOrder,
+    orders,
+}: {
+    currencyCode: string;
+    isFiltering: boolean;
+    isTransitioningId: string | null;
+    onLoadDetail: (purchaseOrderId: string) => void;
+    onTransitionOrder: (
+        purchaseOrderId: string,
+        action: TransitionAction
+    ) => void;
+    orders: PurchaseOrderList;
+}) => (
+    <div className="overflow-x-auto rounded-md border">
+        <Table>
+            <TableHeader>
+                <TableRow>
+                    <TableHead>Order #</TableHead>
+                    <TableHead>Supplier</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+            </TableHeader>
+            <TableBody>
+                {isFiltering && orders.length === 0
+                    ? ["one", "two", "three"].map((key) => (
+                          <TableRow key={`po-skeleton-${key}`}>
+                              <TableCell>
+                                  <Skeleton className="h-4 w-28" />
+                              </TableCell>
+                              <TableCell>
+                                  <Skeleton className="h-4 w-32" />
+                              </TableCell>
+                              <TableCell>
+                                  <Skeleton className="h-4 w-20" />
+                              </TableCell>
+                              <TableCell>
+                                  <Skeleton className="h-4 w-16" />
+                              </TableCell>
+                              <TableCell className="text-right">
+                                  <Skeleton className="h-8 w-28 rounded-full" />
+                              </TableCell>
+                          </TableRow>
+                      ))
+                    : null}
+                {!isFiltering && orders.length === 0 ? (
+                    <TableRow>
+                        <TableCell className="text-center" colSpan={5}>
+                            No purchase orders found.
+                        </TableCell>
+                    </TableRow>
+                ) : null}
+                {orders.length > 0
+                    ? orders.map((order) => (
+                          <TableRow key={order.id}>
+                              <TableCell className="font-medium">
+                                  {order.orderNumber}
+                              </TableCell>
+                              <TableCell>{order.supplier.name}</TableCell>
+                              <TableCell>
+                                  <Badge variant="secondary">
+                                      {order.status}
+                                  </Badge>
+                              </TableCell>
+                              <TableCell>
+                                  {formatCurrencyFromMinorUnits(
+                                      order.totalAmount,
+                                      currencyCode
+                                  )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                  <div className="flex flex-wrap justify-end gap-2">
+                                      <Button
+                                          onClick={() => onLoadDetail(order.id)}
+                                          size="sm"
+                                          variant="outline"
+                                      >
+                                          View
+                                      </Button>
+                                      {order.status === "DRAFT" ? (
+                                          <Button
+                                              disabled={
+                                                  isTransitioningId === order.id
+                                              }
+                                              onClick={() =>
+                                                  onTransitionOrder(
+                                                      order.id,
+                                                      "submit"
+                                                  )
+                                              }
+                                              size="sm"
+                                              variant="outline"
+                                          >
+                                              Submit
+                                          </Button>
+                                      ) : null}
+                                      {order.status === "SUBMITTED" ? (
+                                          <>
+                                              <Button
+                                                  disabled={
+                                                      isTransitioningId ===
+                                                      order.id
+                                                  }
+                                                  onClick={() =>
+                                                      onTransitionOrder(
+                                                          order.id,
+                                                          "approve"
+                                                      )
+                                                  }
+                                                  size="sm"
+                                              >
+                                                  Approve
+                                              </Button>
+                                              <Button
+                                                  disabled={
+                                                      isTransitioningId ===
+                                                      order.id
+                                                  }
+                                                  onClick={() =>
+                                                      onTransitionOrder(
+                                                          order.id,
+                                                          "reject"
+                                                      )
+                                                  }
+                                                  size="sm"
+                                                  variant="outline"
+                                              >
+                                                  Reject
+                                              </Button>
+                                          </>
+                                      ) : null}
+                                      {(order.status === "APPROVED" ||
+                                          order.status ===
+                                              "PARTIALLY_RECEIVED") && (
+                                          <Button
+                                              disabled={
+                                                  isTransitioningId === order.id
+                                              }
+                                              onClick={() =>
+                                                  onTransitionOrder(
+                                                      order.id,
+                                                      "markOrdered"
+                                                  )
+                                              }
+                                              size="sm"
+                                              variant="outline"
+                                          >
+                                              Mark Ordered
+                                          </Button>
+                                      )}
+                                      {[
+                                          "DRAFT",
+                                          "SUBMITTED",
+                                          "APPROVED",
+                                      ].includes(order.status) ? (
+                                          <Button
+                                              disabled={
+                                                  isTransitioningId === order.id
+                                              }
+                                              onClick={() =>
+                                                  onTransitionOrder(
+                                                      order.id,
+                                                      "cancel"
+                                                  )
+                                              }
+                                              size="sm"
+                                              variant="destructive"
+                                          >
+                                              Cancel
+                                          </Button>
+                                      ) : null}
+                                  </div>
+                              </TableCell>
+                          </TableRow>
+                      ))
+                    : null}
+            </TableBody>
+        </Table>
+    </div>
+);
+
 const PurchaseOrderListSection = ({
     cancelReason,
     currencyCode,
@@ -585,289 +878,23 @@ const PurchaseOrderListSection = ({
                 <CardTitle className="text-base">Purchase Order List</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:grid-cols-2 lg:grid-cols-4">
-                    <div className="space-y-1">
-                        <Label htmlFor="po-search">Search</Label>
-                        <Input
-                            id="po-search"
-                            onChange={(event) =>
-                                onSetFilters({
-                                    filterSearch: event.target.value,
-                                })
-                            }
-                            placeholder="Search by PO number or supplier"
-                            value={filterSearch}
-                        />
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="po-status">Status</Label>
-                        <Select
-                            onValueChange={(value) =>
-                                onSetFilters({
-                                    filterStatus:
-                                        value as PurchaseOrdersPageState["filterStatus"],
-                                })
-                            }
-                            value={filterStatus}
-                        >
-                            <SelectTrigger id="po-status">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">All</SelectItem>
-                                <SelectItem value="DRAFT">Draft</SelectItem>
-                                <SelectItem value="SUBMITTED">
-                                    Submitted
-                                </SelectItem>
-                                <SelectItem value="APPROVED">
-                                    Approved
-                                </SelectItem>
-                                <SelectItem value="ORDERED">Ordered</SelectItem>
-                                <SelectItem value="PARTIALLY_RECEIVED">
-                                    Partially Received
-                                </SelectItem>
-                                <SelectItem value="RECEIVED">
-                                    Received
-                                </SelectItem>
-                                <SelectItem value="REJECTED">
-                                    Rejected
-                                </SelectItem>
-                                <SelectItem value="CANCELLED">
-                                    Cancelled
-                                </SelectItem>
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="po-supplier">Supplier</Label>
-                        <Select
-                            onValueChange={(value) =>
-                                onSetFilters({
-                                    filterSupplierId:
-                                        value === "all" ? "" : value,
-                                })
-                            }
-                            value={
-                                filterSupplierId.length > 0
-                                    ? filterSupplierId
-                                    : "all"
-                            }
-                        >
-                            <SelectTrigger id="po-supplier">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">
-                                    All Suppliers
-                                </SelectItem>
-                                {uniqueSuppliers.map((supplier) => (
-                                    <SelectItem
-                                        key={supplier.id}
-                                        value={supplier.id}
-                                    >
-                                        {supplier.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="po-cancel-reason">
-                            Cancel Reason (optional)
-                        </Label>
-                        <Input
-                            id="po-cancel-reason"
-                            onChange={(event) =>
-                                onPatchState({
-                                    cancelReason: event.target.value,
-                                })
-                            }
-                            placeholder="Reason included in audit trail"
-                            value={cancelReason}
-                        />
-                    </div>
-                </div>
-                <div className="overflow-x-auto rounded-md border">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Order #</TableHead>
-                                <TableHead>Supplier</TableHead>
-                                <TableHead>Status</TableHead>
-                                <TableHead>Total</TableHead>
-                                <TableHead className="text-right">
-                                    Actions
-                                </TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {isFiltering && filteredOrders.length === 0
-                                ? ["one", "two", "three"].map((key) => (
-                                      <TableRow key={`po-skeleton-${key}`}>
-                                          <TableCell>
-                                              <Skeleton className="h-4 w-28" />
-                                          </TableCell>
-                                          <TableCell>
-                                              <Skeleton className="h-4 w-32" />
-                                          </TableCell>
-                                          <TableCell>
-                                              <Skeleton className="h-4 w-20" />
-                                          </TableCell>
-                                          <TableCell>
-                                              <Skeleton className="h-4 w-16" />
-                                          </TableCell>
-                                          <TableCell className="text-right">
-                                              <Skeleton className="h-8 w-28 rounded-full" />
-                                          </TableCell>
-                                      </TableRow>
-                                  ))
-                                : null}
-                            {!isFiltering && filteredOrders.length === 0 ? (
-                                <TableRow>
-                                    <TableCell
-                                        className="text-center"
-                                        colSpan={5}
-                                    >
-                                        No purchase orders found.
-                                    </TableCell>
-                                </TableRow>
-                            ) : null}
-                            {filteredOrders.length > 0
-                                ? filteredOrders.map((order) => (
-                                      <TableRow key={order.id}>
-                                          <TableCell className="font-medium">
-                                              {order.orderNumber}
-                                          </TableCell>
-                                          <TableCell>
-                                              {order.supplier.name}
-                                          </TableCell>
-                                          <TableCell>
-                                              <Badge variant="secondary">
-                                                  {order.status}
-                                              </Badge>
-                                          </TableCell>
-                                          <TableCell>
-                                              {formatCurrencyFromMinorUnits(
-                                                  order.totalAmount,
-                                                  currencyCode
-                                              )}
-                                          </TableCell>
-                                          <TableCell className="text-right">
-                                              <div className="flex flex-wrap justify-end gap-2">
-                                                  <Button
-                                                      onClick={() =>
-                                                          onLoadDetail(order.id)
-                                                      }
-                                                      size="sm"
-                                                      variant="outline"
-                                                  >
-                                                      View
-                                                  </Button>
-                                                  {order.status === "DRAFT" ? (
-                                                      <Button
-                                                          disabled={
-                                                              isTransitioningId ===
-                                                              order.id
-                                                          }
-                                                          onClick={() =>
-                                                              onTransitionOrder(
-                                                                  order.id,
-                                                                  "submit"
-                                                              )
-                                                          }
-                                                          size="sm"
-                                                          variant="outline"
-                                                      >
-                                                          Submit
-                                                      </Button>
-                                                  ) : null}
-                                                  {order.status ===
-                                                  "SUBMITTED" ? (
-                                                      <>
-                                                          <Button
-                                                              disabled={
-                                                                  isTransitioningId ===
-                                                                  order.id
-                                                              }
-                                                              onClick={() =>
-                                                                  onTransitionOrder(
-                                                                      order.id,
-                                                                      "approve"
-                                                                  )
-                                                              }
-                                                              size="sm"
-                                                          >
-                                                              Approve
-                                                          </Button>
-                                                          <Button
-                                                              disabled={
-                                                                  isTransitioningId ===
-                                                                  order.id
-                                                              }
-                                                              onClick={() =>
-                                                                  onTransitionOrder(
-                                                                      order.id,
-                                                                      "reject"
-                                                                  )
-                                                              }
-                                                              size="sm"
-                                                              variant="outline"
-                                                          >
-                                                              Reject
-                                                          </Button>
-                                                      </>
-                                                  ) : null}
-                                                  {(order.status ===
-                                                      "APPROVED" ||
-                                                      order.status ===
-                                                          "PARTIALLY_RECEIVED") && (
-                                                      <Button
-                                                          disabled={
-                                                              isTransitioningId ===
-                                                              order.id
-                                                          }
-                                                          onClick={() =>
-                                                              onTransitionOrder(
-                                                                  order.id,
-                                                                  "markOrdered"
-                                                              )
-                                                          }
-                                                          size="sm"
-                                                          variant="outline"
-                                                      >
-                                                          Mark Ordered
-                                                      </Button>
-                                                  )}
-                                                  {[
-                                                      "DRAFT",
-                                                      "SUBMITTED",
-                                                      "APPROVED",
-                                                  ].includes(order.status) ? (
-                                                      <Button
-                                                          disabled={
-                                                              isTransitioningId ===
-                                                              order.id
-                                                          }
-                                                          onClick={() =>
-                                                              onTransitionOrder(
-                                                                  order.id,
-                                                                  "cancel"
-                                                              )
-                                                          }
-                                                          size="sm"
-                                                          variant="destructive"
-                                                      >
-                                                          Cancel
-                                                      </Button>
-                                                  ) : null}
-                                              </div>
-                                          </TableCell>
-                                      </TableRow>
-                                  ))
-                                : null}
-                        </TableBody>
-                    </Table>
-                </div>
+                <PurchaseOrderFilters
+                    cancelReason={cancelReason}
+                    filterSearch={filterSearch}
+                    filterStatus={filterStatus}
+                    filterSupplierId={filterSupplierId}
+                    onPatchState={onPatchState}
+                    onSetFilters={onSetFilters}
+                    suppliers={uniqueSuppliers}
+                />
+                <PurchaseOrderTable
+                    currencyCode={currencyCode}
+                    isFiltering={isFiltering}
+                    isTransitioningId={isTransitioningId}
+                    onLoadDetail={onLoadDetail}
+                    onTransitionOrder={onTransitionOrder}
+                    orders={filteredOrders}
+                />
             </CardContent>
         </Card>
     );
