@@ -25,6 +25,10 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { getCustomers } from "@/features/customers/get-customers";
+import {
+    getCustomerDefaultShippingAddress,
+    getDefaultSalesUnitPrice,
+} from "@/features/orders/order-form-defaults";
 import { getProducts } from "@/features/products/get-products";
 import { cancelSalesOrder } from "@/features/sales/cancel-sales-order";
 import { confirmSalesOrder } from "@/features/sales/confirm-sales-order";
@@ -63,25 +67,6 @@ interface SalesListFilters {
     search: string;
     status: string;
 }
-
-const getDefaultSalesUnitPrice = (
-    products: Awaited<ReturnType<typeof getProducts>>["products"],
-    productId: string
-): string => {
-    const product = products.find((entry) => entry.id === productId);
-    if (!product || product.sellingPrice == null) {
-        return "";
-    }
-    return String(product.sellingPrice);
-};
-
-const getCustomerDefaultShippingAddress = (
-    customers: Awaited<ReturnType<typeof getCustomers>>,
-    customerId: string
-): string => {
-    const customer = customers.find((entry) => entry.id === customerId);
-    return customer?.address?.trim() ?? "";
-};
 
 const createSalesLineItem = (
     products: Awaited<ReturnType<typeof getProducts>>["products"],

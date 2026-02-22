@@ -11,6 +11,7 @@ import { canUser } from "@/lib/auth/authorize";
 import { PERMISSIONS } from "@/lib/auth/permissions";
 import { authMiddleware } from "@/middleware/auth";
 import { manualStockEntrySchema } from "@/schemas/stock-item-schema";
+import { validateRequiredTrackingFields } from "./tracking-validation";
 
 export const createInitialStock = createServerFn({ method: "POST" })
     .inputValidator(manualStockEntrySchema)
@@ -69,12 +70,18 @@ export const createInitialStock = createServerFn({ method: "POST" })
             throw new Error("Serial number already exists in stock.");
         }
 
-        if (product.trackBySerialNumber && !data.serialNumber) {
-            throw new Error("This product requires a serial number.");
-        }
-        if (product.trackByExpiry && !data.expiryDate) {
-            throw new Error("This product requires an expiry date.");
-        }
+        validateRequiredTrackingFields(
+            {
+                trackByBatch: product.trackByBatch,
+                trackByExpiry: product.trackByExpiry,
+                trackBySerialNumber: product.trackBySerialNumber,
+            },
+            {
+                batchNumber: data.batchNumber,
+                expiryDate: data.expiryDate,
+                serialNumber: data.serialNumber,
+            }
+        );
 
         const numberingPrefixes = await getNumberingPrefixes();
 

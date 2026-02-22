@@ -24,6 +24,7 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
+import { getDefaultPurchaseUnitPrice } from "@/features/orders/order-form-defaults";
 import { getProducts } from "@/features/products/get-products";
 import { approvePurchaseOrder } from "@/features/purchases/approve-purchase-order";
 import { cancelPurchaseOrder } from "@/features/purchases/cancel-purchase-order";
@@ -45,17 +46,6 @@ interface PurchaseOrderFormItem {
     taxRate: string;
     unitPrice: string;
 }
-
-const getDefaultPurchaseUnitPrice = (
-    products: Awaited<ReturnType<typeof getProducts>>["products"],
-    productId: string
-): string => {
-    const product = products.find((entry) => entry.id === productId);
-    if (!product || product.costPrice == null) {
-        return "";
-    }
-    return String(product.costPrice);
-};
 
 const createLineItem = (
     products: Awaited<ReturnType<typeof getProducts>>["products"],
