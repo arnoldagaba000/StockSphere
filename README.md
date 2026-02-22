@@ -1,166 +1,174 @@
 # Stock Sphere IMS
 
-Stock Sphere is a full-stack inventory and operations platform for managing products, stock, purchasing, sales fulfillment, approvals, kits, reporting, and system administration.
-
-Built with TanStack Start + React + Bun, it is designed for multi-role warehouse and operations teams.
+Stock Sphere is a full-stack Inventory Management System (IMS) for running day-to-day warehouse and order operations: product master data, stock control, procurement, sales fulfillment, approvals, reporting, mobile warehouse flows, and system administration.
 
 ## Purpose
 
-Use Stock Sphere to:
-- maintain a clean product and category catalog
-- manage warehouses, locations, and stock buckets
-- receive goods, transfer stock, and perform controlled adjustments
-- run purchase and sales order workflows
-- enforce approvals and role-based controls
-- trace inventory with batch/expiry/serial tracking
-- monitor operations through dashboards and reports
+This application is designed to help teams:
+- Maintain accurate stock visibility across warehouses and locations.
+- Track inventory with batch, serial, and expiry support.
+- Run purchase and sales order workflows with approvals.
+- Assemble/disassemble kits (BOM-based inventory handling).
+- Monitor operations via dashboard metrics and reports.
+- Enforce role-based access control (RBAC) and auditability.
 
-## Core Capabilities
+## Implemented Functionality
 
-### Authentication and Access Control
-- Email/password authentication
-- OAuth support (Google)
-- Role-based access control (`VIEWER`, `STAFF`, `MANAGER`, `ADMIN`, `SUPER_ADMIN`)
-- Route and action protection based on permissions
+### 1. Authentication and Access Control
+- Email/password login and Google OAuth via Better Auth.
+- Session handling and protected dashboard routes.
+- Role-based permission checks across server functions.
+- User profile and security settings.
+- Admin user-management support (role-governed).
 
-### Master Data
-- Product management (pricing, tracking settings, variants, supplier links)
-- Category hierarchy (parent/child categories + category analytics)
-- Supplier and customer management
-- Warehouse and location management
+### 2. Master Data Management
+- Products: create/update/delete, pricing, tracking flags, media, variants, supplier links.
+- Categories: hierarchical category management.
+- Warehouses and locations: create/update/deactivate with operational use in stock flows.
+- Suppliers and customers: create/update/list with status handling.
 
-### Inventory Operations
-- Initial stock creation
-- Goods receipt processing
-- Stock transfers between warehouses/locations
-- Stock adjustments (with approval path where configured)
-- Quarantine and expiry management
-- Batch traceability and serial history views
+### 3. Inventory Operations
+- Stock overview and movement visibility.
+- Stock adjustment workflows (including approval/rejection paths).
+- Stock transfers between warehouse/location buckets.
+- Quarantine and expiry-oriented inventory flows.
+- Cycle counting and initial stock entry support.
+- Batch traceability and serial history retrieval.
 
-### Purchasing
-- Purchase order lifecycle (`DRAFT` → `SUBMITTED` → `APPROVED/REJECTED` → `ORDERED` → `RECEIVED`)
-- Supplier performance and purchasing analytics
-- Supplier-product cost and lead-time linking
+### 4. Procurement and Receiving
+- Purchase orders: draft, submit, approve/reject, mark ordered, cancel.
+- Goods receipts: receive and post inventory updates.
+- Supplier-linked procurement support.
 
-### Sales and Fulfillment
-- Sales order creation and draft editing
-- Order confirmation, shipment posting, and delivery updates
-- Stock bucket selection during shipment
+### 5. Sales and Fulfillment
+- Sales order lifecycle: create draft, confirm, ship, deliver, cancel.
+- Draft update/delete support.
+- Customer-linked sales workflow with shipment progression.
 
-### Approvals and Governance
-- Approval workflows for controlled operations
-- Activity/audit logging for sensitive changes
-- Archiving and operational record controls
+### 6. Kits and Assembly
+- Kit BOM management.
+- Kit assembly/disassembly operations.
+- Kit genealogy / component relationships.
 
-### Kits and Assemblies
-- Bill of materials (BOM) management
-- Kit assembly/disassembly
-- Kit genealogy and traceability
+### 7. Approvals and Audit
+- Approval inbox for pending operational decisions.
+- Activity log and audit-related route support.
 
-### Reports and Dashboard
-- Operational dashboard (KPIs, queue pressure, trend visuals)
-- Inventory valuation and aging analysis
-- Movement and stock reports
-- Snapshot-driven dashboard metrics with caching
+### 8. Reporting and Analytics
+- Dashboard KPIs with 5-minute cache strategy.
+- Stock valuation report generation.
+- Stock movement report (JSON/CSV).
+- Aging/dead-stock analytics.
+- Stock snapshot generation for trend reporting.
 
-### System Configuration
-- Company profile and financial defaults
-- Numbering/prefix settings
-- Import/export system settings
+### 9. Dashboard UX and Search
+- Redesigned dashboard with KPI cards, trend visuals, distribution chart, queue health, and quick actions.
+- Recharts-based visualizations on the dashboard.
+- Color-coded positive/negative trend values with directional icons.
+- Global command-style navbar search (`Ctrl/Cmd + K`):
+  - Fast route navigation.
+  - Entity search across products, categories, customers, suppliers, purchase orders, and sales orders (permission-aware).
 
-## Navigation Areas
+### 10. Mobile Operations
+- Dedicated mobile routes for receive, pick, and transfer workflows.
+- Sidebar/mobile navigation behavior improvements for operation continuity.
 
-Primary dashboard modules include:
-- Dashboard
-- Products
-- Categories
-- Warehouses
-- Locations
-- Stock
-- Purchasing / Purchase Orders / Goods Receipts
-- Sales Orders
-- Approvals
-- Kits
-- Reports
-- Settings
-- Mobile Ops (as implemented for current sprint scope)
+## Tech Stack
 
-## Technology Stack
-
-- Runtime: Bun
-- Frontend: React 19 + TanStack Router/Start + Vite
-- Data layer: Prisma + PostgreSQL
+- Runtime/Tooling: Bun, Vite, TypeScript
+- Frontend: React 19, TanStack Router, TanStack Start
+- Data/State: TanStack Query, TanStack Form, TanStack Table
 - Auth: Better Auth
-- UI: Tailwind CSS v4 + shadcn/ui
-- Validation: Zod
-- Quality tooling: Ultracite (Biome-based)
+- Database: PostgreSQL + Prisma ORM
+- UI: Tailwind CSS v4, shadcn/ui primitives, Lucide icons
+- Charts: Recharts
+- Quality: Ultracite (Biome-powered linting/formatting)
 
-## Project Structure
+## Architecture Notes
 
-- `src/routes` - route modules (dashboard, operations, settings, auth)
-- `src/features` - server-side business logic per domain
-- `src/components` - reusable UI and feature components
-- `src/lib` - cross-cutting app libraries (auth, utilities)
-- `src/middleware` - request/session middleware
-- `prisma/schema.prisma` - database schema
-- `docs/` - operational documentation
+- File-based routing under `src/routes`.
+- Server operations implemented as TanStack Start server functions under `src/features/**`.
+- RBAC checks performed server-side using permission constants and authorization helpers.
+- Query caching is used for dashboard and list workloads where eventual consistency is acceptable.
 
-## Setup
+## Getting Started
 
-### 1. Install dependencies
+### Prerequisites
+- Bun installed
+- PostgreSQL running and reachable
+
+### 1) Install dependencies
 
 ```bash
 bun install
 ```
 
-### 2. Configure environment
+### 2) Configure environment
 
-Create `.env.local`:
+Copy `.env.example` to `.env.local` and fill values:
 
 ```env
-DATABASE_URL="postgresql://user:password@localhost:5432/ims_db?schema=public"
-BETTER_AUTH_SECRET="your-32+-char-secret"
-BETTER_AUTH_URL="http://localhost:3000"
-GOOGLE_CLIENT_ID="your-google-client-id"
-GOOGLE_CLIENT_SECRET="your-google-client-secret"
+DATABASE_URL="postgresql://user:password@localhost:5432/db_name?schema=public"
+
+BETTER_AUTH_SECRET=
+BETTER_AUTH_URL=
+SUPER_ADMIN_EMAIL=
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_FROM=
+SMTP_SECURE=false
 ```
 
-### 3. Prepare database
+Important:
+- `BETTER_AUTH_URL` must match the URL you use to access the app (e.g., `http://localhost:3000` or your LAN host URL), otherwise auth callback validation can fail.
+
+### 3) Prepare database
 
 ```bash
 bun run db:generate
 bun run db:migrate
 ```
 
-### 4. Run app
+### 4) Run development server
 
 ```bash
 bun run dev
 ```
 
-App URL: `http://localhost:3000`
+App default: `http://localhost:3000`
 
 ## Scripts
 
-- `bun run dev` - start development server
-- `bun run build` - production build
-- `bun run preview` - preview production build
-- `bun run db:migrate` - apply migrations
-- `bun run db:push` - sync Prisma schema
-- `bun run db:studio` - open Prisma Studio
-- `bun run check` - lint/format check
-- `bun run fix` - auto-fix lint/format issues
-- `bun x ultracite check` - full quality checks
-- `bun x ultracite fix` - full auto-fixes
+- `bun run dev` - Start dev server
+- `bun run build` - Build production assets
+- `bun run preview` - Preview production build
+- `bun run test` - Run tests
+- `bun run db:generate` - Generate Prisma client
+- `bun run db:migrate` - Run Prisma migrations
+- `bun run db:push` - Push schema to DB
+- `bun run db:studio` - Open Prisma Studio
+- `bun run db:seed` - Seed DB (if seed pipeline is configured)
+- `bun run db:reset` - Reset database/migrations
+- `bun run check` - Lint/format checks
+- `bun run fix` - Auto-fix lint/format issues
 
-## Operational Notes
+## Project Structure
 
-- Dashboard metrics are intentionally cached for stability/performance.
-- Product tracking mode (batch/expiry/serial) controls required stock-entry data.
-- Purchase and sales forms auto-fill defaults (prices/addresses) while allowing override.
-- Archived record views are available in relevant modules.
+- `src/routes` - Route-level pages/layouts (`/_auth`, `/_dashboard`, etc.)
+- `src/features` - Domain server functions and business logic
+- `src/components` - Shared UI and layout components
+- `src/lib/auth` - Auth client/server setup and authorization helpers
+- `prisma/schema.prisma` - Data model and relations
+- `StockSphere_Sprint_Guide.pdf` - Sprint and feature reference
 
-## Documentation
+## Current Status
 
-- `docs/OPERATIONS_GUIDE.md` - practical module-by-module usage guide
-
+- Core IMS functionality across operations, approvals, reporting, and admin settings is implemented.
+- PWA hardening/installability was intentionally deferred to a later phase.
+- Full end-to-end and broader QA sweep is planned as a dedicated testing phase.
