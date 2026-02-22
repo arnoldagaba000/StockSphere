@@ -13,6 +13,11 @@ import { adminAccessControl, betterAuthAdminRoles } from "./admin-access";
 import { DEFAULT_USER_ROLE, isSuperAdminEmail } from "./roles";
 import { ensureSuperAdminRole } from "./super-admin";
 
+const baseURL = process.env.BETTER_AUTH_BASE_URL ?? "http://localhost:5173";
+
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
 /**
  * Application auth instance.
  *
@@ -25,6 +30,7 @@ export const auth = betterAuth({
     database: prismaAdapter(prisma, {
         provider: "postgresql",
     }),
+    baseURL,
     user: {
         additionalFields: {
             // Expose role in auth responses/session payloads.
@@ -99,13 +105,16 @@ export const auth = betterAuth({
             });
         },
     },
-    socialProviders: {
-        google: {
-            prompt: "select_account",
-            clientId: process.env.GOOGLE_CLIENT_ID as string,
-            clientSecret: process.env.GOOGLE_CLIENT_SECRET as string,
-        },
-    },
+    socialProviders:
+        googleClientId && googleClientSecret
+            ? {
+                  google: {
+                      prompt: "select_account",
+                      clientId: googleClientId,
+                      clientSecret: googleClientSecret,
+                  },
+              }
+            : {},
     plugins: [
         admin({
             ac: adminAccessControl,
