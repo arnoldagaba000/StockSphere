@@ -2,6 +2,7 @@ import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { ArrowRight, FileText, PackageCheck, ReceiptText } from "lucide-react";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import { z } from "zod";
 import { formatCurrencyFromMinorUnits } from "@/components/features/products/utils";
 import {
     RouteErrorFallback,
@@ -75,6 +76,18 @@ type PurchaseOrderDetail = Awaited<ReturnType<typeof getPurchaseOrderDetail>>;
 interface PurchaseOrdersPageState {
     cancelReason: string;
     expectedDate: string;
+    filterSearch: string;
+    filterStatus:
+        | "all"
+        | "APPROVED"
+        | "DRAFT"
+        | "SUBMITTED"
+        | "REJECTED"
+        | "CANCELLED"
+        | "ORDERED"
+        | "RECEIVED"
+        | "PARTIALLY_RECEIVED";
+    filterSupplierId: string;
     isLoadingDetail: boolean;
     isSaving: boolean;
     isTransitioningId: string | null;
@@ -93,6 +106,25 @@ const purchaseOrdersPageReducer = (
 ): PurchaseOrdersPageState => ({
     ...state,
     ...patch,
+});
+
+const purchaseOrdersSearchSchema = z.object({
+    search: z.string().optional().catch(""),
+    status: z
+        .enum([
+            "all",
+            "APPROVED",
+            "CANCELLED",
+            "DRAFT",
+            "ORDERED",
+            "PARTIALLY_RECEIVED",
+            "RECEIVED",
+            "REJECTED",
+            "SUBMITTED",
+        ])
+        .optional()
+        .catch("all"),
+    supplierId: z.string().optional().catch(""),
 });
 
 type PurchaseOrderList = Awaited<ReturnType<typeof getPurchaseOrders>>;
@@ -487,9 +519,20 @@ const CreatePurchaseOrderSection = ({
 interface PurchaseOrderListSectionProps {
     cancelReason: string;
     currencyCode: string;
+    filterSearch: string;
+    filterStatus: PurchaseOrdersPageState["filterStatus"];
+    filterSupplierId: string;
     isTransitioningId: string | null;
     onLoadDetail: (purchaseOrderId: string) => void;
     onPatchState: (patch: Partial<PurchaseOrdersPageState>) => void;
+    onSetFilters: (
+        patch: Partial<
+            Pick<
+                PurchaseOrdersPageState,
+                "filterSearch" | "filterStatus" | "filterSupplierId"
+            >
+        >
+    ) => void;
     onTransitionOrder: (
         purchaseOrderId: string,
         action: TransitionAction
@@ -500,32 +543,147 @@ interface PurchaseOrderListSectionProps {
 const PurchaseOrderListSection = ({
     cancelReason,
     currencyCode,
+    filterSearch,
+    filterStatus,
+    filterSupplierId,
     isTransitioningId,
     onLoadDetail,
     onPatchState,
+    onSetFilters,
     onTransitionOrder,
     purchaseOrders,
 }: PurchaseOrderListSectionProps) => {
+    const filteredOrders = purchaseOrders.filter((order) => {
+        const matchesSearch =
+            filterSearch.trim().length === 0 ||
+            order.orderNumber
+                .toLowerCase()
+                .includes(filterSearch.trim().toLowerCase()) ||
+            order.supplier.name
+                .toLowerCase()
+                .includes(filterSearch.trim().toLowerCase());
+        const matchesStatus =
+            filterStatus === "all" || order.status === filterStatus;
+        const matchesSupplier =
+            filterSupplierId.length === 0 ||
+            order.supplier.id === filterSupplierId;
+
+        return matchesSearch && matchesStatus && matchesSupplier;
+    });
+
+    const uniqueSuppliers = Array.from(
+        new Map(
+            purchaseOrders.map((order) => [order.supplier.id, order.supplier])
+        ).values()
+    );
+
     return (
         <Card className="border-border/60">
             <CardHeader className="pb-3">
                 <CardTitle className="text-base">Purchase Order List</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-                <div className="grid gap-2 rounded-lg border bg-muted/20 p-3 md:max-w-md">
-                    <Label htmlFor="po-cancel-reason">
-                        Cancel Reason (optional)
-                    </Label>
-                    <Input
-                        id="po-cancel-reason"
-                        onChange={(event) =>
-                            onPatchState({
-                                cancelReason: event.target.value,
-                            })
-                        }
-                        placeholder="Reason included in audit trail"
-                        value={cancelReason}
-                    />
+                <div className="grid gap-3 rounded-lg border bg-muted/20 p-3 md:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-1">
+                        <Label htmlFor="po-search">Search</Label>
+                        <Input
+                            id="po-search"
+                            onChange={(event) =>
+                                onSetFilters({
+                                    filterSearch: event.target.value,
+                                })
+                            }
+                            placeholder="Search by PO number or supplier"
+                            value={filterSearch}
+                        />
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="po-status">Status</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onSetFilters({
+                                    filterStatus:
+                                        value as PurchaseOrdersPageState["filterStatus"],
+                                })
+                            }
+                            value={filterStatus}
+                        >
+                            <SelectTrigger id="po-status">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All</SelectItem>
+                                <SelectItem value="DRAFT">Draft</SelectItem>
+                                <SelectItem value="SUBMITTED">
+                                    Submitted
+                                </SelectItem>
+                                <SelectItem value="APPROVED">
+                                    Approved
+                                </SelectItem>
+                                <SelectItem value="ORDERED">Ordered</SelectItem>
+                                <SelectItem value="PARTIALLY_RECEIVED">
+                                    Partially Received
+                                </SelectItem>
+                                <SelectItem value="RECEIVED">
+                                    Received
+                                </SelectItem>
+                                <SelectItem value="REJECTED">
+                                    Rejected
+                                </SelectItem>
+                                <SelectItem value="CANCELLED">
+                                    Cancelled
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="po-supplier">Supplier</Label>
+                        <Select
+                            onValueChange={(value) =>
+                                onSetFilters({
+                                    filterSupplierId:
+                                        value === "all" ? "" : value,
+                                })
+                            }
+                            value={
+                                filterSupplierId.length > 0
+                                    ? filterSupplierId
+                                    : "all"
+                            }
+                        >
+                            <SelectTrigger id="po-supplier">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">
+                                    All Suppliers
+                                </SelectItem>
+                                {uniqueSuppliers.map((supplier) => (
+                                    <SelectItem
+                                        key={supplier.id}
+                                        value={supplier.id}
+                                    >
+                                        {supplier.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="space-y-1">
+                        <Label htmlFor="po-cancel-reason">
+                            Cancel Reason (optional)
+                        </Label>
+                        <Input
+                            id="po-cancel-reason"
+                            onChange={(event) =>
+                                onPatchState({
+                                    cancelReason: event.target.value,
+                                })
+                            }
+                            placeholder="Reason included in audit trail"
+                            value={cancelReason}
+                        />
+                    </div>
                 </div>
                 <div className="overflow-x-auto rounded-md border">
                     <Table>
@@ -541,7 +699,7 @@ const PurchaseOrderListSection = ({
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {purchaseOrders.map((order) => (
+                            {filteredOrders.map((order) => (
                                 <TableRow key={order.id}>
                                     <TableCell className="font-medium">
                                         {order.orderNumber}
@@ -819,6 +977,7 @@ export const Route = createFileRoute("/_dashboard/purchase-orders")({
         };
     },
     pendingComponent: PurchaseOrdersRoutePending,
+    validateSearch: purchaseOrdersSearchSchema,
 });
 
 function PurchaseOrdersRoutePending() {
@@ -849,12 +1008,17 @@ function PurchaseOrdersRouteError({
 
 function PurchaseOrdersPage() {
     const router = useRouter();
+    const navigate = Route.useNavigate();
+    const searchParams = Route.useSearch();
     const { financialSettings, products, purchaseOrders, report, suppliers } =
         Route.useLoaderData();
     const { currencyCode } = financialSettings;
     const [state, patchState] = useReducer(purchaseOrdersPageReducer, {
         cancelReason: "",
         expectedDate: "",
+        filterSearch: searchParams.search ?? "",
+        filterStatus: searchParams.status ?? "all",
+        filterSupplierId: searchParams.supplierId ?? "",
         isLoadingDetail: false,
         isSaving: false,
         isTransitioningId: null,
@@ -873,6 +1037,9 @@ function PurchaseOrdersPage() {
         isSaving,
         isTransitioningId,
         items,
+        filterSearch,
+        filterStatus,
+        filterSupplierId,
         selectedOrderDetail,
         selectedOrderId,
         shippingCost,
@@ -880,6 +1047,51 @@ function PurchaseOrdersPage() {
         taxAmount,
         notes,
     } = state;
+
+    const syncFiltersToSearch = (
+        nextFilters: Pick<
+            PurchaseOrdersPageState,
+            "filterSearch" | "filterStatus" | "filterSupplierId"
+        >
+    ): void => {
+        navigate({
+            replace: true,
+            search: {
+                search: nextFilters.filterSearch.trim() || undefined,
+                status:
+                    nextFilters.filterStatus === "all"
+                        ? undefined
+                        : nextFilters.filterStatus,
+                supplierId:
+                    nextFilters.filterSupplierId.length > 0
+                        ? nextFilters.filterSupplierId
+                        : undefined,
+            },
+        }).catch(() => undefined);
+    };
+
+    const setFilters = (
+        patch: Partial<
+            Pick<
+                PurchaseOrdersPageState,
+                "filterSearch" | "filterStatus" | "filterSupplierId"
+            >
+        >
+    ): void => {
+        patchState((current) => {
+            const nextFilters = {
+                filterSearch: patch.filterSearch ?? current.filterSearch,
+                filterStatus: patch.filterStatus ?? current.filterStatus,
+                filterSupplierId:
+                    patch.filterSupplierId ?? current.filterSupplierId,
+            };
+            syncFiltersToSearch(nextFilters);
+            return {
+                ...current,
+                ...patch,
+            };
+        });
+    };
 
     const subtotal = useMemo(
         () =>
@@ -1081,6 +1293,9 @@ function PurchaseOrdersPage() {
             <PurchaseOrderListSection
                 cancelReason={cancelReason}
                 currencyCode={currencyCode}
+                filterSearch={filterSearch}
+                filterStatus={filterStatus}
+                filterSupplierId={filterSupplierId}
                 isTransitioningId={isTransitioningId}
                 onLoadDetail={(purchaseOrderId) => {
                     loadPurchaseOrderDetail(purchaseOrderId).catch(
@@ -1088,6 +1303,7 @@ function PurchaseOrdersPage() {
                     );
                 }}
                 onPatchState={patchState}
+                onSetFilters={setFilters}
                 onTransitionOrder={(purchaseOrderId, action) => {
                     transitionOrder(purchaseOrderId, action).catch(
                         () => undefined
