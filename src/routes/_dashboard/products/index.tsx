@@ -1,10 +1,15 @@
 import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
 import { useMemo, useReducer } from "react";
 import toast from "react-hot-toast";
+import { z } from "zod";
 import {
     buildCategoryHierarchy,
     formatCurrencyFromMinorUnits,
 } from "@/components/features/products/utils";
+import {
+    RouteErrorFallback,
+    RoutePendingFallback,
+} from "@/components/layout/route-feedback";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -91,6 +96,18 @@ type ProductsPageAction =
     | Partial<ProductsPageState>
     | ((state: ProductsPageState) => Partial<ProductsPageState>);
 
+const productsSearchSchema = z.object({
+    categoryId: z.string().optional().catch(undefined),
+    includeDescendants: z.coerce.boolean().optional().catch(false),
+    maxPrice: z.coerce.number().nonnegative().optional().catch(undefined),
+    minPrice: z.coerce.number().nonnegative().optional().catch(undefined),
+    search: z.string().optional().catch(""),
+    status: z.enum(["active", "inactive", "all"]).optional().catch("active"),
+    trackBatch: z.enum(["yes", "no", "all"]).optional().catch("all"),
+    trackExpiry: z.enum(["yes", "no", "all"]).optional().catch("all"),
+    trackSerial: z.enum(["yes", "no", "all"]).optional().catch("all"),
+});
+
 const productsPageReducer = (
     state: ProductsPageState,
     action: ProductsPageAction
@@ -158,6 +175,7 @@ const toBulkAction = (value: string | null): BulkAction => {
 
 export const Route = createFileRoute("/_dashboard/products/")({
     component: ProductsPage,
+    errorComponent: ProductsRouteError,
     staleTime: 0,
     preloadStaleTime: 0,
     loader: async (): Promise<ProductsLoaderData> => {
@@ -232,7 +250,35 @@ export const Route = createFileRoute("/_dashboard/products/")({
             ),
         };
     },
+    pendingComponent: ProductsRoutePending,
+    validateSearch: productsSearchSchema,
 });
+
+function ProductsRoutePending() {
+    return (
+        <RoutePendingFallback
+            subtitle="Loading product catalog, categories, and analytics."
+            title="Loading Products"
+        />
+    );
+}
+
+function ProductsRouteError({
+    error,
+    reset,
+}: {
+    error: unknown;
+    reset: () => void;
+}) {
+    return (
+        <RouteErrorFallback
+            error={error}
+            reset={reset}
+            title="Products failed to load"
+            to="/"
+        />
+    );
+}
 
 const triggerBrowserDownload = (filename: string, content: string): void => {
     const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
@@ -750,26 +796,34 @@ const ProductTable = ({
 
 function ProductsPage() {
     const router = useRouter();
+    const navigate = Route.useNavigate();
+    const searchParams = Route.useSearch();
     const { analytics, categories, financialSettings, products } =
         Route.useLoaderData();
     const { currencyCode } = financialSettings;
     const [state, setState] = useReducer(productsPageReducer, {
         bulkAction: "markInactive" as BulkAction,
         bulkCategoryId: "none",
-        categoryValue: "all",
+        categoryValue: searchParams.categoryId ?? "all",
         deletingProductId: null,
         filteredProducts: null,
-        includeDescendants: true,
+        includeDescendants: searchParams.includeDescendants ?? false,
         isBulkRunning: false,
         isFiltering: false,
-        maxPriceValue: "",
-        minPriceValue: "",
-        searchValue: "",
+        maxPriceValue:
+            searchParams.maxPrice !== undefined
+                ? String(searchParams.maxPrice)
+                : "",
+        minPriceValue:
+            searchParams.minPrice !== undefined
+                ? String(searchParams.minPrice)
+                : "",
+        searchValue: searchParams.search ?? "",
         selectedProductIds: [],
-        statusValue: "all" as ProductStatusFilter,
-        trackingBatchValue: "all" as TrackingFilter,
-        trackingExpiryValue: "all" as TrackingFilter,
-        trackingSerialValue: "all" as TrackingFilter,
+        statusValue: toStatusFilter(searchParams.status ?? null),
+        trackingBatchValue: toTrackingFilter(searchParams.trackBatch ?? null),
+        trackingExpiryValue: toTrackingFilter(searchParams.trackExpiry ?? null),
+        trackingSerialValue: toTrackingFilter(searchParams.trackSerial ?? null),
     });
     const {
         bulkAction,
@@ -840,6 +894,38 @@ function ProductsPage() {
             selectedProductIds.includes(product.id)
         );
 
+    const syncSearchParams = (): void => {
+        navigate({
+            replace: true,
+            search: {
+                categoryId: categoryValue === "all" ? undefined : categoryValue,
+                includeDescendants: includeDescendants || undefined,
+                maxPrice:
+                    maxPriceValue.trim().length > 0
+                        ? Number(maxPriceValue)
+                        : undefined,
+                minPrice:
+                    minPriceValue.trim().length > 0
+                        ? Number(minPriceValue)
+                        : undefined,
+                search: searchValue.trim() || undefined,
+                status: statusValue,
+                trackBatch:
+                    trackingBatchValue === "all"
+                        ? undefined
+                        : trackingBatchValue,
+                trackExpiry:
+                    trackingExpiryValue === "all"
+                        ? undefined
+                        : trackingExpiryValue,
+                trackSerial:
+                    trackingSerialValue === "all"
+                        ? undefined
+                        : trackingSerialValue,
+            },
+        }).catch(() => undefined);
+    };
+
     const applyFilters = async () => {
         const categoryIdValue =
             categoryValue === "all" ? undefined : categoryValue;
@@ -869,6 +955,7 @@ function ProductsPage() {
                 isFiltering: false,
                 selectedProductIds: [],
             });
+            syncSearchParams();
         } catch (error) {
             setState({ isFiltering: false });
             const message =
